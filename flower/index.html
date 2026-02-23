@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flor Neurofuncional | EEG → Visualización por Bandas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+
+        <!-- ───── Header ───── -->
+        <header class="header">
+            <div class="header-inner">
+                <div class="logo">
+                    <span class="logo-glyph">✿</span>
+                    <div>
+                        <h1>Flor <span class="accent">Neurofuncional</span></h1>
+                        <p class="tagline">Tu actividad cerebral convertida en una flor única</p>
+                    </div>
+                </div>
+                <button class="btn-ghost" id="btn-back" title="Cargar otro archivo" style="display:none">
+                    ← Nuevo archivo
+                </button>
+            </div>
+        </header>
+
+        <!-- ───── Upload Section ───── -->
+        <section class="upload-section" id="upload-section">
+            <div class="upload-card" id="upload-area">
+                <div class="upload-visual">
+                    <div class="upload-flower-icon">
+                        <svg viewBox="0 0 140 140" width="140" height="140">
+                            <!-- Stem -->
+                            <line x1="70" y1="95" x2="70" y2="130" stroke="#A8D8B9" stroke-width="2.5" stroke-linecap="round"/>
+                            <!-- Leaf -->
+                            <path d="M70,115 Q58,108 52,112 Q58,118 70,115" fill="#A8D8B9" opacity="0.6"/>
+                            <!-- Petals -->
+                            <g opacity="0.5">
+                                <ellipse cx="70" cy="52" rx="12" ry="22" fill="#FFD1DC" transform="rotate(0,70,72)"/>
+                                <ellipse cx="70" cy="52" rx="12" ry="22" fill="#B8C0E0" transform="rotate(72,70,72)"/>
+                                <ellipse cx="70" cy="52" rx="12" ry="22" fill="#A8D8B9" transform="rotate(144,70,72)"/>
+                                <ellipse cx="70" cy="52" rx="12" ry="22" fill="#FFDAB9" transform="rotate(216,70,72)"/>
+                                <ellipse cx="70" cy="52" rx="12" ry="22" fill="#FFF3B0" transform="rotate(288,70,72)"/>
+                            </g>
+                            <!-- Center -->
+                            <circle cx="70" cy="72" r="10" fill="#FFE4C9" stroke="#F2B5D4" stroke-width="1"/>
+                            <circle cx="70" cy="72" r="4" fill="#F2B5D4" opacity="0.7"/>
+                        </svg>
+                    </div>
+                    <h2>Carga tu lectura EEG</h2>
+                    <p>Arrastra un archivo <strong>.json</strong> de la diadema Muse o haz clic para seleccionar</p>
+                </div>
+                <input type="file" id="file-input" accept=".json" hidden>
+                <div class="upload-actions">
+                    <button class="btn-primary" id="btn-upload">
+                        <span>📂</span> Seleccionar Archivo
+                    </button>
+                    <button class="btn-secondary" id="btn-demo">
+                        <span>🌸</span> Usar datos de ejemplo
+                    </button>
+                </div>
+                <p class="upload-hint">
+                    Cada banda de frecuencia cerebral se transforma en un pétalo.<br>
+                    Cada persona genera una flor única e irrepetible.
+                </p>
+            </div>
+        </section>
+
+        <!-- ───── Main Content (hidden until data loaded) ───── -->
+        <div class="main-content" id="main-content" style="display:none">
+
+            <!-- Tabs -->
+            <nav class="tabs">
+                <button class="tab active" data-tab="flower2d">🌸 Flor 2D</button>
+                <button class="tab" data-tab="flower3d">🌺 Flor 3D</button>
+                <button class="tab" data-tab="analysis">🔬 Análisis de Bandas</button>
+            </nav>
+
+            <!-- Tab Panels -->
+            <div class="tab-content">
+
+                <!-- 2D Flower -->
+                <div class="tab-panel active" id="panel-flower2d">
+                    <div class="canvas-wrapper">
+                        <canvas id="flower-2d-canvas"></canvas>
+                    </div>
+                    <button class="btn-export" id="btn-export-2d">📥 Descargar Flor 2D (PNG)</button>
+                </div>
+
+                <!-- 3D Flower -->
+                <div class="tab-panel" id="panel-flower3d">
+                    <div id="flower-3d-container"></div>
+
+                    <!-- Export Card -->
+                    <div class="export-card">
+                        <div class="export-card-header">
+                            <span class="export-card-icon">🖨️</span>
+                            <div>
+                                <strong>Exportar para impresión 3D</strong>
+                                <span class="export-card-sub">Genera archivos GLB / 3MF / STL con colores integrados</span>
+                            </div>
+                        </div>
+
+                        <div class="export-card-options">
+                            <div class="export-option-group">
+                                <label for="print-size-mm">Altura</label>
+                                <select id="print-size-mm">
+                                    <option value="80">80 mm</option>
+                                    <option value="100">100 mm</option>
+                                    <option value="120" selected>120 mm</option>
+                                    <option value="160">160 mm</option>
+                                    <option value="200">200 mm</option>
+                                </select>
+                            </div>
+                            <div class="export-option-group">
+                                <label for="print-export-format">Formato final</label>
+                                <select id="print-export-format">
+                                    <option value="glb+3mf" selected>GLB + 3MF (recomendado)</option>
+                                    <option value="glb">Solo GLB</option>
+                                    <option value="3mf">Solo 3MF</option>
+                                    <option value="stl">STL por partes</option>
+                                    <option value="all">Todos los formatos</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Step 1: Export JSON -->
+                        <button class="btn-export-3d-print" id="btn-export-3d">🖨️ Exportar y convertir para impresión 3D</button>
+                        <div class="export-status" id="export-status" style="display:none"></div>
+
+                        <!-- Instructions (shown after export) -->
+                        <div class="export-instructions" id="export-instructions" style="display:none">
+                            <div class="export-step">
+                                <span class="step-num">1</span>
+                                <div>
+                                    <strong>JSON descargado</strong>
+                                    <span>El archivo de geometría se guardó en tu carpeta de descargas</span>
+                                </div>
+                                <span class="step-check">✓</span>
+                            </div>
+                            <div class="export-step">
+                                <span class="step-num">2</span>
+                                <div>
+                                    <strong>Inicia el servidor Python local</strong>
+                                    <span>Abre terminal en la carpeta del proyecto y corre:</span>
+                                    <code id="export-cmd">python flower_local_server.py</code>
+                                </div>
+                            </div>
+                            <div class="export-step">
+                                <span class="step-num">3</span>
+                                <div>
+                                    <strong>Abre en tu slicer</strong>
+                                    <span>Importa el .GLB o .3MF en Bambu Studio / PrusaSlicer / OrcaSlicer</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="hint-3d">Arrastra para rotar · Scroll para zoom · Clic derecho para mover</p>
+                </div>
+
+                <!-- Analysis -->
+                <div class="tab-panel" id="panel-analysis">
+                    <div class="analysis-grid" id="analysis-content">
+                        <!-- Filled by app.js -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Band Summary Bar -->
+            <div class="band-bar" id="band-bar">
+                <!-- Filled by app.js -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ───── Scripts ───── -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="eeg_band_analyzer.js"></script>
+    <script src="flower_2d.js"></script>
+    <script src="flower_3d.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
