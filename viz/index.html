@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Viz Muse EEG | Captura en Tiempo Real</title>
+    <title>Viz Muse EEG | Captura + Flor Neurofuncional 2D</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
@@ -17,7 +17,7 @@
                     <span class="logo-glyph">🧠</span>
                     <div>
                         <h1>Viz <span class="accent">Muse EEG</span></h1>
-                        <p class="tagline">Captura en vivo, descarga JSON y convierte JSON → MIDI</p>
+                        <p class="tagline">Captura EEG en vivo y crea Flor Neurofuncional 2D desde JSON</p>
                     </div>
                 </div>
                 <div class="status-pill" id="status-pill">
@@ -27,60 +27,107 @@
             </div>
         </header>
 
+        <nav class="tabs" aria-label="Secciones principales">
+            <button class="tab active" id="tab-capture" data-tab="capture">🛰️ Toma EEG</button>
+            <button class="tab" id="tab-flower" data-tab="flower">🌸 Flor + Análisis</button>
+        </nav>
+
         <main class="layout">
-            <section class="panel controls-panel">
-                <h2>Controles de Captura</h2>
+            <section class="view active" id="view-capture">
+                <section class="panel controls-panel">
+                    <h2>Controles de Captura</h2>
 
-                <div class="control-group">
-                    <label for="duration-input">Duración personalizada (segundos)</label>
-                    <input id="duration-input" type="number" min="1" step="1" placeholder="Vacío = tiempo real manual">
-                    <small>Si está vacío, la captura continúa hasta que pulses “Detener”.</small>
-                </div>
+                    <div class="control-group">
+                        <label for="duration-input">Duración personalizada (segundos)</label>
+                        <input id="duration-input" type="number" min="1" step="1" placeholder="Vacío = tiempo real manual">
+                        <small>Si está vacío, la captura continúa hasta que pulses “Detener”.</small>
+                    </div>
 
-                <div class="button-row">
-                    <button id="btn-start" class="btn btn-primary">▶ Iniciar captura</button>
-                    <button id="btn-stop" class="btn btn-secondary" disabled>⏹ Detener captura</button>
-                </div>
+                    <div class="button-row">
+                        <button id="btn-start" class="btn btn-primary">▶ Iniciar captura</button>
+                        <button id="btn-stop" class="btn btn-secondary" disabled>⏹ Detener captura</button>
+                    </div>
 
-                <div class="button-row">
-                    <button id="btn-download-json" class="btn btn-ghost" disabled>📥 Guardar JSON</button>
-                </div>
+                    <div class="button-row one-col">
+                        <button id="btn-download-json" class="btn btn-ghost" disabled>📥 Guardar JSON</button>
+                    </div>
 
-                <hr>
+                    <hr>
 
-                <h3>Convertir JSON a MIDI</h3>
-                <div class="control-group">
-                    <label for="json-file-input">Archivo JSON EEG</label>
-                    <input id="json-file-input" type="file" accept=".json,application/json">
-                </div>
-                <div class="button-row">
-                    <button id="btn-convert-midi" class="btn btn-primary">🎵 Convertir a MIDI</button>
-                </div>
+                    <h3>Convertir JSON a MIDI</h3>
+                    <div class="control-group">
+                        <label for="json-file-input">Archivo JSON EEG</label>
+                        <input id="json-file-input" type="file" accept=".json,application/json">
+                    </div>
+                    <div class="button-row one-col">
+                        <button id="btn-convert-midi" class="btn btn-primary">🎵 Convertir a MIDI</button>
+                    </div>
+                </section>
+
+                <section class="panel viz-panel">
+                    <div class="viz-header">
+                        <h2>Ondas cerebrales en tiempo real</h2>
+                        <div class="capture-metrics">
+                            <div><span>Muestras:</span> <strong id="samples-val">0</strong></div>
+                            <div><span>Frecuencia:</span> <strong id="rate-val">0.0 Hz</strong></div>
+                            <div><span>Duración:</span> <strong id="duration-val">0.0 s</strong></div>
+                        </div>
+                    </div>
+
+                    <canvas id="eeg-canvas"></canvas>
+
+                    <div class="channel-values">
+                        <div class="channel-chip ch1">TP9: <span id="ch1-val">0.000</span></div>
+                        <div class="channel-chip ch2">AF7: <span id="ch2-val">0.000</span></div>
+                        <div class="channel-chip ch3">AF8: <span id="ch3-val">0.000</span></div>
+                        <div class="channel-chip ch4">TP10: <span id="ch4-val">0.000</span></div>
+                    </div>
+                </section>
             </section>
 
-            <section class="panel viz-panel">
-                <div class="viz-header">
-                    <h2>Ondas cerebrales en tiempo real</h2>
-                    <div class="capture-metrics">
-                        <div><span>Muestras:</span> <strong id="samples-val">0</strong></div>
-                        <div><span>Frecuencia:</span> <strong id="rate-val">0.0 Hz</strong></div>
-                        <div><span>Duración:</span> <strong id="duration-val">0.0 s</strong></div>
+            <section class="view" id="view-flower">
+                <section class="panel flower-controls-panel">
+                    <h2>Crear flor desde JSON EEG</h2>
+                    <p class="flower-helper">Sube un archivo JSON capturado o usa la última toma disponible.</p>
+
+                    <div class="control-group">
+                        <label for="flower-json-input">Archivo JSON para flor</label>
+                        <input id="flower-json-input" type="file" accept=".json,application/json">
                     </div>
-                </div>
 
-                <canvas id="eeg-canvas"></canvas>
+                    <div class="button-row one-col">
+                        <button id="btn-flower-file" class="btn btn-primary">🌸 Analizar archivo y crear flor</button>
+                    </div>
 
-                <div class="channel-values">
-                    <div class="channel-chip ch1">TP9: <span id="ch1-val">0.000</span></div>
-                    <div class="channel-chip ch2">AF7: <span id="ch2-val">0.000</span></div>
-                    <div class="channel-chip ch3">AF8: <span id="ch3-val">0.000</span></div>
-                    <div class="channel-chip ch4">TP10: <span id="ch4-val">0.000</span></div>
-                </div>
+                    <div class="button-row one-col">
+                        <button id="btn-flower-latest" class="btn btn-ghost" disabled>📡 Usar última captura actual</button>
+                    </div>
+
+                    <div class="button-row one-col">
+                        <button id="btn-export-flower" class="btn btn-secondary" disabled>🖼️ Descargar flor 2D (PNG)</button>
+                    </div>
+
+                    <p class="flower-note">La flor usa relaciones entre bandas para apertura, peso, curvatura, simetría y brillo.</p>
+                </section>
+
+                <section class="panel flower-panel">
+                    <div class="flower-canvas-wrap">
+                        <canvas id="flower-canvas"></canvas>
+                    </div>
+                    <div class="band-bar" id="flower-band-bar"></div>
+                </section>
+
+                <section class="panel analysis-panel" id="flower-analysis">
+                    <h2>Análisis final</h2>
+                    <p class="analysis-empty">Carga un JSON EEG para generar la lectura neurofuncional y la flor.</p>
+                </section>
             </section>
         </main>
     </div>
 
     <script src="data_loader.js"></script>
+    <script src="flower_eeg_analyzer.js"></script>
+    <script src="flower_2d_renderer.js"></script>
     <script src="visualizer.js"></script>
 </body>
 </html>

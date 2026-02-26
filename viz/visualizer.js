@@ -2,6 +2,7 @@ const api = new EEGApiClient('');
 
 const canvas = document.getElementById('eeg-canvas');
 const ctx = canvas.getContext('2d');
+const flowerCanvas = document.getElementById('flower-canvas');
 
 const btnStart = document.getElementById('btn-start');
 const btnStop = document.getElementById('btn-stop');
@@ -9,6 +10,18 @@ const btnDownloadJson = document.getElementById('btn-download-json');
 const btnConvertMidi = document.getElementById('btn-convert-midi');
 const durationInput = document.getElementById('duration-input');
 const jsonFileInput = document.getElementById('json-file-input');
+const flowerJsonInput = document.getElementById('flower-json-input');
+const btnFlowerFile = document.getElementById('btn-flower-file');
+const btnFlowerLatest = document.getElementById('btn-flower-latest');
+const btnExportFlower = document.getElementById('btn-export-flower');
+const flowerBandBar = document.getElementById('flower-band-bar');
+const flowerAnalysis = document.getElementById('flower-analysis');
+
+const tabs = document.querySelectorAll('.tab');
+const views = {
+    capture: document.getElementById('view-capture'),
+    flower: document.getElementById('view-flower'),
+};
 
 const statusText = document.getElementById('status-text');
 const statusDot = document.getElementById('status-dot');
@@ -32,6 +45,9 @@ const state = {
     timestamps: [],
     animationId: null,
     pollTimer: null,
+    latestStatus: null,
+    flowerReport: null,
+    flowerRenderer: null,
 };
 
 function setStatus(label, mode = 'idle') {
@@ -58,6 +74,15 @@ function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
     canvas.width = Math.max(300, Math.floor(rect.width));
     canvas.height = Math.max(240, Math.floor(rect.height));
+}
+
+function resizeFlowerCanvas() {
+    if (!state.flowerRenderer || !flowerCanvas.parentElement) return;
+    const width = flowerCanvas.parentElement.clientWidth;
+    const drawSize = Math.min(1800, Math.max(780, width * 2));
+    state.flowerRenderer.draw(drawSize);
+    flowerCanvas.style.width = '100%';
+    flowerCanvas.style.height = 'auto';
 }
 
 function trimBuffers() {
@@ -167,6 +192,10 @@ async function pollStream() {
             btnDownloadJson.disabled = chunk.totalSamples <= 0;
             setStatus('Captura finalizada. Puedes guardar JSON.', 'success');
         }
+
+        if (chunk.metadata?.total_samples > 0) {
+            btnFlowerLatest.disabled = false;
+        }
     } catch (err) {
         console.error(err);
         setStatus(`Error de conexión: ${err.message}`, 'error');
@@ -181,6 +210,7 @@ function ensurePolling() {
 async function refreshStatus() {
     try {
         const status = await api.getStatus();
+        state.latestStatus = status;
         const running = !!status.capture_running;
         state.running = running;
 
@@ -199,6 +229,8 @@ async function refreshStatus() {
             btnDownloadJson.disabled = total === 0;
             setStatus(total > 0 ? 'Listo para guardar JSON' : 'Listo', total > 0 ? 'success' : 'idle');
         }
+
+        btnFlowerLatest.disabled = total === 0;
     } catch (err) {
         console.error(err);
         setStatus(`Sin conexión API: ${err.message}`, 'error');
@@ -292,6 +324,180 @@ function renderLoop() {
     state.animationId = requestAnimationFrame(renderLoop);
 }
 
+function switchTab(tabName) {
+    tabs.forEach((tab) => {
+        tab.classList.toggle('active', tab.dataset.tab === tabName);
+    });
+    Object.entries(views).forEach(([name, section]) => {
+        section.classList.toggle('active', name === tabName);
+    });
+    if (tabName === 'flower') {
+        resizeFlowerCanvas();
+    } else {
+        resizeCanvas();
+    }
+}
+
+function metricBarWidth(value) {
+    return Math.max(3, Math.min(100, Math.round((value / 2.2) * 100)));
+}
+
+function stateConfidenceLabel(score) {
+    if (score >= 0.72) return 'alto';
+    if (score >= 0.48) return 'medio';
+    return 'bajo';
+}
+
+function renderBandBar(bands) {
+    flowerBandBar.innerHTML = '';
+    const sorted = [...bands].sort((a, b) => b.relativePower - a.relativePower);
+    sorted.forEach((band) => {
+        const chip = document.createElement('div');
+        chip.className = 'band-chip';
+        chip.innerHTML = `
+            <span class="band-chip-dot" style="background:${band.color}"></span>
+            <span>${band.emoji} ${band.name}</span>
+            <span class="band-chip-pct">${band.percentage.toFixed(1)}%</span>
+        `;
+        flowerBandBar.appendChild(chip);
+    });
+}
+
+function renderFlowerAnalysis(report) {
+    const { bands, metrics, morphology, derivedStates } = report;
+    const sortedBands = [...bands].sort((a, b) => b.relativePower - a.relativePower);
+
+    const metricItems = [
+        metrics.activation,
+        metrics.internalLoad,
+        metrics.immersion,
+        metrics.regulation,
+        metrics.experientialIntensity,
+    ];
+
+    flowerAnalysis.innerHTML = `
+        <h2>Análisis final</h2>
+
+        <section class="analysis-section">
+            <h3>1) Qué puede leerse realmente de cada banda</h3>
+            <ul>
+                ${sortedBands.map((band) => `
+                    <li>
+                        <strong>${band.emoji} ${band.name} (${band.low}–${band.high} Hz):</strong>
+                        ${band.defendable} <em>Lectura útil:</em> ${band.usefulRead} <strong>(${band.percentage.toFixed(1)}%)</strong>
+                    </li>
+                `).join('')}
+            </ul>
+        </section>
+
+        <section class="analysis-section">
+            <h3>2) Estados humanos = relaciones entre bandas</h3>
+            <p>
+                La lectura no se basa en una sola banda aislada. Los estados emergen de patrones compuestos entre Delta,
+                Theta, Alpha, Beta y Gamma. Por eso la flor transforma relaciones en forma, no "una banda = una emoción".
+            </p>
+        </section>
+
+        <section class="analysis-section">
+            <h3>3) Métricas compuestas defendibles</h3>
+            <div class="metric-grid">
+                ${metricItems.map((item) => `
+                    <article class="metric-card">
+                        <div class="metric-title">
+                            <strong>${item.label}</strong>
+                            <span class="metric-formula">${item.formula}</span>
+                        </div>
+                        <div class="metric-title">
+                            <span>${item.meaning}</span>
+                            <strong>${item.value.toFixed(2)} (${item.level})</strong>
+                        </div>
+                        <div class="metric-bar">
+                            <div class="metric-fill" style="width:${metricBarWidth(item.value)}%"></div>
+                        </div>
+                    </article>
+                `).join('')}
+            </div>
+        </section>
+
+        <section class="analysis-section">
+            <h3>4) Estados humanos derivados (sin inventar emociones)</h3>
+            <div class="state-tags">
+                ${derivedStates.map((state) => `
+                    <span class="state-tag">${state.label}<small>${stateConfidenceLabel(state.score)}</small></span>
+                `).join('')}
+            </div>
+        </section>
+
+        <section class="analysis-section">
+            <h3>5) Traducción a la morfología floral</h3>
+            <ul>
+                <li><strong>Apertura total:</strong> ${(morphology.openness * 100).toFixed(0)}% (activación mental).</li>
+                <li><strong>Peso / caída:</strong> ${(morphology.weight * 100).toFixed(0)}% (carga interna).</li>
+                <li><strong>Curvatura orgánica:</strong> ${(morphology.curvature * 100).toFixed(0)}% (inmersión subjetiva).</li>
+                <li><strong>Simetría:</strong> ${(morphology.symmetry * 100).toFixed(0)}% (equilibrio regulatorio).</li>
+                <li><strong>Brillo / textura:</strong> ${(morphology.brightness * 100).toFixed(0)}% (intensidad experiencial).</li>
+            </ul>
+        </section>
+
+        <section class="analysis-section">
+            <h3>6) Lectura de estado desde la flor</h3>
+            <p>
+                Esta visualización permite lectura defendible del estado: combinaciones de apertura, caída, simetría,
+                curvatura y brillo muestran patrones como calma, fatiga, tensión cognitiva, absorción o saturación,
+                sin reducir la experiencia humana a una sola banda.
+            </p>
+        </section>
+    `;
+}
+
+function buildFlowerFromJson(jsonData) {
+    try {
+        const analyzer = new FlowerEEGAnalyzer(jsonData);
+        const report = analyzer.getReport();
+        state.flowerReport = report;
+        state.flowerRenderer = new Flower2DRenderer(flowerCanvas, report);
+        resizeFlowerCanvas();
+        renderBandBar(report.bands);
+        renderFlowerAnalysis(report);
+        btnExportFlower.disabled = false;
+        switchTab('flower');
+        setStatus('Flor 2D y análisis generados.', 'success');
+    } catch (err) {
+        console.error(err);
+        alert(`No se pudo generar la flor: ${err.message}`);
+    }
+}
+
+async function buildFlowerFromFile() {
+    const file = flowerJsonInput.files && flowerJsonInput.files[0];
+    if (!file) {
+        alert('Selecciona un archivo JSON EEG primero.');
+        return;
+    }
+
+    try {
+        btnFlowerFile.disabled = true;
+        btnFlowerFile.textContent = 'Analizando...';
+        const text = await file.text();
+        const data = JSON.parse(text);
+        buildFlowerFromJson(data);
+    } catch (err) {
+        console.error(err);
+        alert(`JSON inválido: ${err.message}`);
+    } finally {
+        btnFlowerFile.disabled = false;
+        btnFlowerFile.textContent = '🌸 Analizar archivo y crear flor';
+    }
+}
+
+function buildFlowerFromLatestCapture() {
+    if (!state.latestStatus?.metadata?.total_samples) {
+        alert('No hay captura disponible aún. Realiza una toma EEG primero.');
+        return;
+    }
+    buildFlowerFromJson(state.latestStatus);
+}
+
 async function convertJsonFileToMidi() {
     try {
         const file = jsonFileInput.files && jsonFileInput.files[0];
@@ -329,20 +535,34 @@ function downloadBlob(blob, filename) {
     URL.revokeObjectURL(url);
 }
 
+tabs.forEach((tab) => {
+    tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+});
+
 btnStart.addEventListener('click', startCapture);
 btnStop.addEventListener('click', stopCapture);
 btnDownloadJson.addEventListener('click', () => {
     window.location.href = '/api/capture/download-json';
 });
 btnConvertMidi.addEventListener('click', convertJsonFileToMidi);
+btnFlowerFile.addEventListener('click', buildFlowerFromFile);
+btnFlowerLatest.addEventListener('click', buildFlowerFromLatestCapture);
+btnExportFlower.addEventListener('click', () => {
+    if (!state.flowerRenderer) return;
+    state.flowerRenderer.exportPNG('flor_neurofuncional_2d.png');
+});
 
-window.addEventListener('resize', resizeCanvas);
+window.addEventListener('resize', () => {
+    resizeCanvas();
+    resizeFlowerCanvas();
+});
 
 async function init() {
     resizeCanvas();
     await refreshStatus();
     ensurePolling();
     renderLoop();
+    switchTab('capture');
 }
 
 init();
