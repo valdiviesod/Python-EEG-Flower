@@ -1,88 +1,72 @@
-
-class EEGDataLoader {
-    constructor(url) {
-        this.url = url;
-        this.data = null;
-        this.metadata = null;
-        this.isLoaded = false;
+class EEGApiClient {
+    constructor(baseUrl = '') {
+        this.baseUrl = baseUrl;
     }
 
-    async load() {
-        try {
-            const response = await fetch(this.url);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const json = await response.json();
-            
-            // Validate structure
-            if (!json.eeg_channels || !json.metadata) {
-                throw new Error("Invalid EEG JSON format");
-            }
-
-            this.metadata = json.metadata;
-            
-            // Convert object to array of arrays for easier iteration
-            // json.eeg_channels is structured like { "channel_1": [...], "channel_2": [...] }
-            this.channels = [
-                json.eeg_channels.channel_1 || [],
-                json.eeg_channels.channel_2 || [],
-                json.eeg_channels.channel_3 || [],
-                json.eeg_channels.channel_4 || []
-            ];
-
-            // Normalize timestamp if available, otherwise synthetic
-            this.timestamps = json.timestamps || [];
-
-            // Calculate global stats for scaling
-            this.stats = this.calculateStats();
-            
-            this.isLoaded = true;
-            console.log("EEG Data Loaded", this.stats);
-            return this;
-        } catch (e) {
-            console.error("Failed to load EEG data:", e);
-            throw e;
-        }
-    }
-
-    calculateStats() {
-        let min = Infinity;
-        let max = -Infinity;
-        let total = 0;
-        let count = 0;
-
-        this.channels.forEach(ch => {
-            if (!ch) return;
-            ch.forEach(val => {
-                if (val !== null && !isNaN(val)) {
-                    if (val < min) min = val;
-                    if (val > max) max = val;
-                    total += val;
-                    count++;
-                }
-            });
+    async _json(method, path, body) {
+        const response = await fetch(`${this.baseUrl}${path}`, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: body ? JSON.stringify(body) : undefined,
         });
 
-        // If data is empty or invalid
-        if (min === Infinity) { min = 0; max = 1; }
-
-        return {
-            min, 
-            max, 
-            mean: total / count,
-            range: max - min,
-            duration: this.metadata.duration_seconds,
-            sampleRate: this.metadata.sample_rate_hz || (count / 4 / 120) // Fallback estimation
-        };
-    }
-    
-    // Get sample at specific index
-    getSample(index) {
-        if (!this.isLoaded) return [0,0,0,0];
-        return this.channels.map(ch => (index < ch.length ? ch[index] : 0));
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(payload.error || payload.message || `HTTP ${response.status}`);
+        }
+        return payload;
     }
 
-    getLength() {
-        if (!this.channels[0]) return 0;
-        return this.channels[0].length;
+    async startCapture(durationSeconds = null) {
+        return this._json('POST', '/api/capture/start', {
+            durationSeconds,
+        });
+    }
+
+    async stopCapture() {
+        return this._json('POST', '/api/capture/stop', {});
+    }
+
+    async getStatus() {
+        const response = await fetch(`${this.baseUrl}/api/capture/status`);
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        return payload;
+    }
+
+    async getStream(fromIndex = 0) {
+        const response = await fetch(`${this.baseUrl}/api/capture/stream?from=${encodeURIComponent(fromIndex)}`);
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        return payload;
+    }
+
+    async convertJsonToMidi(jsonData) {
+        const response = await fetch(`${this.baseUrl}/api/json-to-midi`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ jsonData }),
+        });
+
+        if (!response.ok) {
+            let message = `HTTP ${response.status}`;
+            try {
+                const payload = await response.json();
+                message = payload.error || payload.message || message;
+            } catch (err) {
+                // ignore parse error
+            }
+            throw new Error(message);
+        }
+
+        return response.blob();
     }
 }

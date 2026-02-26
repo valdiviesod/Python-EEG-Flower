@@ -3,82 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualización Creativa EEG | Psicología del Color</title>
+    <title>Viz Muse EEG | Captura en Tiempo Real</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <!-- Chart.js for background analysis if needed, but main viz is custom Canvas -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> 
 </head>
 <body>
-    <div class="app-container">
-        <!-- Header / Overlay -->
-        <header class="glass-panel header">
-            <div class="logo">
-                <span class="icon">🧠</span>
-                <h1>Neuro<span class="highlight">Vibe</span></h1>
-            </div>
-            <div class="controls">
-                <button id="btn-play" class="btn-icon">▶</button>
-                <button id="btn-pause" class="btn-icon hidden">⏸</button>
-                <div class="slider-container">
-                    <span>Velocidad</span>
-                    <input type="range" id="speed-slider" min="1" max="10" value="2">
+    <div id="app">
+        <header class="header">
+            <div class="header-inner">
+                <div class="logo">
+                    <span class="logo-glyph">🧠</span>
+                    <div>
+                        <h1>Viz <span class="accent">Muse EEG</span></h1>
+                        <p class="tagline">Captura en vivo, descarga JSON y convierte JSON → MIDI</p>
+                    </div>
                 </div>
-            </div>
-            <div class="status-indicator">
-                <span class="status-dot"></span>
-                <span id="connection-status">Cargando datos...</span>
+                <div class="status-pill" id="status-pill">
+                    <span class="status-dot" id="status-dot"></span>
+                    <span id="status-text">Listo</span>
+                </div>
             </div>
         </header>
 
-        <!-- Main Visualization Canvas -->
-        <main class="viz-container">
-            <canvas id="neuro-canvas"></canvas>
-            
-            <!-- Psychological Insight Overlay -->
-            <div class="insight-panel glass-panel">
-                <h3 id="psy-state-title">Estado Neutral</h3>
-                <p id="psy-state-desc">Esperando señal...</p>
-                <div class="color-meaning">
-                    <div class="color-swatch" id="current-color"></div>
-                    <span id="color-name">--</span>
-                </div>
-                <div class="metrics">
-                    <div class="metric">
-                        <span class="label">Amplitud</span>
-                        <span class="value" id="amp-val">0 µV</span>
-                    </div>
-                    <div class="metric">
-                        <span class="label">Frecuencia (Est.)</span>
-                        <span class="value" id="freq-val">0 Hz</span>
-                    </div>
-                </div>
-            </div>
-        </main>
+        <main class="layout">
+            <section class="panel controls-panel">
+                <h2>Controles de Captura</h2>
 
-        <!-- Channel Legend / Footer -->
-        <footer class="glass-panel footer">
-            <div class="channels">
-                <div class="channel-item" data-ch="1">
-                    <span class="ch-dot ch1"></span> TP9
+                <div class="control-group">
+                    <label for="duration-input">Duración personalizada (segundos)</label>
+                    <input id="duration-input" type="number" min="1" step="1" placeholder="Vacío = tiempo real manual">
+                    <small>Si está vacío, la captura continúa hasta que pulses “Detener”.</small>
                 </div>
-                <div class="channel-item" data-ch="2">
-                    <span class="ch-dot ch2"></span> AF7
+
+                <div class="button-row">
+                    <button id="btn-start" class="btn btn-primary">▶ Iniciar captura</button>
+                    <button id="btn-stop" class="btn btn-secondary" disabled>⏹ Detener captura</button>
                 </div>
-                <div class="channel-item" data-ch="3">
-                    <span class="ch-dot ch3"></span> AF8
+
+                <div class="button-row">
+                    <button id="btn-download-json" class="btn btn-ghost" disabled>📥 Guardar JSON</button>
                 </div>
-                <div class="channel-item" data-ch="4">
-                    <span class="ch-dot ch4"></span> TP10
+
+                <hr>
+
+                <h3>Convertir JSON a MIDI</h3>
+                <div class="control-group">
+                    <label for="json-file-input">Archivo JSON EEG</label>
+                    <input id="json-file-input" type="file" accept=".json,application/json">
                 </div>
-            </div>
-            <div class="scrubber-container">
-                <input type="range" id="time-scrubber" min="0" max="100" value="0">
-                <div class="time-readout"><span id="current-time">00:00</span> / <span id="total-time">00:00</span></div>
-            </div>
-        </footer>
+                <div class="button-row">
+                    <button id="btn-convert-midi" class="btn btn-primary">🎵 Convertir a MIDI</button>
+                </div>
+            </section>
+
+            <section class="panel viz-panel">
+                <div class="viz-header">
+                    <h2>Ondas cerebrales en tiempo real</h2>
+                    <div class="capture-metrics">
+                        <div><span>Muestras:</span> <strong id="samples-val">0</strong></div>
+                        <div><span>Frecuencia:</span> <strong id="rate-val">0.0 Hz</strong></div>
+                        <div><span>Duración:</span> <strong id="duration-val">0.0 s</strong></div>
+                    </div>
+                </div>
+
+                <canvas id="eeg-canvas"></canvas>
+
+                <div class="channel-values">
+                    <div class="channel-chip ch1">TP9: <span id="ch1-val">0.000</span></div>
+                    <div class="channel-chip ch2">AF7: <span id="ch2-val">0.000</span></div>
+                    <div class="channel-chip ch3">AF8: <span id="ch3-val">0.000</span></div>
+                    <div class="channel-chip ch4">TP10: <span id="ch4-val">0.000</span></div>
+                </div>
+            </section>
+        </main>
     </div>
 
     <script src="data_loader.js"></script>
