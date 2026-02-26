@@ -37,6 +37,31 @@ class WebCaptureController:
         self.end_time: float | None = None
         self.target_duration: float | None = None
 
+    def _close_converter_resources(self, converter: MuseOSCToMidi | None):
+        if not converter:
+            return
+
+        server = getattr(converter, 'server', None)
+        if server:
+            try:
+                server.shutdown()
+            except Exception:
+                pass
+            try:
+                server.server_close()
+            except Exception:
+                pass
+
+        thread = getattr(converter, 'server_thread', None)
+        if thread and thread.is_alive():
+            try:
+                thread.join(timeout=0.8)
+            except Exception:
+                pass
+
+        converter.server = None
+        converter.server_thread = None
+
     def _build_light_eeg_handler(self, converter: MuseOSCToMidi):
         def handler(address, *args):
             if not converter.running:
@@ -71,6 +96,13 @@ class WebCaptureController:
             if self.running:
                 raise RuntimeError('Ya hay una captura en curso')
 
+            previous_converter = self.converter
+            self.converter = None
+
+        self._close_converter_resources(previous_converter)
+
+        last_error = None
+        for attempt in range(2):
             converter = MuseOSCToMidi(osc_ip=self.osc_ip, osc_port=self.osc_port)
             converter.debug_handler = lambda *args, **kwargs: None
             converter.eeg_handler = self._build_light_eeg_handler(converter)
@@ -79,14 +111,35 @@ class WebCaptureController:
             converter.timestamps = []
             converter.sample_count = 0
             converter.running = True
-            converter.setup_osc_server()
-            converter.start_osc_server()
 
-            self.converter = converter
-            self.running = True
-            self.start_time = time.time()
-            self.end_time = None
-            self.target_duration = duration_seconds if duration_seconds and duration_seconds > 0 else None
+            try:
+                converter.setup_osc_server()
+                converter.start_osc_server()
+            except OSError as exc:
+                last_error = exc
+                converter.running = False
+                self._close_converter_resources(converter)
+
+                if getattr(exc, 'winerror', None) == 10048 and attempt == 0:
+                    time.sleep(0.45)
+                    continue
+                raise
+            except Exception as exc:
+                last_error = exc
+                converter.running = False
+                self._close_converter_resources(converter)
+                raise
+
+            with self.lock:
+                self.converter = converter
+                self.running = True
+                self.start_time = time.time()
+                self.end_time = None
+                self.target_duration = duration_seconds if duration_seconds and duration_seconds > 0 else None
+            return
+
+        if last_error:
+            raise last_error
 
     def _auto_stop_if_needed(self):
         should_stop = False
@@ -99,14 +152,18 @@ class WebCaptureController:
 
     def stop_capture(self):
         with self.lock:
-            if not self.running:
-                return
             converter = self.converter
+            if not self.running and not converter:
+                return
             self.running = False
             self.end_time = time.time()
 
         if converter:
             converter.stop_capture()
+            self._close_converter_resources(converter)
+
+        with self.lock:
+            self.target_duration = None
 
     def _build_capture_payload_locked(self) -> dict:
         converter = self.converter
