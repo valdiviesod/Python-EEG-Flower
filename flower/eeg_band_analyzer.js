@@ -554,19 +554,21 @@ class EEGBandAnalyzer {
         //   Alpha: 8 (rhythmic, balanced)
         //   Beta:  10 (fast, many)
         //   Gamma: 12 (very fast, thin and numerous)
-        const petalCounts = [5, 6, 8, 10, 12];
+        const petalCounts = [8, 10, 13, 16, 20];
 
         const layers = bands.map((band, i) => {
             const power = band.relativePower;
             const vis = band.visualSize;
+            const petalLength = lerp(0.15, 0.45, clamp(vis * 1.5, 0, 1));
+            const lengthBoost = lerp(1.0, 1.32, clamp((petalLength - 0.28) / 0.17, 0, 1));
 
             return {
                 band: band,
                 petalCount: petalCounts[i],
                 // Petal length: proportional to relative power
-                petalLength: lerp(0.15, 0.45, clamp(vis * 1.5, 0, 1)),
-                // Petal width: delta=wide, gamma=narrow
-                petalWidth: lerp(0.12, 0.04, i / 4),
+                petalLength: petalLength,
+                // Petal width: delta=wide, gamma=narrow + extra width for longer petals
+                petalWidth: lerp(0.12, 0.04, i / 4) * lengthBoost,
                 // Petal height (3D): proportional to power
                 petalHeight: lerp(0.1, 0.8, clamp(power * 3, 0, 1)),
                 // Inner radius: layers from center outward

@@ -213,6 +213,12 @@ class Flower3D {
         stem.castShadow = true;
         this.flowerGroup.add(stem);
 
+        // ── Stem cap: solid cylinder bridging TubeGeometry open end to petal disk ──
+        const capGeo = new THREE.CylinderGeometry(0.065, stemRadius, 0.08, 24);
+        const cap = new THREE.Mesh(capGeo, stemMat);
+        cap.position.y = stemHeight - 0.04;
+        this.flowerGroup.add(cap);
+
         // Store stem top for positioning petals
         this.stemTop = stemHeight;
     }
@@ -271,35 +277,53 @@ class Flower3D {
         const layers = this.params.layers;
         this.printSpec = [];
 
-        // Draw from outer (delta) to inner (gamma)
-        for (let i = 0; i < layers.length; i++) {
+        // ── Rose-like layout: 5 concentric rings opening outward ──
+        // Layer 0 = outermost (delta, few wide petals, tilted out)
+        // Layer 4 = innermost (gamma, many small petals, nearly vertical)
+
+        const numLayers = layers.length;
+
+        for (let i = 0; i < numLayers; i++) {
             const layer = layers[i];
             const band = layer.band;
-
             const petalCount = layer.petalCount;
+            const t = i / (numLayers - 1); // 0=outer, 1=inner
+
+            // Band percentage drives color saturation boost
+            const pctNorm = clamp(band.percentage / 40, 0, 1); // 0–1
+
             const color = new THREE.Color(band.color);
             const colorDeep = new THREE.Color(band.colorDeep);
 
-            // Layer radius decreases for inner bands
-            const layerRadius = lerp(1.0, 0.2, i / (layers.length - 1));
+            // ── Radial position: outer layers far from center, inner close ──
+            // Inner ring goes to 0 so all layers touch the center (no floating)
+            const ringRadius = lerp(0.50, 0.0, t);
 
-            // Petal height grows with band power
-            const petalH = layer.petalHeight * 1.35;
+            // ── Petal dimensions per layer ──
+            // Outer: large & wide; Inner: small & narrow (rose-like)
+            const petalW = lerp(0.38, 0.14, t);    // width
+            const petalH = lerp(0.42, 0.18, t);    // profile height (shape)
+            const petalArch = Math.max(layer.petalHeight * 1.2, 0.15); // 3D relief from band power
 
-            // Petal scale
-            const petalScale = lerp(0.6, 0.25, i / (layers.length - 1));
-            const width = petalScale * lerp(2.25, 1.1, i / (layers.length - 1));
+            // ── All layers share the same base Y so nothing floats ──
+            // Outer layers sit AT stemTop; inner layers elevated just enough to overlap
+            const yBase = stemTop + i * 0.04; // minimal stagger, all connected
 
-            // Y position: inner layers slightly higher (flower bloom opens up)
-            const yBase = stemTop + i * 0.08;
+            // ── Tilt: outer petals lean moderately out, inner nearly vertical ──
+            // Capped to avoid petals going fully horizontal (which causes floating)
+            const tiltAngle = lerp(0.75, 0.05, t);
 
-            // Tilt angle: pétalos exteriores inclinados hacia afuera (cara visible desde arriba)
-            const tiltAngle = lerp(0.72, -0.1, i / (layers.length - 1));
+            // ── Cup strength: outer petals open cup, inner tight cup ──
+            const cupStrength = lerp(0.35, 0.7, t);
 
             for (let j = 0; j < petalCount; j++) {
                 const angle = (j / petalCount) * Math.PI * 2 + layer.rotation;
 
-                const petal = this._createPetal(petalScale, width, petalH, color, colorDeep, layer.opacity);
+                // No Y jitter — all bases must stay on the same plane for printing
+                const petal = this._createRosePetal(
+                    petalW, petalH, petalArch, cupStrength,
+                    color, colorDeep, pctNorm, t
+                );
                 petal.geometry.computeBoundingBox();
                 const petalSize = new THREE.Vector3();
                 petal.geometry.boundingBox.getSize(petalSize);
@@ -336,9 +360,9 @@ class Flower3D {
                 });
 
                 petal.position.set(
-                    layerRadius * 0.15 * Math.cos(angle),
+                    ringRadius * Math.cos(angle),
                     yBase,
-                    layerRadius * 0.15 * Math.sin(angle)
+                    ringRadius * Math.sin(angle)
                 );
 
                 petal.rotation.y = -angle + Math.PI / 2;
@@ -351,47 +375,84 @@ class Flower3D {
         }
     }
 
-    _createPetal(scale, width, height, color, colorDeep, opacity) {
+    /**
+     * Creates a single rose-like cupped petal.
+     * @param {number} pw       - petal width
+     * @param {number} ph       - petal profile height (shape length)
+     * @param {number} arch     - longitudinal arch amount (Z relief)
+     * @param {number} cup      - transverse cup strength (0=flat, 1=deep cup)
+     * @param {THREE.Color} color
+     * @param {THREE.Color} colorDeep
+     * @param {number} pctNorm  - 0–1 band percentage (drives saturation)
+     * @param {number} layerT   - 0=outer, 1=inner
+     */
+    _createRosePetal(pw, ph, arch, cup, color, colorDeep, pctNorm, layerT) {
         const shape = new THREE.Shape();
-        const w = 0.2 * width;
-        const h = 0.5 * scale;
-        const tipHalf = w * 0.56;
-        const tipY = h * 0.94;
+        const w = pw * 0.5;
+        const h = ph;
+        const tipHalf = w * 0.45;
+        const tipY = h * 0.95;
 
+        // Wider, rounder petal silhouette
         shape.moveTo(0, 0);
-        shape.bezierCurveTo(w * 1.7, h * 0.12, w * 1.45, h * 0.58, tipHalf, tipY);
-        shape.bezierCurveTo(w * 0.22, h * 1.04, -w * 0.22, h * 1.04, -tipHalf, tipY);
-        shape.bezierCurveTo(-w * 1.45, h * 0.58, -w * 1.7, h * 0.12, 0, 0);
+        shape.bezierCurveTo( w * 1.5, h * 0.08,  w * 1.3, h * 0.55,  tipHalf, tipY);
+        shape.bezierCurveTo( w * 0.18, h * 1.06, -w * 0.18, h * 1.06, -tipHalf, tipY);
+        shape.bezierCurveTo(-w * 1.3, h * 0.55, -w * 1.5, h * 0.08,  0, 0);
 
+        const thickness = Math.max(0.015, lerp(0.04, 0.025, layerT));
         const extrudeSettings = {
-            depth: 0.09 * scale,          // más grueso → visible desde arriba
+            depth: thickness,
             bevelEnabled: true,
-            bevelThickness: 0.018 * scale,
-            bevelSize: 0.012 * scale,
-            bevelSegments: 4,
-            curveSegments: 20,
+            bevelThickness: thickness * 0.5,
+            bevelSize: thickness * 0.35,
+            bevelSegments: 3,
+            curveSegments: 18,
         };
 
         const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
 
-        // Arqueo hacia arriba más pronunciado para que la cara quede visible desde arriba
+        // ── 3D deformation: cup shape + longitudinal arch + tip curl ──
+        const safeH = Math.max(h, 0.001);
+        const safeW = Math.max(w * 1.6, 0.001);
+        const relief = Math.max(arch, 0.12);
+
         const positions = geo.attributes.position;
-        for (let i = 0; i < positions.count; i++) {
-            const y = positions.getY(i);
-            const t = y / h;                      // 0 en base, 1 en punta
-            // parábola: sube en el centro y se curva en la punta
-            const arch = t * t * height * 1.1 + t * (1 - t) * height * 0.5;
-            positions.setZ(i, positions.getZ(i) + arch);
+        for (let vi = 0; vi < positions.count; vi++) {
+            const x = positions.getX(vi);
+            const y = positions.getY(vi);
+            let z = positions.getZ(vi);
+
+            const tY = clamp(y / safeH, 0, 1);         // 0=base, 1=tip
+            const tX = clamp(Math.abs(x) / safeW, 0, 1); // 0=center, 1=edge
+
+            // 1) Longitudinal arch: petal curves away from stem
+            const longArch = (tY * tY * 0.65 + tY * (1 - tY) * 0.35) * relief;
+
+            // 2) Cup/spoon shape: EDGES rise UP, center stays low
+            //    This creates the concave cupped look of a real rose petal
+            const cupLift = tX * tX * cup * relief * 1.2;
+
+            // 3) Tip curl: tip curves slightly inward (back toward center)
+            const tipCurl = Math.pow(tY, 3.0) * relief * 0.25;
+
+            // 4) Slight twist at edges for organic feel
+            const edgeTwist = tX * tY * 0.03 * relief;
+
+            z += longArch + cupLift + tipCurl + edgeTwist;
+            positions.setZ(vi, z);
         }
         geo.computeVertexNormals();
 
-        const softAccent = this._vibrantPastel(color.clone().lerp(colorDeep, 0.28), 0.34, 0.02);
-        const deepVibrant = this._vibrantPastel(colorDeep.clone(), 0.26, 0.0);
+        // ── Material: more saturated for higher-percentage bands ──
+        const satBoost = lerp(0.22, 0.48, pctNorm);
+        const softAccent = this._vibrantPastel(color.clone().lerp(colorDeep, 0.28), satBoost, 0.02);
+        const deepVibrant = this._vibrantPastel(colorDeep.clone(), satBoost * 0.7, 0.0);
+        const emissiveStrength = lerp(0.25, 0.50, pctNorm);
 
         const mat = new THREE.MeshStandardMaterial({
             color: softAccent,
             emissive: deepVibrant,
-            emissiveIntensity: 0.42,
+            emissiveIntensity: emissiveStrength,
             roughness: 0.36,
             metalness: 0.02,
             transparent: false,
@@ -407,10 +468,25 @@ class Flower3D {
     // ── Flower Center (pistil) ────────────────────────────────────────────
     _addCenter() {
         const stemTop = this.stemTop || 2.5;
-        const centerR = this.params.centerSize * 3;
+        const firstLayerRadius = 0.55;
+        const centerR = firstLayerRadius;
 
-        // Main spherical center
-        const centerGeo = new THREE.SphereGeometry(centerR, 32, 32);
+        // ── Solid connector disk: bridges all petal layers to the stem ──
+        // This ensures nothing floats — all petals are physically joined here
+        const diskGeo = new THREE.CylinderGeometry(centerR * 1.05, centerR * 1.1, 0.12, 48);
+        const diskMat = new THREE.MeshStandardMaterial({
+            color: new THREE.Color('#FFE4C9'),
+            roughness: 0.6,
+            metalness: 0.05,
+        });
+        const disk = new THREE.Mesh(diskGeo, diskMat);
+        disk.position.y = stemTop + 0.06;
+        disk.castShadow = true;
+        disk.receiveShadow = true;
+        this.flowerGroup.add(disk);
+
+        // Main spherical center dome on top of disk
+        const centerGeo = new THREE.SphereGeometry(centerR * 0.68, 32, 32);
         const centerMat = new THREE.MeshStandardMaterial({
             color: new THREE.Color('#FFE4C9'),
             roughness: 0.5,
@@ -419,31 +495,10 @@ class Flower3D {
             emissiveIntensity: 0.15,
         });
         const center = new THREE.Mesh(centerGeo, centerMat);
-        center.position.y = stemTop + 0.02;
-        center.scale.y = 0.6; // Slightly flattened
+        center.position.y = stemTop + 0.14;
+        center.scale.y = 0.7;
         this.flowerGroup.add(center);
 
-        // Small pistil dots
-        const dotCount = 12;
-        for (let i = 0; i < dotCount; i++) {
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.random() * Math.PI * 0.4 + 0.1;
-            const r = centerR * 0.85;
-
-            const dotGeo = new THREE.SphereGeometry(centerR * 0.12, 8, 8);
-            const dotMat = new THREE.MeshStandardMaterial({
-                color: new THREE.Color('#D4A574'),
-                roughness: 0.6,
-                metalness: 0.1,
-            });
-            const dot = new THREE.Mesh(dotGeo, dotMat);
-            dot.position.set(
-                r * Math.sin(phi) * Math.cos(theta),
-                stemTop + r * Math.cos(phi) * 0.5 + centerR * 0.15,
-                r * Math.sin(phi) * Math.sin(theta)
-            );
-            this.flowerGroup.add(dot);
-        }
     }
 
     // ── Pollen Particles ──────────────────────────────────────────────────
