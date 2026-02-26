@@ -1,52 +1,26 @@
-VIZ MUSE EEG (NUEVA INTERFAZ)
-=============================
+INSTRUCCIONES DE USO
+====================
 
-La carpeta `viz` ahora reemplaza el flujo por consola para:
+Para ver la visualización correctamente, necesitas ejecutar un servidor web local.
+Si abres el archivo index.html directamente (doble clic), es muy probable que no funcione debido a las restricciones de seguridad de los navegadores (CORS) que impiden cargar archivos JSON locales.
 
-1) Captura EEG en tiempo real (manual)
-2) Captura EEG con duración personalizada
-3) Guardar el JSON capturado (descarga directa)
-4) Convertir cualquier JSON EEG a MIDI desde la GUI
+Cómo ejecutar:
+--------------
 
+OPCIÓN 1 (Recomendada - VS Code):
+1. Instala la extensión "Live Server" en VS Code.
+2. Haz clic derecho en el archivo `index.html` dentro de la carpeta `viz`.
+3. Selecciona "Open with Live Server".
 
-Cómo ejecutar
--------------
+OPCIÓN 2 (Python):
+1. Abre una terminal en la carpeta `EEG MIDI py`.
+2. Ejecuta el comando: 
+   python -m http.server
+3. Abre tu navegador en: http://localhost:8000/viz/
 
-1. Abre terminal en la raíz del proyecto (`EEG MIDI py`).
-2. Inicia el servidor:
-
-    python viz_local_server.py
-
-3. Abre en navegador:
-
-    http://127.0.0.1:8010/viz/
-
-
-Configurar Muse
----------------
-
-En la app del Muse configura OSC hacia:
-
-- IP: 127.0.0.1
-- Puerto: 5000
-
-
-Flujo recomendado
+NOTA SOBRE DATOS:
 -----------------
-
-- Si quieres captura manual en vivo:
-   - deja vacía la duración
-   - pulsa "Iniciar captura"
-   - pulsa "Detener captura"
-   - pulsa "Guardar JSON"
-
-- Si quieres captura automática por tiempo:
-   - escribe segundos en "Duración personalizada"
-   - pulsa "Iniciar captura"
-   - espera a que termine sola
-   - pulsa "Guardar JSON"
-
-- Para convertir JSON a MIDI:
-   - selecciona un archivo JSON EEG
-   - pulsa "Convertir a MIDI"
-   - se descargará el `.mid`
+La visualización buscará automáticamente el archivo "../SAD 1.json".
+Si quieres visualizar nuevos datos capturados con `muse_capture.py`:
+1. Captura datos nuevos (se guardarán como eeg_data_Xs.json).
+2. Renombra el archivo nuevo a "SAD 1.json" o edita la línea 48 de `visualizer.js` para apuntar a tu nuevo archivo.
