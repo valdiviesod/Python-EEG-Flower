@@ -31,13 +31,13 @@ let dataLoader;
 let animationId;
 
 // Psychology Mappings based on Amplitude % (relative to global min/max)
-// Based on psicologia_musica_color.md
-const PSY_MAP = [
-    { threshold: 0.20, color: '#FF80AB', name: 'Rosa (Calma)', desc: 'Amor, bondad, romance. Alivia estados depresivos.' },
-    { threshold: 0.40, color: '#00C853', name: 'Verde (Relax)', desc: 'Relajación, elimina emociones negativas. Promueve el sueño.' },
-    { threshold: 0.60, color: '#2962FF', name: 'Azul (Profundo)', desc: 'Introspección, tristeza o calma profunda. Alivia tensión.' },
-    { threshold: 0.80, color: '#FF6D00', name: 'Naranja (Euforia)', desc: 'Equilibrio, euforia. Estado energético positivo.' },
-    { threshold: 1.01, color: '#D50000', name: 'Rojo (Excitación)', desc: 'Agresión, excitación intensa, sistema nervioso activado.' }
+// Pastel palette from flower/style.css
+const FLOWER_PALETTE = [
+    { threshold: 0.20, color: '#C4B7D8', name: 'Delta', desc: 'Sueño profundo, relajación.' },
+    { threshold: 0.40, color: '#A8D8B9', name: 'Theta', desc: 'Meditación, creatividad.' },
+    { threshold: 0.60, color: '#FFD1DC', name: 'Alpha', desc: 'Calma, serenidad.' },
+    { threshold: 0.80, color: '#FFDAB9', name: 'Beta', desc: 'Concentración, alerta.' },
+    { threshold: 1.01, color: '#FFF3B0', name: 'Gamma', desc: 'Procesamiento, cognición.' }
 ];
 
 // Initialize
@@ -151,8 +151,8 @@ function loop() {
 function update() {
     if (!dataLoader || !dataLoader.isLoaded) return;
 
-    // Use partial transparency for trail effect ("DJ Style")
-    ctx.fillStyle = 'rgba(5, 5, 10, 0.15)'; 
+    // Clean white background, no animation
+    ctx.fillStyle = '#FAFAF8';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     // Update Stats UI
@@ -167,8 +167,8 @@ function update() {
     // Clamp 0-1
     const clamped = Math.max(0, Math.min(1, normalized));
 
-    // Find matching state
-    const state = PSY_MAP.find(s => clamped <= s.threshold) || PSY_MAP[PSY_MAP.length - 1];
+    // Find matching band color
+    const state = FLOWER_PALETTE.find(s => clamped <= s.threshold) || FLOWER_PALETTE[FLOWER_PALETTE.length - 1];
     
     // Apply Psycho State to UI
     psyTitle.textContent = state.name;
@@ -186,108 +186,20 @@ function update() {
     currentTimeEl.textContent = formatTime(uiSeconds);
 
     // --- DRAWING ---
-    drawBackground(state.color, clamped);
-    drawPulseAura(state.color, clamped);
+    // No DJ/mandala animation
     drawWaveforms();
 }
 
 function drawBackground(color, intensity) {
-    // DJ Style Background Animation: Floating Particles
-    if (!window.particles) {
-        window.particles = Array(60).fill().map(() => ({
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height,
-            size: Math.random() * 4,
-            speed: Math.random() * 2 + 0.5
-        }));
-    }
-
-    ctx.fillStyle = hexToRgba(color, 0.4 + (intensity * 0.6));
-    
-    window.particles.forEach(p => {
-        if (isPlaying) {
-             // Stats based movement
-            p.y -= p.speed * (1 + intensity * 3);
-            
-            // Loop particles
-            if (p.y < 0) {
-                p.y = canvas.height;
-                p.x = Math.random() * canvas.width;
-            }
-        }
-
-        ctx.beginPath();
-        // Pulsing size
-        const pulse = isPlaying ? Math.sin(Date.now() * 0.01) * 2 : 0;
-        ctx.arc(p.x, p.y, Math.max(0.5, p.size + (intensity * 3)), 0, Math.PI * 2);
-        ctx.fill();
-    });
+    // No animation, just static background
+    ctx.fillStyle = '#FAFAF8';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
 function drawPulseAura(color, intensity) {
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const time = Date.now() * 0.002; // Slower rotation
-    
-    // Smooth Liquid Blob effect using Sine waves
-    const baseRadius = 200 + (intensity * 60);
-    const numPoints = 120; // More points for smoothness
-    
-    ctx.beginPath();
-    ctx.strokeStyle = hexToRgba(color, 0.6);
-    ctx.lineWidth = 3;
-    // Glow
-    ctx.shadowBlur = 20 + intensity * 20;
-    ctx.shadowColor = color;
-    
-    // We'll store points to close the loop smoothly
-    // Use multiple sine waves to create organic "blob" shape
-    for (let i = 0; i <= numPoints; i++) {
-        const angle = (i / numPoints) * Math.PI * 2;
-        
-        // Organic modulation:
-        // Wave 1: Slow breathing (3 peaks)
-        const wave1 = Math.sin(angle * 3 + time) * 20;
-        // Wave 2: Faster ripple based on intensity (5 peaks)
-        const wave2 = Math.sin(angle * 5 - time * 2) * (10 + intensity * 40);
-        // Wave 3: Subtle detail
-        const wave3 = Math.cos(angle * 2 + time * 1.5) * 15;
-
-        const r = baseRadius + wave1 + wave2 + wave3;
-        
-        const x = centerX + Math.cos(angle) * r;
-        const y = centerY + Math.sin(angle) * r;
-        
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-    }
-    
-    ctx.closePath(); // Connects last point to first
-    ctx.stroke();
-    
-    // Reset shadow
-    ctx.shadowBlur = 0;
-    
-    // Inner filled blob (smoother, smaller)
-    ctx.beginPath();
-    const grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, baseRadius * 1.5);
-    grad.addColorStop(0, hexToRgba(color, 0.3 + intensity * 0.4));
-    grad.addColorStop(0.6, hexToRgba(color, 0.1));
-    grad.addColorStop(1, "rgba(0,0,0,0)");
-    
-    ctx.fillStyle = grad;
-    
-    for (let i = 0; i <= numPoints; i++) {
-        const angle = (i / numPoints) * Math.PI * 2;
-        // Slightly different phase for inner blob
-        const r = (baseRadius * 0.7) + Math.sin(angle * 3 - time) * 15 + Math.cos(angle * 4 + time) * 10;
-        const x = centerX + Math.cos(angle) * r;
-        const y = centerY + Math.sin(angle) * r;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-    }
-    ctx.fill();
-    ctx.closePath();
+    // No aura/mandala effect
+    // Function left empty intentionally
+    return;
 }
 
 function drawWaveforms() {

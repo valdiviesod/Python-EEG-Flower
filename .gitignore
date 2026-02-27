@@ -41,3 +41,6 @@ Thumbs.db
 
 # Generated geometry/manifests from export pipeline
 flor_neurofuncional_*mm_stl/
+
+# Auto-saved EEG captures (user data)
+captures/

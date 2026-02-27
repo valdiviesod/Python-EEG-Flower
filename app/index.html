@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroFlor — Captura EEG y Flor Neurofuncional</title>
+    <meta name="description"
+        content="Captura ondas cerebrales EEG en tiempo real con Muse 2 y genera tu flor neurofuncional única. Descarga JSON y MIDI.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="root">
+
+        <!-- ───── Header ───── -->
+        <header class="header" id="main-header">
+            <div class="header-inner">
+                <div class="logo">
+                    <span class="logo-glyph">✿</span>
+                    <div>
+                        <h1>Neuro<span class="accent">Flor</span></h1>
+                        <p class="tagline">Captura EEG · Flor Neurofuncional</p>
+                    </div>
+                </div>
+                <!-- Global Tabs (top level) -->
+                <nav class="global-tabs" id="global-tabs">
+                    <button class="global-tab active" data-view="capture" id="tab-capture">
+                        <span class="tab-emoji">🧠</span> Captura EEG
+                    </button>
+                    <button class="global-tab" data-view="flower" id="tab-flower">
+                        <span class="tab-emoji">🌸</span> Flor Neurofuncional
+                    </button>
+                    <button class="global-tab" data-view="garden" id="tab-garden">
+                        <span class="tab-emoji">🌿</span> Jardín
+                    </button>
+                </nav>
+            </div>
+        </header>
+
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <!-- VIEW: Captura EEG                                            -->
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <div class="view active" id="view-capture">
+
+            <!-- Setup Panel (before capture starts) -->
+            <section class="capture-setup" id="capture-setup">
+                <div class="setup-card">
+                    <div class="setup-icon">
+                        <svg viewBox="0 0 80 80" width="80" height="80">
+                            <circle cx="40" cy="28" r="14" fill="none" stroke="#E8A0BF" stroke-width="2" />
+                            <path d="M18 60 C18 45 62 45 62 60" fill="none" stroke="#E8A0BF" stroke-width="2"
+                                stroke-linecap="round" />
+                            <path d="M26 23 C20 10 14 18 20 23" fill="none" stroke="#C4B7D8" stroke-width="1.5"
+                                opacity="0.7" />
+                            <path d="M54 23 C60 10 66 18 60 23" fill="none" stroke="#C4B7D8" stroke-width="1.5"
+                                opacity="0.7" />
+                            <circle cx="24" cy="20" r="2" fill="#A8D8B9" opacity="0.6" />
+                            <circle cx="56" cy="20" r="2" fill="#FFD1DC" opacity="0.6" />
+                            <circle cx="40" cy="14" r="2" fill="#FFDAB9" opacity="0.6" />
+                        </svg>
+                    </div>
+                    <h2>Nueva Captura EEG</h2>
+                    <p class="setup-desc">
+                        Conecta tu diadema Muse 2 y configura la captura para registrar
+                        tus ondas cerebrales en tiempo real.
+                    </p>
+
+                    <div class="form-group">
+                        <label for="input-name">Nombre del participante</label>
+                        <input type="text" id="input-name" placeholder="Ej: María García" autocomplete="name">
+                    </div>
+                    <div class="form-group">
+                        <label for="input-age">Edad</label>
+                        <input type="number" id="input-age" placeholder="Ej: 28" min="1" max="120" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="input-duration">Duración de captura (segundos) <span class="optional">— vacío =
+                                manual</span></label>
+                        <input type="number" id="input-duration" placeholder="Ej: 30" min="1" max="3600"
+                            autocomplete="off">
+                    </div>
+
+                    <button class="btn-primary btn-start" id="btn-start-capture">
+                        <span>▶</span> Iniciar Captura
+                    </button>
+
+                    <div class="setup-hint">
+                        <strong>⚙️ Configuración:</strong>
+                        Asegúrate de que la app Muse envíe datos OSC a <code>127.0.0.1:5000</code>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Live Capture Panel (during capture) -->
+            <section class="capture-live" id="capture-live" style="display:none">
+                <!-- Status Bar -->
+                <div class="live-status-bar">
+                    <div class="live-info">
+                        <span class="live-dot"></span>
+                        <span id="live-user-label">Captura EEG</span>
+                    </div>
+                    <div class="live-stats">
+                        <div class="live-stat">
+                            <span class="stat-label">Muestras</span>
+                            <span class="stat-value" id="live-samples">0</span>
+                        </div>
+                        <div class="live-stat">
+                            <span class="stat-label">Tiempo</span>
+                            <span class="stat-value" id="live-time">00:00</span>
+                        </div>
+                        <div class="live-stat">
+                            <span class="stat-label">Hz</span>
+                            <span class="stat-value" id="live-rate">0</span>
+                        </div>
+                    </div>
+                    <button class="btn-stop" id="btn-stop-capture">⏹ Detener</button>
+                </div>
+
+                <!-- Real-time Waves Canvas -->
+                <div class="waves-container">
+                    <canvas id="waves-canvas"></canvas>
+                    <div class="waves-legend">
+                        <span class="wave-ch" data-ch="1"><span class="wave-dot ch1"></span>TP9</span>
+                        <span class="wave-ch" data-ch="2"><span class="wave-dot ch2"></span>AF7</span>
+                        <span class="wave-ch" data-ch="3"><span class="wave-dot ch3"></span>AF8</span>
+                        <span class="wave-ch" data-ch="4"><span class="wave-dot ch4"></span>TP10</span>
+                    </div>
+                </div>
+
+                <!-- channel stats -->
+                <div class="channel-stats" id="channel-stats">
+                    <div class="ch-stat" data-ch="1">
+                        <span class="ch-stat-dot ch1"></span>
+                        <span class="ch-stat-name">TP9</span>
+                        <span class="ch-stat-val" id="ch1-val">—</span>
+                    </div>
+                    <div class="ch-stat" data-ch="2">
+                        <span class="ch-stat-dot ch2"></span>
+                        <span class="ch-stat-name">AF7</span>
+                        <span class="ch-stat-val" id="ch2-val">—</span>
+                    </div>
+                    <div class="ch-stat" data-ch="3">
+                        <span class="ch-stat-dot ch3"></span>
+                        <span class="ch-stat-name">AF8</span>
+                        <span class="ch-stat-val" id="ch3-val">—</span>
+                    </div>
+                    <div class="ch-stat" data-ch="4">
+                        <span class="ch-stat-dot ch4"></span>
+                        <span class="ch-stat-name">TP10</span>
+                        <span class="ch-stat-val" id="ch4-val">—</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Panel (after capture completes) -->
+            <section class="capture-results" id="capture-results" style="display:none">
+                <div class="results-card">
+                    <div class="results-header">
+                        <h2>✅ Captura Completa</h2>
+                        <p id="results-summary">—</p>
+                    </div>
+                    <div class="results-actions">
+                        <button class="btn-primary" id="btn-download-json">
+                            <span>📥</span> Descargar JSON
+                        </button>
+                        <button class="btn-secondary" id="btn-download-midi">
+                            <span>🎵</span> Descargar MIDI
+                        </button>
+                        <button class="btn-secondary" id="btn-send-to-flower">
+                            <span>🌸</span> Ver Flor
+                        </button>
+                        <button class="btn-ghost" id="btn-new-capture">
+                            ← Nueva captura
+                        </button>
+                    </div>
+
+                    <!-- Mini waves preview -->
+                    <div class="results-waves">
+                        <canvas id="results-waves-canvas"></canvas>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <!-- VIEW: Flor Neurofuncional                                    -->
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <div class="view" id="view-flower">
+
+            <!-- Upload Section (when no data loaded) -->
+            <section class="upload-section" id="flower-upload-section">
+                <div class="upload-card" id="flower-upload-area">
+                    <div class="upload-visual">
+                        <div class="upload-flower-icon">
+                            <svg viewBox="0 0 140 140" width="140" height="140">
+                                <line x1="70" y1="95" x2="70" y2="130" stroke="#A8D8B9" stroke-width="2.5"
+                                    stroke-linecap="round" />
+                                <path d="M70,115 Q58,108 52,112 Q58,118 70,115" fill="#A8D8B9" opacity="0.6" />
+                                <g opacity="0.5">
+                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#FFD1DC"
+                                        transform="rotate(0,70,72)" />
+                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#C4B7D8"
+                                        transform="rotate(72,70,72)" />
+                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#A8D8B9"
+                                        transform="rotate(144,70,72)" />
+                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#FFDAB9"
+                                        transform="rotate(216,70,72)" />
+                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#FFF3B0"
+                                        transform="rotate(288,70,72)" />
+                                </g>
+                                <circle cx="70" cy="72" r="10" fill="#FFE4C9" stroke="#F2B5D4" stroke-width="1" />
+                                <circle cx="70" cy="72" r="4" fill="#F2B5D4" opacity="0.7" />
+                            </svg>
+                        </div>
+                        <h2>Carga tu lectura EEG</h2>
+                        <p>Arrastra un archivo <strong>.json</strong> de la diadema Muse o haz clic para seleccionar</p>
+                    </div>
+                    <input type="file" id="flower-file-input" accept=".json" hidden>
+                    <div class="upload-actions">
+                        <button class="btn-primary" id="flower-btn-upload">
+                            <span>📂</span> Seleccionar Archivo
+                        </button>
+                        <button class="btn-secondary" id="flower-btn-demo">
+                            <span>🌸</span> Datos de ejemplo
+                        </button>
+                    </div>
+                    <p class="upload-hint">
+                        Cada banda de frecuencia cerebral se transforma en un pétalo.<br>
+                        Cada persona genera una flor única e irrepetible.
+                    </p>
+                </div>
+            </section>
+
+            <!-- Flower Main Content (after data loaded) -->
+            <div class="main-content" id="flower-main-content" style="display:none">
+                <button class="btn-ghost" id="flower-btn-back" style="margin:0.5rem 0">← Nuevo archivo</button>
+
+                <!-- Flower Sub-Tabs -->
+                <nav class="tabs" id="flower-tabs">
+                    <button class="tab active" data-tab="flower2d">🌸 Flor 2D</button>
+                    <button class="tab" data-tab="flower3d">🌺 Flor 3D</button>
+                    <button class="tab" data-tab="analysis">🔬 Análisis de Bandas</button>
+                </nav>
+
+                <div class="tab-content">
+                    <!-- 2D Flower -->
+                    <div class="tab-panel active" id="panel-flower2d">
+                        <div class="canvas-wrapper">
+                            <canvas id="flower-2d-canvas"></canvas>
+                        </div>
+                        <button class="btn-export" id="btn-export-2d">📥 Descargar Flor 2D (PNG)</button>
+                    </div>
+
+                    <!-- 3D Flower -->
+                    <div class="tab-panel" id="panel-flower3d">
+                        <div id="flower-3d-container"></div>
+
+                        <div class="export-card">
+                            <div class="export-card-header">
+                                <span class="export-card-icon">🖨️</span>
+                                <div>
+                                    <strong>Exportar para impresión 3D</strong>
+                                    <span class="export-card-sub">Genera archivos GLB / 3MF / STL con colores
+                                        integrados</span>
+                                </div>
+                            </div>
+                            <div class="export-card-options">
+                                <div class="export-option-group">
+                                    <label for="print-size-mm">Altura</label>
+                                    <select id="print-size-mm">
+                                        <option value="80">80 mm</option>
+                                        <option value="100">100 mm</option>
+                                        <option value="120" selected>120 mm</option>
+                                        <option value="160">160 mm</option>
+                                        <option value="200">200 mm</option>
+                                    </select>
+                                </div>
+                                <div class="export-option-group">
+                                    <label for="print-export-format">Formato final</label>
+                                    <select id="print-export-format">
+                                        <option value="glb+3mf" selected>GLB + 3MF (recomendado)</option>
+                                        <option value="glb">Solo GLB</option>
+                                        <option value="3mf">Solo 3MF</option>
+                                        <option value="stl">STL por partes</option>
+                                        <option value="all">Todos los formatos</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button class="btn-export-3d-print" id="btn-export-3d">🖨️ Exportar y convertir para
+                                impresión 3D</button>
+                            <div class="export-status" id="export-status" style="display:none"></div>
+                            <div class="export-instructions" id="export-instructions" style="display:none">
+                                <div class="export-step">
+                                    <span class="step-num">1</span>
+                                    <div>
+                                        <strong>JSON descargado</strong>
+                                        <span>El archivo de geometría se guardó en tu carpeta de descargas</span>
+                                    </div>
+                                    <span class="step-check">✓</span>
+                                </div>
+                                <div class="export-step">
+                                    <span class="step-num">2</span>
+                                    <div>
+                                        <strong>Abre en tu slicer</strong>
+                                        <span>Importa el .GLB o .3MF en Bambu Studio / PrusaSlicer / OrcaSlicer</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="hint-3d">Arrastra para rotar · Scroll para zoom · Clic derecho para mover</p>
+                    </div>
+
+                    <!-- Analysis -->
+                    <div class="tab-panel" id="panel-analysis">
+                        <div class="analysis-grid" id="analysis-content"></div>
+                    </div>
+                </div>
+
+                <!-- Band Summary Bar -->
+                <div class="band-bar" id="band-bar"></div>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <!-- VIEW: Jardín                                                 -->
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <div class="view" id="view-garden">
+            <!-- 3D Garden container -->
+            <div class="garden-3d-wrap" id="garden-3d-wrap">
+                <div id="garden-3d-scene"></div>
+                <!-- Overlay UI -->
+                <div class="garden-overlay-header" id="garden-overlay-header">
+                    <h2>🌿 Jardín Neurofuncional</h2>
+                    <p>Cada flor crece desde una sesión EEG única · Haz clic en una flor</p>
+                    <button class="btn-garden-refresh" id="btn-garden-refresh">
+                        <span>🔄</span> Actualizar
+                    </button>
+                </div>
+                <div class="garden-status-overlay" id="garden-status" style="display:none">
+                    <div class="garden-status-content" id="garden-status-content">
+                        <div class="garden-loading-icon">🌱</div>
+                        <p>Cargando jardín...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Garden Modal (unchanged) -->
+            <div class="garden-modal-overlay" id="garden-modal" style="display:none">
+                <div class="garden-modal">
+                    <button class="garden-modal-close" id="garden-modal-close">✕</button>
+                    <div class="garden-modal-header" id="garden-modal-header">
+                        <h3 id="garden-modal-title">—</h3>
+                        <p id="garden-modal-meta">—</p>
+                    </div>
+                    <div class="garden-modal-actions">
+                        <button class="btn-primary" id="garden-btn-download-json">
+                            <span>📥</span> Descargar JSON
+                        </button>
+                        <button class="btn-secondary" id="garden-btn-download-midi">
+                            <span>🎵</span> Descargar MIDI
+                        </button>
+                    </div>
+                    <nav class="tabs garden-modal-tabs" id="garden-modal-tabs">
+                        <button class="tab active" data-gtab="garden-2d">🌸 Flor 2D</button>
+                        <button class="tab" data-gtab="garden-3d">🌺 Flor 3D</button>
+                        <button class="tab" data-gtab="garden-analysis">🔬 Análisis</button>
+                    </nav>
+                    <div class="garden-modal-body">
+                        <div class="garden-modal-panel active" id="gpanel-garden-2d">
+                            <div class="canvas-wrapper">
+                                <canvas id="garden-flower-2d-canvas"></canvas>
+                            </div>
+                        </div>
+                        <div class="garden-modal-panel" id="gpanel-garden-3d">
+                            <div id="garden-flower-3d-container"></div>
+                        </div>
+                        <div class="garden-modal-panel" id="gpanel-garden-analysis">
+                            <div class="analysis-grid" id="garden-analysis-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ───── Scripts ───── -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Flower scripts (served from /flower/) -->
+    <script src="/flower/eeg_band_analyzer.js"></script>
+    <script src="/flower/flower_2d.js"></script>
+    <script src="/flower/flower_3d.js"></script>
+    <script src="/flower/garden.js"></script>
+    <!-- Main App -->
+    <script src="app.js"></script>
+</body>
+
+</html>

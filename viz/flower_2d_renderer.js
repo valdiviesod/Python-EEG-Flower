@@ -173,14 +173,19 @@ class Flower2DRenderer {
         ctx.beginPath();
         ctx.moveTo(0, baseY);
 
-        ctx.bezierCurveTo(
-            width,
-            baseY - length * 0.2,
-            width * (0.85 + sideCurve * 0.2),
-            baseY - length * (0.72 - drop * 0.25),
-            width * tipRound,
-            tipY + length * (0.05 + drop * 0.24)
         );
+            // Use flower pastel palette for band colors
+            const palette = [
+                { color: '#C4B7D8', colorDeep: '#9B8EC0', colorLight: '#E6E0F5' }, // Delta
+                { color: '#A8D8B9', colorDeep: '#7CC496', colorLight: '#D6F5E4' }, // Theta
+                { color: '#FFD1DC', colorDeep: '#F2A5BE', colorLight: '#FFEAF2' }, // Alpha
+                { color: '#FFDAB9', colorDeep: '#F5BD8E', colorLight: '#FFF5E6' }, // Beta
+                { color: '#FFF3B0', colorDeep: '#F0E68C', colorLight: '#FFFBE6' }  // Gamma
+            ];
+            const bandColors = palette[layerIndex % palette.length];
+            band.color = bandColors.color;
+            band.colorDeep = bandColors.colorDeep;
+            band.colorLight = bandColors.colorLight;
 
         ctx.bezierCurveTo(
             width * 0.08,
