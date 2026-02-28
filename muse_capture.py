@@ -19,7 +19,7 @@ from pythonosc import osc_server
 
 
 class MuseOSCToMidi:
-    def __init__(self, output_file="muse_output.mid", osc_ip="127.0.0.1", osc_port=5000):
+    def __init__(self, output_file="muse_output.mid", osc_ip="0.0.0.0", osc_port=5000):
         self.output_file = output_file
         self.osc_ip = osc_ip
         self.osc_port = osc_port

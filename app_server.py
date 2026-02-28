@@ -251,6 +251,7 @@ class WebCaptureController:
                 payload = self._build_capture_payload_locked()
             total_samples = payload.get('metadata', {}).get('total_samples', 0)
             if total_samples == 0:
+                print('⚠️ No hay datos EEG para guardar (0 muestras capturadas). Esto suele pasar si el Muse (o teléfono) envía datos a una IP distinta o no está transmitiendo correctamente.')
                 return  # Nothing to save
 
             captures_dir = Path(__file__).resolve().parent / 'captures'
@@ -599,7 +600,7 @@ def main():
     )
     parser.add_argument('--host', default='127.0.0.1', help='Host (default: 127.0.0.1)')
     parser.add_argument('--port', type=int, default=8000, help='Puerto HTTP (default: 8000)')
-    parser.add_argument('--osc-ip', default='127.0.0.1', help='IP OSC para Muse (default: 127.0.0.1)')
+    parser.add_argument('--osc-ip', default='0.0.0.0', help='IP OSC para Muse (default: 0.0.0.0 para escuchar en toda la red local)')
     parser.add_argument('--osc-port', type=int, default=5000, help='Puerto OSC para Muse (default: 5000)')
     args = parser.parse_args()
 

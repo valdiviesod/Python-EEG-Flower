@@ -12,7 +12,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
 
 <body>
@@ -99,6 +99,17 @@
 
             <!-- Live Capture Panel (during capture) -->
             <section class="capture-live" id="capture-live" style="display:none">
+                <!-- Mindfulness Slider -->
+                <div class="mindfulness-slider" id="mindfulness-slider">
+                    <div class="mindfulness-icon" id="mindfulness-icon">🧘</div>
+                    <div class="mindfulness-content">
+                        <div class="mindfulness-text" id="mindfulness-text">Relájate y respira profundo...</div>
+                        <div class="mindfulness-progress">
+                            <div class="mindfulness-progress-bar" id="mindfulness-progress-bar"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Status Bar -->
                 <div class="live-status-bar">
                     <div class="live-info">
@@ -244,7 +255,7 @@
                 <!-- Flower Sub-Tabs -->
                 <nav class="tabs" id="flower-tabs">
                     <button class="tab active" data-tab="flower2d">🌸 Flor 2D</button>
-                    <button class="tab" data-tab="flower3d">🌺 Flor 3D</button>
+                    <button class="tab" data-tab="flower3d" style="display:none">🌺 Flor 3D</button>
                     <button class="tab" data-tab="analysis">🔬 Análisis de Bandas</button>
                 </nav>
 
@@ -332,10 +343,9 @@
         <!-- VIEW: Jardín                                                 -->
         <!-- ══════════════════════════════════════════════════════════════ -->
         <div class="view" id="view-garden">
-            <!-- 3D Garden container -->
+            <!-- 2D Garden container -->
             <div class="garden-3d-wrap" id="garden-3d-wrap">
-                <div id="garden-3d-scene"></div>
-                <!-- Overlay UI -->
+                <!-- Header UI -->
                 <div class="garden-overlay-header" id="garden-overlay-header">
                     <h2>🌿 Jardín Neurofuncional</h2>
                     <p>Cada flor crece desde una sesión EEG única · Haz clic en una flor</p>
@@ -343,6 +353,9 @@
                         <span>🔄</span> Actualizar
                     </button>
                 </div>
+
+                <div id="garden-2d-scene"></div>
+
                 <div class="garden-status-overlay" id="garden-status" style="display:none">
                     <div class="garden-status-content" id="garden-status-content">
                         <div class="garden-loading-icon">🌱</div>
@@ -369,7 +382,7 @@
                     </div>
                     <nav class="tabs garden-modal-tabs" id="garden-modal-tabs">
                         <button class="tab active" data-gtab="garden-2d">🌸 Flor 2D</button>
-                        <button class="tab" data-gtab="garden-3d">🌺 Flor 3D</button>
+                        <button class="tab" data-gtab="garden-3d" style="display:none">🌺 Flor 3D</button>
                         <button class="tab" data-gtab="garden-analysis">🔬 Análisis</button>
                     </nav>
                     <div class="garden-modal-body">
@@ -391,6 +404,27 @@
 
     </div>
 
+    <!-- ───── Tour Overlay ───── -->
+    <div class="tour-overlay" id="tour-overlay" style="display:none">
+        <div class="tour-backdrop" id="tour-backdrop"></div>
+        <div class="tour-spotlight" id="tour-spotlight"></div>
+        <div class="tour-tooltip" id="tour-tooltip">
+            <div class="tour-tooltip-header">
+                <span class="tour-tooltip-icon" id="tour-tooltip-icon">🧠</span>
+                <span class="tour-tooltip-step" id="tour-tooltip-step">1/5</span>
+            </div>
+            <h3 class="tour-tooltip-title" id="tour-tooltip-title">Bienvenido</h3>
+            <p class="tour-tooltip-desc" id="tour-tooltip-desc">Descripción del paso</p>
+            <div class="tour-tooltip-actions">
+                <button class="tour-btn-skip" id="tour-btn-skip">Saltar tour</button>
+                <div class="tour-tooltip-nav">
+                    <button class="tour-btn-prev" id="tour-btn-prev">← Anterior</button>
+                    <button class="tour-btn-next" id="tour-btn-next">Siguiente →</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ───── Scripts ───── -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -398,9 +432,9 @@
     <script src="/flower/eeg_band_analyzer.js"></script>
     <script src="/flower/flower_2d.js"></script>
     <script src="/flower/flower_3d.js"></script>
-    <script src="/flower/garden.js"></script>
+    <script src="/flower/garden.js?v=3"></script>
     <!-- Main App -->
-    <script src="app.js"></script>
+    <script src="app.js?v=3"></script>
 </body>
 
 </html>

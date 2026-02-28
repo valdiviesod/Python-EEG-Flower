@@ -130,6 +130,7 @@
             await fetch('/api/capture/stop', { method: 'POST' });
         } catch (_) { }
         stopPolling();
+        stopMindfulness();
         showResults();
         btnStop.disabled = false;
     });
@@ -141,6 +142,7 @@
         capturePollingId = setInterval(pollOnce, 150);
         resizeWavesCanvas();
         drawWavesLoop();
+        startMindfulness();
     }
 
     function stopPolling() {
@@ -199,6 +201,7 @@
             // Auto-stop if finished
             if (data.finished) {
                 stopPolling();
+                stopMindfulness();
                 showResults();
             }
 
@@ -306,6 +309,9 @@
         liveSection.style.display = 'none';
         resultsSection.style.display = 'flex';
 
+        // Mark garden as needing refresh so new capture appears
+        gardenLoaded = false;
+
         if (lastCaptureData && lastCaptureData.metadata) {
             const meta = lastCaptureData.metadata;
             const dur = meta.duration_seconds || 0;
@@ -321,6 +327,9 @@
 
         // Draw static preview of waves
         drawResultsPreview();
+
+        // Show post-capture tour
+        showPostCaptureTour();
     }
 
     function drawResultsPreview() {
@@ -407,6 +416,296 @@
         lastCaptureData = null;
         captureWaveBuffer = { 0: [], 1: [], 2: [], 3: [] };
     });
+
+    // ══════════════════════════════════════════════════════════════════════
+    // MINDFULNESS SLIDER (during capture)
+    // ══════════════════════════════════════════════════════════════════════
+
+    const mindfulnessMessages = [
+        { icon: '🧘', text: 'Relájate y respira profundo... inhala por la nariz, exhala por la boca.' },
+        { icon: '🌿', text: 'Siéntate cómodamente y deja que tus hombros se relajen.' },
+        { icon: '🌊', text: 'Imagina olas suaves llegando a la orilla... calma y serenidad.' },
+        { icon: '✨', text: 'Cierra los ojos suavemente y enfócate en tu respiración.' },
+        { icon: '🦋', text: 'Deja ir cualquier pensamiento... solo observa sin juzgar.' },
+        { icon: '🌸', text: 'Cada respiración te acerca más a tu centro interior.' },
+        { icon: '🍃', text: 'Siente cómo tu cuerpo se vuelve más ligero con cada exhalación.' },
+        { icon: '🌙', text: 'Permite que tu mente descanse... no hay prisa, solo presencia.' },
+        { icon: '💫', text: 'Tu cerebro está creando patrones únicos en este momento.' },
+        { icon: '🎵', text: 'Escucha el silencio entre tus pensamientos... ahí está la calma.' },
+        { icon: '🌺', text: 'Cada onda cerebral es un pétalo de tu flor neurofuncional.' },
+        { icon: '☁️', text: 'Deja que tus pensamientos pasen como nubes en el cielo.' },
+        { icon: '🕊️', text: 'Estás haciendo un gran trabajo. Mantén esta calma.' },
+        { icon: '🌈', text: 'Tu mente está pintando un jardín de frecuencias únicas.' },
+        { icon: '💎', text: 'Cada segundo de calma revela más sobre tu mundo interior.' },
+    ];
+
+    let mindfulnessIntervalId = null;
+    let mindfulnessIndex = 0;
+    let mindfulnessCaptureStart = null;
+
+    function startMindfulness() {
+        mindfulnessIndex = 0;
+        mindfulnessCaptureStart = Date.now();
+        updateMindfulnessMessage();
+        mindfulnessIntervalId = setInterval(() => {
+            mindfulnessIndex = (mindfulnessIndex + 1) % mindfulnessMessages.length;
+            updateMindfulnessMessage();
+        }, 6000); // Change message every 6 seconds
+        updateMindfulnessProgress();
+    }
+
+    function stopMindfulness() {
+        if (mindfulnessIntervalId) {
+            clearInterval(mindfulnessIntervalId);
+            mindfulnessIntervalId = null;
+        }
+    }
+
+    function updateMindfulnessMessage() {
+        const msg = mindfulnessMessages[mindfulnessIndex];
+        const iconEl = document.getElementById('mindfulness-icon');
+        const textEl = document.getElementById('mindfulness-text');
+        if (iconEl) iconEl.textContent = msg.icon;
+        if (textEl) {
+            textEl.style.animation = 'none';
+            // Force reflow
+            void textEl.offsetWidth;
+            textEl.style.animation = 'mindfulness-text-fade 0.5s ease';
+            textEl.textContent = msg.text;
+        }
+    }
+
+    function updateMindfulnessProgress() {
+        const progressBar = document.getElementById('mindfulness-progress-bar');
+        if (!progressBar) return;
+
+        function tick() {
+            if (!mindfulnessCaptureStart || !mindfulnessIntervalId) return;
+            const elapsed = (Date.now() - mindfulnessCaptureStart) / 1000;
+            const duration = inputDuration.value ? parseFloat(inputDuration.value) : 0;
+
+            if (duration > 0) {
+                const pct = Math.min(100, (elapsed / duration) * 100);
+                progressBar.style.width = pct + '%';
+            } else {
+                // Manual mode: oscillate
+                const cycle = (elapsed % 10) / 10;
+                const pct = Math.sin(cycle * Math.PI) * 100;
+                progressBar.style.width = Math.abs(pct) + '%';
+            }
+            requestAnimationFrame(tick);
+        }
+        tick();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // INTERACTIVE TOUR
+    // ══════════════════════════════════════════════════════════════════════
+
+    const TOUR_STORAGE_KEY = 'neuroflor_tour_seen';
+    const tourOverlay = document.getElementById('tour-overlay');
+    const tourBackdrop = document.getElementById('tour-backdrop');
+    const tourSpotlight = document.getElementById('tour-spotlight');
+    const tourTooltip = document.getElementById('tour-tooltip');
+    const tourIcon = document.getElementById('tour-tooltip-icon');
+    const tourStep = document.getElementById('tour-tooltip-step');
+    const tourTitle = document.getElementById('tour-tooltip-title');
+    const tourDesc = document.getElementById('tour-tooltip-desc');
+    const tourBtnSkip = document.getElementById('tour-btn-skip');
+    const tourBtnPrev = document.getElementById('tour-btn-prev');
+    const tourBtnNext = document.getElementById('tour-btn-next');
+
+    let tourCurrentStep = 0;
+    let tourSteps = [];
+    let tourActive = false;
+
+    // Setup tour steps (shown when entering capture view)
+    const captureSetupTourSteps = [
+        {
+            icon: '🌸',
+            title: '¡Bienvenido a NeuroFlor!',
+            desc: 'Esta herramienta captura tus ondas cerebrales con una diadema Muse 2 y las transforma en una flor neurofuncional única. Te guiaremos paso a paso.',
+            target: null, // centered, no spotlight
+        },
+        {
+            icon: '👤',
+            title: 'Nombre del participante',
+            desc: 'Escribe el nombre de quien realizará la captura. Esto ayuda a identificar cada sesión en el jardín de flores.',
+            target: '#input-name',
+        },
+        {
+            icon: '⏱️',
+            title: 'Duración de la captura',
+            desc: 'Define cuántos segundos durará la grabación. Si lo dejas vacío, la captura será manual y deberás presionar "Detener" cuando termines.',
+            target: '#input-duration',
+        },
+        {
+            icon: '▶️',
+            title: 'Iniciar la captura',
+            desc: 'Cuando estés listo, presiona este botón para comenzar a registrar tus ondas cerebrales. ¡Relájate y disfruta el proceso!',
+            target: '#btn-start-capture',
+        },
+    ];
+
+    // Post-capture tour step
+    const postCaptureTourSteps = [
+        {
+            icon: '🎉',
+            title: '¡Captura completada!',
+            desc: 'Tus ondas cerebrales han sido registradas exitosamente. La captura se guardó automáticamente en tu jardín.',
+            target: null,
+        },
+        {
+            icon: '🌸',
+            title: 'Visualiza tu Flor',
+            desc: 'Presiona "Ver Flor" para transformar tus ondas cerebrales en una flor neurofuncional única. ¡Cada persona genera una flor diferente!',
+            target: '#btn-send-to-flower',
+        },
+    ];
+
+    function startTour(steps) {
+        tourSteps = steps;
+        tourCurrentStep = 0;
+        tourActive = true;
+        tourOverlay.style.display = 'block';
+        renderTourStep();
+    }
+
+    function endTour() {
+        tourActive = false;
+        tourOverlay.style.display = 'none';
+        tourSpotlight.style.display = 'none';
+    }
+
+    function renderTourStep() {
+        if (tourCurrentStep < 0 || tourCurrentStep >= tourSteps.length) {
+            endTour();
+            return;
+        }
+
+        const step = tourSteps[tourCurrentStep];
+        tourIcon.textContent = step.icon;
+        tourStep.textContent = `${tourCurrentStep + 1}/${tourSteps.length}`;
+        tourTitle.textContent = step.title;
+        tourDesc.textContent = step.desc;
+
+        // Prev/Next button states
+        tourBtnPrev.style.display = tourCurrentStep > 0 ? 'inline-flex' : 'none';
+        tourBtnNext.textContent = tourCurrentStep === tourSteps.length - 1 ? '¡Entendido! ✓' : 'Siguiente →';
+
+        if (step.target) {
+            const targetEl = document.querySelector(step.target);
+            if (targetEl) {
+                const rect = targetEl.getBoundingClientRect();
+                const pad = 8;
+
+                // Position spotlight
+                tourSpotlight.style.display = 'block';
+                tourBackdrop.style.display = 'none'; // spotlight creates its own backdrop via box-shadow
+                tourSpotlight.style.top = (rect.top - pad) + 'px';
+                tourSpotlight.style.left = (rect.left - pad) + 'px';
+                tourSpotlight.style.width = (rect.width + pad * 2) + 'px';
+                tourSpotlight.style.height = (rect.height + pad * 2) + 'px';
+
+                // Position tooltip below or above the target
+                tourTooltip.classList.remove('tour-tooltip--center');
+                const tooltipH = 220; // approximate
+                const spaceBelow = window.innerHeight - rect.bottom;
+                const spaceAbove = rect.top;
+
+                let tooltipTop, tooltipLeft;
+                tooltipLeft = Math.max(10, Math.min(rect.left, window.innerWidth - 400));
+
+                if (spaceBelow > tooltipH + 30) {
+                    tooltipTop = rect.bottom + 16;
+                } else if (spaceAbove > tooltipH + 30) {
+                    tooltipTop = rect.top - tooltipH - 16;
+                } else {
+                    tooltipTop = Math.max(10, (window.innerHeight - tooltipH) / 2);
+                }
+
+                tourTooltip.style.top = tooltipTop + 'px';
+                tourTooltip.style.left = tooltipLeft + 'px';
+
+                // Scroll target into view if needed
+                targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                // Target not found, center tooltip
+                showCenteredTooltip();
+            }
+        } else {
+            // No target — center the tooltip
+            showCenteredTooltip();
+        }
+    }
+
+    function showCenteredTooltip() {
+        tourSpotlight.style.display = 'none';
+        tourBackdrop.style.display = 'block';
+        tourTooltip.classList.add('tour-tooltip--center');
+        tourTooltip.style.top = '';
+        tourTooltip.style.left = '';
+    }
+
+    // Tour navigation
+    if (tourBtnNext) {
+        tourBtnNext.addEventListener('click', () => {
+            tourCurrentStep++;
+            if (tourCurrentStep >= tourSteps.length) {
+                endTour();
+            } else {
+                renderTourStep();
+            }
+        });
+    }
+
+    if (tourBtnPrev) {
+        tourBtnPrev.addEventListener('click', () => {
+            if (tourCurrentStep > 0) {
+                tourCurrentStep--;
+                renderTourStep();
+            }
+        });
+    }
+
+    if (tourBtnSkip) {
+        tourBtnSkip.addEventListener('click', () => {
+            localStorage.setItem(TOUR_STORAGE_KEY, 'true');
+            endTour();
+        });
+    }
+
+    if (tourBackdrop) {
+        tourBackdrop.addEventListener('click', (e) => {
+            // Only close if clicking the backdrop itself
+            if (e.target === tourBackdrop) {
+                endTour();
+            }
+        });
+    }
+
+    // Auto-start tour on first visit to capture view
+    function maybeStartCaptureTour() {
+        if (!localStorage.getItem(TOUR_STORAGE_KEY)) {
+            setTimeout(() => {
+                // Only start if we're on the capture setup view
+                if (setupSection.style.display !== 'none' || setupSection.offsetParent !== null) {
+                    startTour(captureSetupTourSteps);
+                    localStorage.setItem(TOUR_STORAGE_KEY, 'true');
+                }
+            }, 600);
+        }
+    }
+
+    // Show post-capture tour
+    function showPostCaptureTour() {
+        setTimeout(() => {
+            startTour(postCaptureTourSteps);
+        }, 800);
+    }
+
+    // Start the capture tour on page load
+    maybeStartCaptureTour();
 
     // ── Utils ──
     function formatTime(seconds) {
@@ -741,19 +1040,11 @@
     let gardenCurrentFile = null;
     let gardenCurrentJson = null;
 
-    // The main 3D garden environment
-    let garden3dEnv = null;
-
+    // The main garden environment
     // Auto-load garden when switching to it
     globalTabs.forEach(tab => {
         tab.addEventListener('click', () => {
             if (tab.dataset.view === 'garden') {
-                if (!garden3dEnv) {
-                    garden3dEnv = new Garden3D('garden-3d-scene', (captureData) => {
-                        openGardenModalFromData(captureData);
-                    });
-                    garden3dEnv.init();
-                }
                 if (!gardenLoaded) loadGarden();
             }
         });
@@ -793,15 +1084,76 @@
 
             hideGardenStatus();
 
-            // Render beautiful 3D flowers
-            if (garden3dEnv) {
-                await garden3dEnv.loadCaptures(data.captures);
-            }
+            // Render beautiful 2D flowers
+            await renderGarden2D(data.captures);
 
             gardenLoaded = true;
         } catch (err) {
             console.error('Error loading garden:', err);
             showGardenStatus('⚠️', 'Error al cargar el jardín. Intenta actualizar.');
+        }
+    }
+
+    async function renderGarden2D(capturesList) {
+        const container = document.getElementById('garden-2d-scene');
+        container.innerHTML = '';
+
+        // Sort captures alphabetically
+        capturesList.sort((a, b) => a.filename.localeCompare(b.filename));
+
+        for (let i = 0; i < capturesList.length; i++) {
+            const captureMeta = capturesList[i];
+            try {
+                const resp = await fetch(`/api/garden/file?name=${encodeURIComponent(captureMeta.filename)}`);
+                if (!resp.ok) continue;
+                const fullCaptureData = await resp.json();
+
+                // Keep the original filename for downloading if needed
+                fullCaptureData.filename = captureMeta.filename;
+
+                // Create item wrapper
+                const item = document.createElement('div');
+                item.className = 'garden-2d-item';
+
+                // Canvas for 2D flower
+                const canvasWrapper = document.createElement('div');
+                canvasWrapper.className = 'garden-2d-canvas-wrap';
+                const canvas = document.createElement('canvas');
+                canvasWrapper.appendChild(canvas);
+
+                // Label
+                const label = document.createElement('div');
+                label.className = 'garden-2d-label';
+                const userName = fullCaptureData.metadata?.user_name || 'Anónimo';
+                let dateStr = '';
+                if (fullCaptureData.metadata?.capture_timestamp) {
+                    const date = new Date(fullCaptureData.metadata.capture_timestamp);
+                    dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                }
+                label.innerHTML = `<span class="garden-2d-label-name">${userName}</span><span class="garden-2d-label-date">${dateStr}</span>`;
+
+                item.appendChild(canvasWrapper);
+                item.appendChild(label);
+
+                container.appendChild(item);
+
+                // Draw 2D flower
+                const analyzer = new EEGBandAnalyzer(fullCaptureData);
+                const flower2d = new Flower2D(canvas, analyzer);
+
+                // Set sizes
+                canvas.width = 600;
+                canvas.height = 600;
+                flower2d.draw(600);
+
+                // Click handler
+                item.addEventListener('click', () => {
+                    openGardenModalFromData(fullCaptureData);
+                });
+
+            } catch (e) {
+                console.error("Error drawing garden 2D item:", e);
+            }
         }
     }
 
