@@ -83,11 +83,6 @@ class WebCaptureController:
 
                 converter.timestamps.append(current_time)
 
-                keep = 12000
-                if len(converter.timestamps) > keep:
-                    converter.timestamps = converter.timestamps[-keep:]
-                    for channel in range(4):
-                        converter.eeg_data[channel] = converter.eeg_data[channel][-keep:]
 
         return handler
 

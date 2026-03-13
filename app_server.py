@@ -30,6 +30,7 @@ import numpy as np
 
 from muse_capture import MuseOSCToMidi
 from flower_to_3d_print import convert
+from safe_json_storage import default_json_dirs, first_writable_dir, write_json_with_fallback
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -45,6 +46,20 @@ def map_formats(format_value: str) -> list[str]:
         'all': ['all'],
     }
     return mapping.get(format_value, ['glb', '3mf'])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Helpers
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_captures_dir() -> Path:
+    """Devuelve la carpeta de capturas escribible (con fallback a ~/captura_eeg/captures)."""
+    primary = Path(__file__).resolve().parent / 'captures'
+    candidates = [primary, *default_json_dirs()]
+    chosen = first_writable_dir(candidates)
+    if chosen != primary:
+        print(f'⚠️  Sin permisos en captures/ junto al script. Guardando en: {chosen}')
+    return chosen
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -103,11 +118,6 @@ class WebCaptureController:
                         val = 0.0
                     converter.eeg_data[channel].append(float(val))
                 converter.timestamps.append(current_time)
-                keep = 12000
-                if len(converter.timestamps) > keep:
-                    converter.timestamps = converter.timestamps[-keep:]
-                    for channel in range(4):
-                        converter.eeg_data[channel] = converter.eeg_data[channel][-keep:]
         return handler
 
     def start_capture(self, duration_seconds: float | None = None,
@@ -251,22 +261,22 @@ class WebCaptureController:
                 payload = self._build_capture_payload_locked()
             total_samples = payload.get('metadata', {}).get('total_samples', 0)
             if total_samples == 0:
-                print('⚠️ No hay datos EEG para guardar (0 muestras capturadas). Esto suele pasar si el Muse (o teléfono) envía datos a una IP distinta o no está transmitiendo correctamente.')
-                return  # Nothing to save
+                print('⚠️ 0 muestras capturadas (Muse puede no estar transmitiendo), pero se guarda el archivo de todas formas.')
 
-            captures_dir = Path(__file__).resolve().parent / 'captures'
-            captures_dir.mkdir(exist_ok=True)
+            captures_dir = get_captures_dir()
 
             name = payload['metadata'].get('user_name', '') or 'captura'
             age = payload['metadata'].get('user_age', '')
             safe_name = ''.join(c if c.isalnum() or c in '-_ ' else '' for c in name).strip().replace(' ', '_')
+            age_str = f"_{age}anos" if age not in (None, '', 0) else ''
             timestamp_str = time.strftime('%Y%m%d_%H%M%S')
-            filename = f"eeg_{safe_name}_{timestamp_str}.json"
+            filename = f"eeg_{safe_name}{age_str}_{timestamp_str}.json"
 
-            filepath = captures_dir / filename
-            filepath.write_text(
-                json.dumps(payload, ensure_ascii=False, indent=2),
-                encoding='utf-8'
+            filepath = write_json_with_fallback(
+                payload,
+                target_file=captures_dir / filename,
+                filename=filename,
+                indent=2,
             )
             print(f'💾 Captura guardada automáticamente: {filepath}')
         except Exception as exc:
@@ -546,7 +556,7 @@ class AppHandler(SimpleHTTPRequestHandler):
     # ── Garden API handlers ────────────────────────────────────────────────
 
     def _handle_garden_list(self):
-        captures_dir = Path(__file__).resolve().parent / 'captures'
+        captures_dir = get_captures_dir()
         if not captures_dir.exists():
             self._send_json(200, {'ok': True, 'captures': []})
             return
@@ -575,7 +585,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             self._send_json(400, {'ok': False, 'error': 'Nombre de archivo inválido'})
             return
 
-        captures_dir = Path(__file__).resolve().parent / 'captures'
+        captures_dir = get_captures_dir()
         filepath = captures_dir / filename
 
         if not filepath.exists() or not filepath.is_file():

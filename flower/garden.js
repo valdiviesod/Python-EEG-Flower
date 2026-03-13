@@ -319,13 +319,7 @@ class Garden3D {
         div.className = 'garden-3d-label';
 
         const name = meta.user_name || 'Anónimo';
-        const age = meta.user_age ? `${meta.user_age} años` : '';
-        const date = meta.capture_timestamp || '';
-
-        div.innerHTML = `
-            <span class="garden-3d-label-name">${name}</span>
-            <span class="garden-3d-label-age">${age} ${date ? '· ' + date : ''}</span>
-        `;
+        div.innerHTML = `<span class="garden-3d-label-name">${name}</span>`;
 
         // Append to wrap, not canvas, so it sits on top outside WebGL context
         const wrap = document.getElementById('garden-3d-wrap');

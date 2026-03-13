@@ -176,11 +176,11 @@ class Flower2DRenderer {
         );
             // Use flower pastel palette for band colors
             const palette = [
-                { color: '#C4B7D8', colorDeep: '#9B8EC0', colorLight: '#E6E0F5' }, // Delta
-                { color: '#A8D8B9', colorDeep: '#7CC496', colorLight: '#D6F5E4' }, // Theta
-                { color: '#FFD1DC', colorDeep: '#F2A5BE', colorLight: '#FFEAF2' }, // Alpha
-                { color: '#FFDAB9', colorDeep: '#F5BD8E', colorLight: '#FFF5E6' }, // Beta
-                { color: '#FFF3B0', colorDeep: '#F0E68C', colorLight: '#FFFBE6' }  // Gamma
+                { color: '#C4B7D8', colorDeep: '#7B68AE', colorLight: '#E6E0F5' }, // Delta
+                { color: '#A8D8B9', colorDeep: '#4CAF7A', colorLight: '#D6F5E4' }, // Theta
+                { color: '#FFD1DC', colorDeep: '#E8719D', colorLight: '#FFEAF2' }, // Alpha
+                { color: '#FFDAB9', colorDeep: '#F0A05A', colorLight: '#FFF5E6' }, // Beta
+                { color: '#FFF3B0', colorDeep: '#E6D44E', colorLight: '#FFFBE6' }  // Gamma
             ];
             const bandColors = palette[layerIndex % palette.length];
             band.color = bandColors.color;

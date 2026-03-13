@@ -1,5 +1,5 @@
 /**
- * NeuroFlor — Unified App Controller
+ * NAD — Unified App Controller
  *
  * Manages two views:
  *   1. Captura EEG — setup → live capture → results (download JSON / MIDI / send to flower)
@@ -502,7 +502,7 @@
     // INTERACTIVE TOUR
     // ══════════════════════════════════════════════════════════════════════
 
-    const TOUR_STORAGE_KEY = 'neuroflor_tour_seen';
+    const TOUR_STORAGE_KEY = 'nad_tour_seen';
     const tourOverlay = document.getElementById('tour-overlay');
     const tourBackdrop = document.getElementById('tour-backdrop');
     const tourSpotlight = document.getElementById('tour-spotlight');
@@ -523,7 +523,7 @@
     const captureSetupTourSteps = [
         {
             icon: '🌸',
-            title: '¡Bienvenido a NeuroFlor!',
+            title: '¡Bienvenido a NAD!',
             desc: 'Esta herramienta captura tus ondas cerebrales con una diadema Muse 2 y las transforma en una flor neurofuncional única. Te guiaremos paso a paso.',
             target: null, // centered, no spotlight
         },
@@ -1039,6 +1039,9 @@
     let gardenAnalyzer = null;
     let gardenCurrentFile = null;
     let gardenCurrentJson = null;
+    let gardenAudioContext = null;
+    let gardenMidiTimeouts = [];
+    let gardenMidiOscillators = [];
 
     // The main garden environment
     // Auto-load garden when switching to it
@@ -1125,12 +1128,7 @@
                 const label = document.createElement('div');
                 label.className = 'garden-2d-label';
                 const userName = fullCaptureData.metadata?.user_name || 'Anónimo';
-                let dateStr = '';
-                if (fullCaptureData.metadata?.capture_timestamp) {
-                    const date = new Date(fullCaptureData.metadata.capture_timestamp);
-                    dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                }
-                label.innerHTML = `<span class="garden-2d-label-name">${userName}</span><span class="garden-2d-label-date">${dateStr}</span>`;
+                label.innerHTML = `<span class="garden-2d-label-name">${userName}</span>`;
 
                 item.appendChild(canvasWrapper);
                 item.appendChild(label);
@@ -1144,7 +1142,7 @@
                 // Set sizes
                 canvas.width = 600;
                 canvas.height = 600;
-                flower2d.draw(600);
+                flower2d.draw(600, { transparentBackground: true, gardenMode: true });
 
                 // Click handler
                 item.addEventListener('click', () => {
@@ -1165,9 +1163,8 @@
 
         gardenCurrentJson = captureData;
         gardenCurrentFile = filename;
+        void playGardenMidi(captureData);
 
-        const date = new Date(captureData.metadata?.capture_timestamp || Date.now());
-        const dateStr = date.toLocaleString();
         const userName = captureData.metadata?.user_name || 'Anónimo';
 
         gardenModalTitle.textContent = `Flor de ${userName}`;
@@ -1175,7 +1172,7 @@
         const dur = captureData.metadata?.duration_seconds ? formatTime(captureData.metadata.duration_seconds) : '—';
         const samples = captureData.metadata?.total_samples ? captureData.metadata.total_samples.toLocaleString() : '0';
         const hz = captureData.metadata?.sample_rate_hz ? Math.round(captureData.metadata.sample_rate_hz) : '—';
-        gardenModalMeta.textContent = `${samples} muestras · ${dur} · ${hz} Hz · ${dateStr}`;
+        gardenModalMeta.textContent = `${samples} muestras · ${dur} · ${hz} Hz`;
 
         // Initialize Analyzer for Modal Views
         gardenAnalyzer = new EEGBandAnalyzer(captureData);
@@ -1227,6 +1224,83 @@
         }
     }
 
+    function stopGardenMidiPlayback() {
+        gardenMidiTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+        gardenMidiTimeouts = [];
+
+        gardenMidiOscillators.forEach(osc => {
+            try { osc.stop(); } catch (_) { }
+            try { osc.disconnect(); } catch (_) { }
+        });
+        gardenMidiOscillators = [];
+    }
+
+    async function getGardenAudioContext() {
+        if (!gardenAudioContext) {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) throw new Error('Web Audio API no disponible');
+            gardenAudioContext = new Ctx();
+        }
+        if (gardenAudioContext.state === 'suspended') {
+            await gardenAudioContext.resume();
+        }
+        return gardenAudioContext;
+    }
+
+    async function playGardenMidi(captureData) {
+        if (!captureData || typeof Midi === 'undefined') return;
+
+        try {
+            const resp = await fetch('/api/json-to-midi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jsonData: captureData }),
+            });
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.error || 'No se pudo generar MIDI');
+            }
+
+            const midi = new Midi(await resp.arrayBuffer());
+            const notes = midi.tracks.flatMap(track => track.notes || []).sort((a, b) => a.time - b.time);
+            const playableNotes = notes.slice(0, 320);
+            if (!playableNotes.length) return;
+
+            const ctx = await getGardenAudioContext();
+            stopGardenMidiPlayback();
+            const baseTime = ctx.currentTime + 0.05;
+
+            playableNotes.forEach(note => {
+                const timeoutId = setTimeout(() => {
+                    const now = ctx.currentTime;
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    const velocity = Math.max(0.08, Math.min(0.45, note.velocity || 0.24));
+                    const duration = Math.max(0.08, Math.min(1.2, note.duration || 0.25));
+                    const midiValue = note.midi || 60;
+                    const frequency = 440 * (2 ** ((midiValue - 69) / 12));
+
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(frequency, now);
+
+                    gain.gain.setValueAtTime(0.0001, now);
+                    gain.gain.exponentialRampToValueAtTime(velocity, now + 0.015);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + duration + 0.02);
+                    gardenMidiOscillators.push(osc);
+                }, Math.max(0, (baseTime - ctx.currentTime + note.time) * 1000));
+
+                gardenMidiTimeouts.push(timeoutId);
+            });
+        } catch (err) {
+            console.error('Error reproduciendo MIDI del jardín:', err);
+        }
+    }
+
     function renderGardenAnalysisHTML(report) {
         const bands = report.bands;
         return `
@@ -1257,6 +1331,7 @@
     });
 
     function closeGardenModal() {
+        stopGardenMidiPlayback();
         gardenModal.style.display = 'none';
         if (gardenFlowerModal3d) {
             gardenFlowerModal3d.destroy();

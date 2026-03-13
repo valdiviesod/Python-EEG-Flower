@@ -9,6 +9,7 @@ import numpy as np
 import threading
 import socket
 import json
+from pathlib import Path
 from midiutil import MIDIFile
 import matplotlib.pyplot as plt
 import matplotlib
@@ -16,6 +17,7 @@ matplotlib.use('Agg')  # Backend sin interfaz gráfica para guardar archivos
 
 from pythonosc.dispatcher import Dispatcher
 from pythonosc import osc_server
+from safe_json_storage import write_json_with_fallback
 
 
 class MuseOSCToMidi:
@@ -417,29 +419,21 @@ class MuseOSCToMidi:
                         "samples_count": len(data)
                     }
             
-            # Guardar en archivo JSON
+            # Guardar en archivo JSON con fallback robusto
             try:
-                # Asegurar que el directorio existe
-                import os
-                output_dir = os.path.dirname(output_json)
-                if output_dir and not os.path.exists(output_dir):
-                    os.makedirs(output_dir, exist_ok=True)
-                
-                with open(output_json, 'w') as f:
-                    json.dump(capture_data, f, indent=2)
-                
-                print(f"💾 Datos guardados exitosamente en: {output_json}")
+                target_path = Path(output_json) if output_json else None
+                filename = target_path.name if target_path else f"eeg_data_{int(duration)}s.json"
+                saved_path = write_json_with_fallback(
+                    capture_data,
+                    target_file=target_path,
+                    filename=filename,
+                    extra_dirs=[Path(__file__).resolve().parent],
+                    indent=2,
+                )
+                print(f"💾 Datos guardados exitosamente en: {saved_path}")
             except Exception as e:
-                print(f"❌ Error guardando archivo JSON: {e}")
-                # Intentar guardar en directorio actual como respaldo
-                fallback_file = "eeg_data_10s_backup.json"
-                try:
-                    with open(fallback_file, 'w') as f:
-                        json.dump(capture_data, f, indent=2)
-                    print(f"💾 Datos guardados en archivo de respaldo: {fallback_file}")
-                except Exception as e2:
-                    print(f"❌ Error crítico guardando datos: {e2}")
-                    return
+                print(f"❌ Error crítico guardando datos JSON: {e}")
+                return
             print(f"📊 Estadísticas de la captura:")
             print(f"   • Duración: {duration:.1f} segundos")
             print(f"   • Total muestras: {self.sample_count}")

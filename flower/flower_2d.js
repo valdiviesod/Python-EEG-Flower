@@ -21,8 +21,13 @@ class Flower2D {
         this.profile = analyzer.profile;
     }
 
-    draw(size) {
+    draw(size, options = {}) {
         const { canvas, ctx } = this;
+        const settings = {
+            transparentBackground: false,
+            gardenMode: false,
+            ...options,
+        };
         canvas.width = size || 2048;
         canvas.height = Math.round(canvas.width * 1.25); // taller for stem
         const W = canvas.width;
@@ -37,7 +42,7 @@ class Flower2D {
         ctx.clearRect(0, 0, W, H);
 
         // Background
-        this._drawBackground(W, H);
+        this._drawBackground(W, H, settings.transparentBackground);
 
         // Draw from back to front
         this._drawStem(ctx, cx, cy, maxR, W, H);
@@ -53,11 +58,13 @@ class Flower2D {
 
         // Draw small details / pistils
         this._drawPistils(ctx, cx, cy, maxR);
+
     }
 
     // ── Background ────────────────────────────────────────────────────────
-    _drawBackground(W, H) {
+    _drawBackground(W, H, transparentBackground = false) {
         const ctx = this.ctx;
+        if (transparentBackground) return;
 
         // Soft warm white
         ctx.fillStyle = '#FAFAF8';
@@ -254,9 +261,9 @@ class Flower2D {
 
         // Gradient fill: base is deeper, tip fades
         const grad = ctx.createLinearGradient(0, baseY, 0, tipY);
-        grad.addColorStop(0, this._alpha(band.colorDeep, opacity));
-        grad.addColorStop(0.3, this._alpha(band.color, opacity));
-        grad.addColorStop(0.6, this._alpha(band.color, opacity * 0.85));
+        grad.addColorStop(0, this._alpha(band.colorDeep, Math.min(1, opacity * 1.08)));
+        grad.addColorStop(0.3, this._alpha(band.color, Math.min(1, opacity * 1.04)));
+        grad.addColorStop(0.6, this._alpha(band.color, Math.min(1, opacity * 0.92)));
         grad.addColorStop(1, this._alpha(band.colorLight, opacity * 0.5));
         ctx.fillStyle = grad;
         ctx.fill();

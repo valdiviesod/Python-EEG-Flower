@@ -29,7 +29,7 @@ const BANDS = [
     {
         name: 'Delta', key: 'delta',
         low: 0.5, high: 4,
-        color: '#C4B7D8', colorDeep: '#9B8EC0', colorLight: '#E2DBF0',
+        color: '#C4B7D8', colorDeep: '#7B68AE', colorLight: '#E2DBF0',
         emoji: '🌙',
         meaning: 'Descanso profundo y regeneración',
         description: 'Las ondas Delta representan los procesos inconscientes más profundos — ' +
@@ -42,7 +42,7 @@ const BANDS = [
     {
         name: 'Theta', key: 'theta',
         low: 4, high: 8,
-        color: '#A8D8B9', colorDeep: '#7CC496', colorLight: '#D4F0DE',
+        color: '#A8D8B9', colorDeep: '#4CAF7A', colorLight: '#D4F0DE',
         emoji: '🌿',
         meaning: 'Creatividad y meditación',
         description: 'Theta es el puente entre lo consciente y lo inconsciente — ' +
@@ -55,7 +55,7 @@ const BANDS = [
     {
         name: 'Alpha', key: 'alpha',
         low: 8, high: 13,
-        color: '#FFD1DC', colorDeep: '#F2A5BE', colorLight: '#FFE8EF',
+        color: '#FFD1DC', colorDeep: '#E8719D', colorLight: '#FFE8EF',
         emoji: '🌸',
         meaning: 'Calma y presencia consciente',
         description: 'Alpha es el estado de relajación alerta — ' +
@@ -68,7 +68,7 @@ const BANDS = [
     {
         name: 'Beta', key: 'beta',
         low: 13, high: 30,
-        color: '#FFDAB9', colorDeep: '#F5BD8E', colorLight: '#FFF0E0',
+        color: '#FFDAB9', colorDeep: '#F0A05A', colorLight: '#FFF0E0',
         emoji: '☀️',
         meaning: 'Pensamiento activo y concentración',
         description: 'Beta refleja la mente consciente en acción — ' +
@@ -81,7 +81,7 @@ const BANDS = [
     {
         name: 'Gamma', key: 'gamma',
         low: 30, high: 44,
-        color: '#FFF3B0', colorDeep: '#F0E68C', colorLight: '#FFFBE0',
+        color: '#FFF3B0', colorDeep: '#E6D44E', colorLight: '#FFFBE0',
         emoji: '✨',
         meaning: 'Percepción elevada e intuición',
         description: 'Gamma es la frecuencia más alta — ' +
@@ -191,6 +191,7 @@ class EEGBandAnalyzer {
         this.channelStats = this._computeChannelStats();
         this.bandPowers = this._computeBandPowers();
         this.normalizedBands = this._normalizeBands();
+        this.emotionMetrics = this.computeEmotionMetrics();
         this.profile = this._computeFlowerProfile();
         this.flowerParams = this._computeFlowerParams();
     }
@@ -476,6 +477,49 @@ class EEGBandAnalyzer {
         }));
     }
 
+    // ── Emotion Metrics (composite sensations from band ratios) ─────────────
+    // Values are normalized so the sum of all emotions equals 1 (100%).
+    computeEmotionMetrics() {
+        const bands = this.normalizedBands || [];
+        const getRel = (key) => {
+            const band = bands.find(b => b.key === key);
+            return band ? band.relativePower : 0;
+        };
+
+        const d = getRel('delta');
+        const t = getRel('theta');
+        const a = getRel('alpha');
+        const b = getRel('beta');
+        const g = getRel('gamma');
+
+        // Raw ratio clamped to [0,1] — represents relative intensity before normalization
+        const clamp01 = (v, min, max) => {
+            const norm = (v - min) / (max - min || 1);
+            return Math.max(0, Math.min(1, norm));
+        };
+
+        const definitions = [
+            { key: 'serenity',   label: 'Serenidad',           raw: clamp01(a / (b + g + 0.001), 0, 3),   color: '#FFD1DC', colorDeep: '#E8719D', emoji: '🕊️', description: 'Calma profunda y presencia' },
+            { key: 'agitation',  label: 'Agitación',           raw: clamp01((b + g) / (a + 0.001), 0, 3), color: '#FFDAB9', colorDeep: '#F0A05A', emoji: '⚡',  description: 'Mente acelerada y activa' },
+            { key: 'heaviness',  label: 'Pesadez',             raw: clamp01(d / (a + b + 0.001), 0, 3),   color: '#C4B7D8', colorDeep: '#7B68AE', emoji: '🪨',  description: 'Cansancio o densidad corporal' },
+            { key: 'lightness',  label: 'Ligereza',            raw: clamp01((a + b) / (d + 0.001), 0, 5), color: '#FFD1DC', colorDeep: '#FFDAB9', emoji: '🪶',  description: 'Sensación liviana y despejada' },
+            { key: 'absorption', label: 'Absorción interna',   raw: clamp01(t / (b + 0.001), 0, 3),       color: '#A8D8B9', colorDeep: '#4CAF7A', emoji: '🌀',  description: 'Ensimismamiento e imaginación' },
+            { key: 'focus',      label: 'Enfoque externo',     raw: clamp01(b / (t + 0.001), 0, 3),       color: '#FFDAB9', colorDeep: '#F0A05A', emoji: '🎯',  description: 'Atención analítica dirigida' },
+            { key: 'balance',    label: 'Equilibrio',          raw: clamp01(a / (t + b + 0.001), 0, 2),   color: '#FFD1DC', colorDeep: '#E8719D', emoji: '⚖️',  description: 'Regulación estable y centrada' },
+            { key: 'dispersion', label: 'Dispersión',          raw: clamp01((t + b) / (a + 0.001), 0, 4), color: '#A8D8B9', colorDeep: '#FFDAB9', emoji: '💨',  description: 'Desorganización mental' },
+            { key: 'intensity',  label: 'Intensidad vivencial',raw: clamp01(g / (a + 0.001), 0, 2),       color: '#FFF3B0', colorDeep: '#E6D44E', emoji: '✨',  description: 'Experiencia vívida y saturada' },
+            { key: 'neutrality', label: 'Neutralidad',         raw: clamp01(a / (g + 0.001), 0, 5),       color: '#FFE8EF', colorDeep: '#FFD1DC', emoji: '🫧',  description: 'Estado plano y neutro' },
+        ];
+
+        // Normalize so all values sum to 1 (proportional share of 100%)
+        const total = definitions.reduce((sum, e) => sum + e.raw, 0) || 1;
+
+        return definitions.map(({ raw, ...rest }) => ({
+            ...rest,
+            value: raw / total,
+        }));
+    }
+
     // ── Flower Profile (psychological mapping) ────────────────────────────
     _computeFlowerProfile() {
         const bands = this.normalizedBands;
@@ -612,6 +656,7 @@ class EEGBandAnalyzer {
                 deduplicated: q.deduplicated || false,
             },
             bands: this.normalizedBands,
+            emotionMetrics: this.emotionMetrics,
             profile: this.profile,
             flowerParams: this.flowerParams,
             channelStats: this.channelStats,

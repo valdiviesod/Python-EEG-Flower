@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Flor Neurofuncional — Stylesheet
+   NAD — Stylesheet
    Light minimalist theme with pastel accents and soft botanical feel
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -7,18 +7,18 @@
     --bg: #FAFAF8;
     --bg-surface: #FFFFFF;
     --bg-glass: rgba(255, 255, 255, 0.75);
-    --bg-warm: #FFF9F5;
+    --bg-warm: #F5F7FA;
     --border: rgba(0, 0, 0, 0.06);
     --border-hover: rgba(0, 0, 0, 0.12);
     --text: #2D2B3D;
     --text-dim: #8E8B9E;
-    --text-accent: #C27BA0;
-    --accent: #E8A0BF;
-    --accent-hover: #D68FAF;
-    --accent-glow: rgba(232, 160, 191, 0.2);
+    --text-accent: #5C6BC0;
+    --accent: #5C6BC0;
+    --accent-hover: #3F51B5;
+    --accent-glow: rgba(92, 107, 192, 0.2);
     --shadow-soft: 0 2px 20px rgba(0, 0, 0, 0.04);
     --shadow-medium: 0 4px 30px rgba(0, 0, 0, 0.07);
-    --shadow-glow: 0 0 40px rgba(232, 160, 191, 0.15);
+    --shadow-glow: 0 0 40px rgba(92, 107, 192, 0.18);
     --radius: 16px;
     --radius-sm: 10px;
     --radius-lg: 24px;
@@ -32,11 +32,11 @@
     --alpha: #FFD1DC;
     --beta: #FFDAB9;
     --gamma: #FFF3B0;
-    --delta-deep: #9B8EC0;
-    --theta-deep: #7CC496;
-    --alpha-deep: #F2A5BE;
-    --beta-deep: #F5BD8E;
-    --gamma-deep: #F0E68C;
+    --delta-deep: #7B68AE;
+    --theta-deep: #4CAF7A;
+    --alpha-deep: #E8719D;
+    --beta-deep: #F0A05A;
+    --gamma-deep: #E6D44E;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -107,10 +107,26 @@ body::before {
 }
 
 .logo-glyph {
-    font-size: 2.2rem;
+    width: 2.2rem;
+    height: 2.2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.7rem;
+    line-height: 1;
     color: var(--accent);
     filter: drop-shadow(0 0 8px var(--accent-glow));
     animation: bloom 4s ease-in-out infinite;
+}
+
+.logo-glyph svg {
+    width: 100%;
+    height: 100%;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
 }
 
 @keyframes bloom {
@@ -155,7 +171,7 @@ body::before {
 .btn-ghost:hover {
     border-color: var(--accent);
     color: var(--text-accent);
-    background: rgba(232, 160, 191, 0.05);
+    background: rgba(92, 107, 192, 0.07);
 }
 
 /* ─── Upload Section ─────────────────────────────────────────────────────── */
@@ -979,6 +995,6 @@ body::before {
 }
 
 @media (max-width: 380px) {
-    .logo-glyph { font-size: 1.6rem; }
+    .logo-glyph { width: 1.6rem; height: 1.6rem; }
     .tagline { display: none; }
 }

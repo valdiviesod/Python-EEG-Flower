@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NeuroFlor — Captura EEG y Flor Neurofuncional</title>
+    <title>NAD — Neuroarmonía Divergente</title>
     <meta name="description"
         content="Captura ondas cerebrales EEG en tiempo real con Muse 2 y genera tu flor neurofuncional única. Descarga JSON y MIDI.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,10 +22,10 @@
         <header class="header" id="main-header">
             <div class="header-inner">
                 <div class="logo">
-                    <span class="logo-glyph">✿</span>
+                    <span class="logo-glyph" aria-hidden="true">🧠</span>
                     <div>
-                        <h1>Neuro<span class="accent">Flor</span></h1>
-                        <p class="tagline">Captura EEG · Flor Neurofuncional</p>
+                        <h1>N<span class="accent">AD</span></h1>
+                        <p class="tagline">Neuroarmonía Divergente</p>
                     </div>
                 </div>
                 <!-- Global Tabs (top level) -->
@@ -51,20 +51,6 @@
             <!-- Setup Panel (before capture starts) -->
             <section class="capture-setup" id="capture-setup">
                 <div class="setup-card">
-                    <div class="setup-icon">
-                        <svg viewBox="0 0 80 80" width="80" height="80">
-                            <circle cx="40" cy="28" r="14" fill="none" stroke="#E8A0BF" stroke-width="2" />
-                            <path d="M18 60 C18 45 62 45 62 60" fill="none" stroke="#E8A0BF" stroke-width="2"
-                                stroke-linecap="round" />
-                            <path d="M26 23 C20 10 14 18 20 23" fill="none" stroke="#C4B7D8" stroke-width="1.5"
-                                opacity="0.7" />
-                            <path d="M54 23 C60 10 66 18 60 23" fill="none" stroke="#C4B7D8" stroke-width="1.5"
-                                opacity="0.7" />
-                            <circle cx="24" cy="20" r="2" fill="#A8D8B9" opacity="0.6" />
-                            <circle cx="56" cy="20" r="2" fill="#FFD1DC" opacity="0.6" />
-                            <circle cx="40" cy="14" r="2" fill="#FFDAB9" opacity="0.6" />
-                        </svg>
-                    </div>
                     <h2>Nueva Captura EEG</h2>
                     <p class="setup-desc">
                         Conecta tu diadema Muse 2 y configura la captura para registrar
@@ -433,6 +419,7 @@
     <script src="/flower/flower_2d.js"></script>
     <script src="/flower/flower_3d.js"></script>
     <script src="/flower/garden.js?v=3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.28/build/Midi.min.js"></script>
     <!-- Main App -->
     <script src="app.js?v=3"></script>
 </body>
