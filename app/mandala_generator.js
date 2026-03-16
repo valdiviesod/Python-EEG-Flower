@@ -144,8 +144,8 @@ class MandalaGenerator {
         if (!this.refPathData) return '';
         const vb = this.refViewBox;
 
-        const visW = vb.w * 0.1;
-        const visH = vb.h * 0.1;
+        const visW = vb.w;
+        const visH = vb.h;
 
         const targetPx = this.size * this.baseScale;
         const fit = targetPx / Math.max(visW, visH);
