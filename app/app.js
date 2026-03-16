@@ -5,15 +5,20 @@
  *   1. Captura EEG — setup → live capture → results (download JSON / MIDI / send to flower)
  *   2. Flor Neurofuncional — upload → 2D / 3D / Analysis
  *
- * Uses Flower's pastel palette for EEG wave rendering.
+ * Uses Flower's vibrant palette for EEG wave rendering.
  */
 
 (function () {
     'use strict';
 
-    // ── Channel colors (Flower pastel palette) ──
-    const CH_COLORS = ['#C4B7D8', '#A8D8B9', '#FFD1DC', '#FFDAB9'];
+    // ── Channel colors (Flower vibrant palette) ──
+    const CH_COLORS = ['#8B5CF6', '#22C55E', '#EC4899', '#F97316'];
     const CH_NAMES = ['TP9', 'AF7', 'AF8', 'TP10'];
+    const GARDEN_PLAYBACK_MAX_NOTES_PER_TRACK = 1200;
+    const GARDEN_PLAYBACK_MIN_NOTE_DURATION = 0.05;
+    const GARDEN_PLAYBACK_MAX_NOTE_DURATION = 0.9;
+    const GARDEN_CHANNEL_WAVEFORMS = ['triangle', 'sine', 'square', 'sawtooth'];
+    const GARDEN_CHANNEL_PAN = [-0.72, -0.24, 0.24, 0.72];
 
     // ══════════════════════════════════════════════════════════════════════
     // Global Tab Switching
@@ -58,7 +63,7 @@
     const wavesCtx = wavesCanvas.getContext('2d');
 
     const resultsSummary = document.getElementById('results-summary');
-    const btnDownloadJson = document.getElementById('btn-download-json');
+    const btnDownloadMandala = document.getElementById('btn-download-mandala');
     const btnDownloadMidi = document.getElementById('btn-download-midi');
     const btnSendToFlower = document.getElementById('btn-send-to-flower');
     const btnNewCapture = document.getElementById('btn-new-capture');
@@ -342,9 +347,34 @@
         drawWaves(resultsWavesCtx, resultsWavesCanvas, captureWaveBuffer);
     }
 
-    // ── Download JSON ──
-    btnDownloadJson.addEventListener('click', () => {
-        window.location.href = '/api/capture/download-json';
+    // ── Download Mandala (capture results) ──
+    btnDownloadMandala.addEventListener('click', async () => {
+        btnDownloadMandala.disabled = true;
+        btnDownloadMandala.innerHTML = '<span>☸️</span> Generando...';
+        try {
+            const [resp, refResp] = await Promise.all([
+                fetch('/api/capture/status'),
+                fetch('/mandala_reference.svg')
+            ]);
+            const captureJson = await resp.json();
+            const referenceSvg = await refResp.text();
+            if (!captureJson.eeg_channels || !captureJson.metadata) {
+                alert('No hay datos de captura disponibles.');
+                return;
+            }
+            const analyzer = new EEGBandAnalyzer(captureJson);
+            const report = analyzer.getReport();
+            const mandala = new MandalaGenerator(report, referenceSvg);
+            const svg = mandala.generate();
+            const blob = new Blob([svg], { type: 'image/svg+xml' });
+            const safeName = (captureJson.metadata.user_name || 'eeg').replace(/[^a-zA-Z0-9_-]/g, '_');
+            downloadBlob(blob, `mandala_${safeName}.svg`);
+        } catch (err) {
+            alert('Error generando mandala: ' + err.message);
+        } finally {
+            btnDownloadMandala.disabled = false;
+            btnDownloadMandala.innerHTML = '<span>☸️</span> Descargar Mandala';
+        }
     });
 
     // ── Download MIDI ──
@@ -1027,7 +1057,7 @@
     const gardenModalClose = document.getElementById('garden-modal-close');
     const gardenModalTitle = document.getElementById('garden-modal-title');
     const gardenModalMeta = document.getElementById('garden-modal-meta');
-    const gardenBtnDownloadJson = document.getElementById('garden-btn-download-json');
+    const gardenBtnDownloadMandala = document.getElementById('garden-btn-download-mandala');
     const gardenBtnDownloadMidi = document.getElementById('garden-btn-download-midi');
     const gardenModalTabs = document.querySelectorAll('#garden-modal-tabs .tab');
     const gardenPanels = document.querySelectorAll('.garden-modal-panel');
@@ -1042,6 +1072,8 @@
     let gardenAudioContext = null;
     let gardenMidiTimeouts = [];
     let gardenMidiOscillators = [];
+    let gardenMidiLoopTimeout = null;
+    let gardenMidiLoopId = 0;
 
     // The main garden environment
     // Auto-load garden when switching to it
@@ -1225,6 +1257,12 @@
     }
 
     function stopGardenMidiPlayback() {
+        if (gardenMidiLoopTimeout !== null) {
+            clearTimeout(gardenMidiLoopTimeout);
+            gardenMidiLoopTimeout = null;
+        }
+        gardenMidiLoopId += 1;
+
         gardenMidiTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
         gardenMidiTimeouts = [];
 
@@ -1233,6 +1271,118 @@
             try { osc.disconnect(); } catch (_) { }
         });
         gardenMidiOscillators = [];
+    }
+
+    function reduceTrackNotes(trackNotes, maxNotes) {
+        if (trackNotes.length <= maxNotes) return trackNotes;
+        if (maxNotes <= 1) return [trackNotes[0]];
+
+        const reduced = [];
+        const step = (trackNotes.length - 1) / (maxNotes - 1);
+        for (let i = 0; i < maxNotes; i++) {
+            const idx = Math.round(i * step);
+            reduced.push(trackNotes[idx]);
+        }
+        return reduced;
+    }
+
+    function buildGardenPlaybackPlan(midi) {
+        const tracks = Array.isArray(midi?.tracks) ? midi.tracks : [];
+        const playableTracks = tracks
+            .map((track, trackIdx) => {
+                const channel = Number.isInteger(track?.channel) ? track.channel : (trackIdx % 4);
+                const notes = Array.isArray(track?.notes) ? track.notes : [];
+                if (!notes.length) return null;
+
+                const normalizedNotes = notes.map(note => ({
+                    time: Math.max(0, Number(note.time) || 0),
+                    duration: Math.max(0.01, Number(note.duration) || 0.25),
+                    velocity: Math.max(0.05, Number(note.velocity) || 0.24),
+                    midi: Number(note.midi) || 60,
+                    channel,
+                }));
+
+                return reduceTrackNotes(normalizedNotes, GARDEN_PLAYBACK_MAX_NOTES_PER_TRACK);
+            })
+            .filter(Boolean);
+
+        if (!playableTracks.length) return null;
+
+        const notes = playableTracks.flat().sort((a, b) => a.time - b.time);
+        if (!notes.length) return null;
+
+        const fallbackDuration = notes.reduce((maxDuration, note) => {
+            return Math.max(maxDuration, note.time + note.duration);
+        }, 0);
+
+        const totalDuration = Math.max(Number(midi?.duration) || 0, fallbackDuration, 0.5);
+        return { notes, totalDuration };
+    }
+
+    function scheduleGardenMidiLoop(ctx, playbackPlan, playbackId) {
+        if (!playbackPlan || !Array.isArray(playbackPlan.notes) || !playbackPlan.notes.length) return;
+        if (playbackId !== gardenMidiLoopId) return;
+
+        const notes = playbackPlan.notes;
+        const loopDuration = playbackPlan.totalDuration;
+        const baseTime = ctx.currentTime + 0.05;
+        gardenMidiTimeouts = [];
+
+        notes.forEach(note => {
+            const timeoutId = setTimeout(() => {
+                if (playbackId !== gardenMidiLoopId) return;
+
+                const now = ctx.currentTime;
+                const channelIdx = Math.max(0, note.channel % 4);
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                const velocity = Math.max(0.07, Math.min(0.38, note.velocity || 0.24));
+                const duration = Math.max(
+                    GARDEN_PLAYBACK_MIN_NOTE_DURATION,
+                    Math.min(GARDEN_PLAYBACK_MAX_NOTE_DURATION, note.duration || 0.25)
+                );
+                const midiValue = note.midi || 60;
+                const frequency = 440 * (2 ** ((midiValue - 69) / 12));
+
+                osc.type = GARDEN_CHANNEL_WAVEFORMS[channelIdx];
+                osc.frequency.setValueAtTime(frequency, now);
+
+                gain.gain.setValueAtTime(0.0001, now);
+                gain.gain.exponentialRampToValueAtTime(velocity, now + 0.015);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+                osc.connect(gain);
+                let panner = null;
+                if (typeof ctx.createStereoPanner === 'function') {
+                    panner = ctx.createStereoPanner();
+                    panner.pan.setValueAtTime(GARDEN_CHANNEL_PAN[channelIdx], now);
+                    gain.connect(panner);
+                    panner.connect(ctx.destination);
+                } else {
+                    gain.connect(ctx.destination);
+                }
+
+                osc.onended = () => {
+                    try { osc.disconnect(); } catch (_) { }
+                    try { gain.disconnect(); } catch (_) { }
+                    if (panner) {
+                        try { panner.disconnect(); } catch (_) { }
+                    }
+                    const idx = gardenMidiOscillators.indexOf(osc);
+                    if (idx >= 0) gardenMidiOscillators.splice(idx, 1);
+                };
+
+                osc.start(now);
+                osc.stop(now + duration + 0.02);
+                gardenMidiOscillators.push(osc);
+            }, Math.max(0, (baseTime - ctx.currentTime + note.time) * 1000));
+
+            gardenMidiTimeouts.push(timeoutId);
+        });
+
+        gardenMidiLoopTimeout = setTimeout(() => {
+            scheduleGardenMidiLoop(ctx, playbackPlan, playbackId);
+        }, Math.max(250, (loopDuration + 0.05) * 1000));
     }
 
     async function getGardenAudioContext() {
@@ -1262,40 +1412,13 @@
             }
 
             const midi = new Midi(await resp.arrayBuffer());
-            const notes = midi.tracks.flatMap(track => track.notes || []).sort((a, b) => a.time - b.time);
-            const playableNotes = notes.slice(0, 320);
-            if (!playableNotes.length) return;
+            const playbackPlan = buildGardenPlaybackPlan(midi);
+            if (!playbackPlan) return;
 
             const ctx = await getGardenAudioContext();
             stopGardenMidiPlayback();
-            const baseTime = ctx.currentTime + 0.05;
-
-            playableNotes.forEach(note => {
-                const timeoutId = setTimeout(() => {
-                    const now = ctx.currentTime;
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    const velocity = Math.max(0.08, Math.min(0.45, note.velocity || 0.24));
-                    const duration = Math.max(0.08, Math.min(1.2, note.duration || 0.25));
-                    const midiValue = note.midi || 60;
-                    const frequency = 440 * (2 ** ((midiValue - 69) / 12));
-
-                    osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(frequency, now);
-
-                    gain.gain.setValueAtTime(0.0001, now);
-                    gain.gain.exponentialRampToValueAtTime(velocity, now + 0.015);
-                    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start(now);
-                    osc.stop(now + duration + 0.02);
-                    gardenMidiOscillators.push(osc);
-                }, Math.max(0, (baseTime - ctx.currentTime + note.time) * 1000));
-
-                gardenMidiTimeouts.push(timeoutId);
-            });
+            const playbackId = gardenMidiLoopId;
+            scheduleGardenMidiLoop(ctx, playbackPlan, playbackId);
         } catch (err) {
             console.error('Error reproduciendo MIDI del jardín:', err);
         }
@@ -1360,15 +1483,27 @@
         });
     });
 
-    // Garden downloads
-    if (gardenBtnDownloadJson) {
-        gardenBtnDownloadJson.addEventListener('click', () => {
-            if (!gardenCurrentJson || !gardenCurrentFile) return;
-            const blob = new Blob(
-                [JSON.stringify(gardenCurrentJson, null, 2)],
-                { type: 'application/json' }
-            );
-            downloadBlob(blob, gardenCurrentFile);
+    // Garden mandala download
+    if (gardenBtnDownloadMandala) {
+        gardenBtnDownloadMandala.addEventListener('click', async () => {
+            if (!gardenAnalyzer || !gardenCurrentJson) return;
+            gardenBtnDownloadMandala.disabled = true;
+            gardenBtnDownloadMandala.innerHTML = '<span>☸️</span> Generando...';
+            try {
+                const refResp = await fetch('/mandala_reference.svg');
+                const referenceSvg = await refResp.text();
+                const report = gardenAnalyzer.getReport();
+                const mandala = new MandalaGenerator(report, referenceSvg);
+                const svg = mandala.generate();
+                const blob = new Blob([svg], { type: 'image/svg+xml' });
+                const safeName = (gardenCurrentFile || 'eeg').replace('.json', '');
+                downloadBlob(blob, `mandala_${safeName}.svg`);
+            } catch (err) {
+                alert('Error generando mandala: ' + err.message);
+            } finally {
+                gardenBtnDownloadMandala.disabled = false;
+                gardenBtnDownloadMandala.innerHTML = '<span>☸️</span> Descargar Mandala';
+            }
         });
     }
 
