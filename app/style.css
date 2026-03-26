@@ -548,7 +548,7 @@ body::before {
     flex: 1;
     position: relative;
     min-height: 0;
-    background: #0e0920;
+    background: var(--bg);
     display: flex;
     overflow: hidden;
 }
