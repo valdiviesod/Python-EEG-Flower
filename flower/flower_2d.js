@@ -6,7 +6,7 @@
  *   • Petal size proportional to band power
  *   • Petal count reflects frequency character
  *   • Organic stem with leaves
- *   • Soft pastel color palette
+ *   • Vibrant color palette
  *   • Clean white background
  *   • Minimalist modern aesthetic
  */
@@ -110,11 +110,11 @@ class Flower2D {
             cx, stemBottom
         );
 
-        // Gradient from green top to darker green bottom
+        // Gradient from brown top to darker brown bottom
         const grad = ctx.createLinearGradient(cx, stemTop, cx, stemBottom);
-        grad.addColorStop(0, '#9BC4A8');
-        grad.addColorStop(0.5, '#7EAD8B');
-        grad.addColorStop(1, '#6B9B78');
+        grad.addColorStop(0, '#A0714F');
+        grad.addColorStop(0.5, '#7C5230');
+        grad.addColorStop(1, '#5C3A1E');
         ctx.strokeStyle = grad;
         ctx.lineWidth = stemWidth;
         ctx.lineCap = 'round';
@@ -128,7 +128,7 @@ class Flower2D {
             cx + maxR * 0.025, stemTop + (stemBottom - stemTop) * 0.6,
             cx - stemWidth * 0.2, stemBottom - 10
         );
-        ctx.strokeStyle = 'rgba(200, 230, 210, 0.4)';
+        ctx.strokeStyle = 'rgba(210, 168, 130, 0.40)';
         ctx.lineWidth = stemWidth * 0.3;
         ctx.stroke();
 
@@ -141,9 +141,9 @@ class Flower2D {
         const leafSize = maxR * 0.22;
 
         // Left leaf
-        this._drawLeaf(ctx, cx - maxR * 0.02, stemMid, leafSize, -0.7, '#A8D8B9', '#8BC4A0');
+        this._drawLeaf(ctx, cx - maxR * 0.02, stemMid, leafSize, -0.7, '#7C5230', '#5C3A1E');
         // Right leaf (smaller, higher)
-        this._drawLeaf(ctx, cx + maxR * 0.01, stemMid - leafSize * 0.6, leafSize * 0.75, 0.6, '#B5E0C3', '#98CCA8');
+        this._drawLeaf(ctx, cx + maxR * 0.01, stemMid - leafSize * 0.6, leafSize * 0.75, 0.6, '#A0714F', '#7C5230');
     }
 
     _drawLeaf(ctx, x, y, size, angle, color, veinColor) {
@@ -318,17 +318,17 @@ class Flower2D {
 
         // Main center circle
         const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-        grad.addColorStop(0, '#FFF5E6');
-        grad.addColorStop(0.3, '#FFE4C9');
-        grad.addColorStop(0.6, '#F5D0A9');
-        grad.addColorStop(1, '#E8C49A');
+        grad.addColorStop(0, '#FDBA74');
+        grad.addColorStop(0.3, '#FDE68A');
+        grad.addColorStop(0.6, '#F59E0B');
+        grad.addColorStop(1, '#D97706');
         ctx.fillStyle = grad;
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, Math.PI * 2);
         ctx.fill();
 
         // Subtle rim
-        ctx.strokeStyle = 'rgba(200, 170, 130, 0.3)';
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.35)';
         ctx.lineWidth = 1.5;
         ctx.stroke();
     }
@@ -355,7 +355,7 @@ class Flower2D {
             ctx.arc(px, py, size, 0, Math.PI * 2);
 
             // Alternate warm colors
-            const colors = ['#E8C49A', '#D4A574', '#C9976A', '#F0D5B0', '#DDB886'];
+            const colors = ['#FDE047', '#F59E0B', '#F97316', '#FB7185', '#EAB308'];
             ctx.fillStyle = colors[i % colors.length];
             ctx.fill();
 

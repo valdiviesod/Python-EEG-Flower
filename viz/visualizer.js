@@ -31,13 +31,13 @@ let dataLoader;
 let animationId;
 
 // Psychology Mappings based on Amplitude % (relative to global min/max)
-// Pastel palette from flower/style.css
+// Vibrant palette from flower/style.css
 const FLOWER_PALETTE = [
-    { threshold: 0.20, color: '#C4B7D8', name: 'Delta', desc: 'Sueño profundo, relajación.' },
-    { threshold: 0.40, color: '#A8D8B9', name: 'Theta', desc: 'Meditación, creatividad.' },
-    { threshold: 0.60, color: '#FFD1DC', name: 'Alpha', desc: 'Calma, serenidad.' },
-    { threshold: 0.80, color: '#FFDAB9', name: 'Beta', desc: 'Concentración, alerta.' },
-    { threshold: 1.01, color: '#FFF3B0', name: 'Gamma', desc: 'Procesamiento, cognición.' }
+    { threshold: 0.20, color: '#8B5CF6', name: 'Delta', desc: 'Sueño profundo, relajación.' },
+    { threshold: 0.40, color: '#22C55E', name: 'Theta', desc: 'Meditación, creatividad.' },
+    { threshold: 0.60, color: '#EC4899', name: 'Alpha', desc: 'Calma, serenidad.' },
+    { threshold: 0.80, color: '#F97316', name: 'Beta', desc: 'Concentración, alerta.' },
+    { threshold: 1.01, color: '#EAB308', name: 'Gamma', desc: 'Procesamiento, cognición.' }
 ];
 
 // Initialize

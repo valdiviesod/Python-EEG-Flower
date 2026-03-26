@@ -1,16 +1,17 @@
 /**
  * ScalpMap — Zonal brain activity map for NAD
  *
- * Renders a top-down brain view divided into anatomical zones, each zone filled
- * with its own base colour that brightens and pulses according to the EEG signal
- * from the mapped Muse 2 electrodes.
+ * Renders the realistic brain silhouette (from brain.svg, 190×190 viewBox)
+ * divided into anatomical zones, each zone filled with its own base colour
+ * that brightens and pulses according to the EEG signal from the mapped
+ * Muse 2 electrodes.
  *
  * Zone → electrode mapping (Muse 2: TP9, AF7, AF8, TP10):
- *   frontal    → AF7 (ch1) + AF8 (ch2) average   — violet #8B5CF6
- *   parietal   → all four average                 — emerald #22C55E
- *   occipital  → TP9 (ch0) + TP10 (ch3) average  — pink  #EC4899
- *   temporal_l → TP9 (ch0)                        — orange #F97316
- *   temporal_r → TP10 (ch3)                       — amber  #EAB308
+ *   frontal    (Pensamiento) → AF7 (ch1) + AF8 (ch2) avg — violet  #8B5CF6
+ *   parietal   (Sentidos)    → all four average            — emerald #22C55E
+ *   occipital  (Visión)      → TP9 (ch0) + TP10 (ch3) avg — pink    #EC4899
+ *   temporal_l (Memoria)     → TP9 (ch0)                  — orange  #F97316
+ *   temporal_r (Emoción)     → TP10 (ch3)                 — amber   #EAB308
  *
  * The brain.svg file must contain one <path data-zone="…"> per zone
  * plus an outer <path id="outline"> for the silhouette stroke.
@@ -81,7 +82,7 @@ class ScalpMap {
         this._outlinePath = null;
 
         // SVG transform: maps SVG coords → canvas coords
-        this._svgViewBox = { w: 400, h: 400 };
+        this._svgViewBox = { w: 190.496, h: 190.497 };
         this._svgReady = false;
 
         this._W = 0;
@@ -315,9 +316,9 @@ class ScalpMap {
         ctx.scale(scale, scale);
         if (this._outlinePath) {
             ctx.shadowColor = 'rgba(180,140,255,0.45)';
-            ctx.shadowBlur  = 16 / scale;
+            ctx.shadowBlur  = 8 / scale;
             ctx.strokeStyle = 'rgba(210,185,255,0.70)';
-            ctx.lineWidth   = 2.5 / scale;
+            ctx.lineWidth   = 1.5 / scale;
             ctx.stroke(this._outlinePath);
         }
         ctx.restore();
@@ -331,18 +332,18 @@ class ScalpMap {
      * Operates in SVG coordinate space (caller is already translated+scaled).
      */
     _createZoneGlow(ctx, zone, r, g, b, alpha) {
-        // Approximate centroids in SVG coords (viewBox 0 0 400 400)
+        // Approximate centroids in SVG coords (viewBox 0 0 190.496 190.497)
         const centroids = {
-            frontal:    { x: 200, y: 90  },
-            parietal:   { x: 200, y: 165 },
-            occipital:  { x: 200, y: 295 },
-            temporal_l: { x: 66,  y: 202 },
-            temporal_r: { x: 334, y: 202 },
+            frontal:    { x: 95, y: 35  },
+            parietal:   { x: 95, y: 88  },
+            occipital:  { x: 95, y: 150 },
+            temporal_l: { x: 32, y: 120 },
+            temporal_r: { x: 158, y: 120 },
         };
         const c = centroids[zone.name];
         if (!c) return null;
 
-        const radius = 90;
+        const radius = 45;
         const grad = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, radius);
         grad.addColorStop(0,   `rgba(${r},${g},${b},${alpha.toFixed(2)})`);
         grad.addColorStop(0.5, `rgba(${r},${g},${b},${(alpha * 0.4).toFixed(2)})`);
@@ -353,15 +354,15 @@ class ScalpMap {
     /** Draw small zone name labels */
     _drawLabels(ctx, W, H, scale, tx, ty) {
         const labelDefs = [
-            { zone: 'frontal',    x: 200, y: 72,  label: 'FRONTAL',  rotate: 0   },
-            { zone: 'parietal',   x: 200, y: 165, label: 'PARIETAL', rotate: 0   },
-            { zone: 'occipital',  x: 200, y: 298, label: 'OCCIPITAL', rotate: 0  },
-            { zone: 'temporal_l', x: 65,  y: 200, label: 'TL',       rotate: -90 },
-            { zone: 'temporal_r', x: 335, y: 200, label: 'TR',       rotate:  90 },
+            { zone: 'frontal',    x: 95,  y: 32,  label: 'Pensamiento',  rotate: 0   },
+            { zone: 'parietal',   x: 95,  y: 88,  label: 'Sentidos',     rotate: 0   },
+            { zone: 'occipital',  x: 95,  y: 152, label: 'Visión',       rotate: 0   },
+            { zone: 'temporal_l', x: 30,  y: 120, label: 'Memoria',      rotate: -90 },
+            { zone: 'temporal_r', x: 160, y: 120, label: 'Emoción',      rotate:  90 },
         ];
 
-        // Font size in SVG units (~9px at full 400px scale)
-        const fontSize = 9;
+        // Font size in SVG units (~5px at full 190px scale)
+        const fontSize = 5;
 
         ctx.save();
         ctx.translate(tx, ty);
@@ -378,7 +379,7 @@ class ScalpMap {
 
             // Text shadow for legibility
             ctx.shadowColor = 'rgba(0,0,0,0.6)';
-            ctx.shadowBlur  = 4 / scale;
+            ctx.shadowBlur  = 2 / scale;
 
             const alpha = 0.55 + activity * 0.45;
             ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;

@@ -78,8 +78,8 @@ class Flower2DRenderer {
         );
 
         const grad = ctx.createLinearGradient(cx, stemTop, cx, stemBottom);
-        grad.addColorStop(0, '#9BC4A8');
-        grad.addColorStop(1, '#6B9B78');
+        grad.addColorStop(0, '#4ADE80');
+        grad.addColorStop(1, '#15803D');
         ctx.strokeStyle = grad;
         ctx.lineWidth = Math.max(4, maxR * 0.04);
         ctx.lineCap = 'round';
@@ -89,8 +89,8 @@ class Flower2DRenderer {
     _drawLeaves(cx, cy, maxR, weight, curvature, symmetry) {
         const leafY = cy + maxR * 1.08;
         const size = maxR * (0.34 + curvature * 0.22);
-        this._drawLeaf(cx - maxR * 0.08, leafY, size, -0.8 - weight * 0.5, '#A8D8B9', symmetry);
-        this._drawLeaf(cx + maxR * 0.06, leafY - size * 0.5, size * 0.78, 0.62 + weight * 0.2, '#B9E4C9', symmetry);
+        this._drawLeaf(cx - maxR * 0.08, leafY, size, -0.8 - weight * 0.5, '#22C55E', symmetry);
+        this._drawLeaf(cx + maxR * 0.06, leafY - size * 0.5, size * 0.78, 0.62 + weight * 0.2, '#86EFAC', symmetry);
     }
 
     _drawLeaf(x, y, size, angle, color, symmetry) {
@@ -172,20 +172,6 @@ class Flower2DRenderer {
 
         ctx.beginPath();
         ctx.moveTo(0, baseY);
-
-        );
-            // Use flower pastel palette for band colors
-            const palette = [
-                { color: '#C4B7D8', colorDeep: '#7B68AE', colorLight: '#E6E0F5' }, // Delta
-                { color: '#A8D8B9', colorDeep: '#4CAF7A', colorLight: '#D6F5E4' }, // Theta
-                { color: '#FFD1DC', colorDeep: '#E8719D', colorLight: '#FFEAF2' }, // Alpha
-                { color: '#FFDAB9', colorDeep: '#F0A05A', colorLight: '#FFF5E6' }, // Beta
-                { color: '#FFF3B0', colorDeep: '#E6D44E', colorLight: '#FFFBE6' }  // Gamma
-            ];
-            const bandColors = palette[layerIndex % palette.length];
-            band.color = bandColors.color;
-            band.colorDeep = bandColors.colorDeep;
-            band.colorLight = bandColors.colorLight;
 
         ctx.bezierCurveTo(
             width * 0.08,

@@ -2,20 +2,20 @@
  * EEG Band Analyzer — Frequency Band Power Extraction Engine
  *
  * Analyzes raw Muse 2 EEG data and decomposes it into 5 frequency bands:
- *   • Delta  (0.5–4 Hz)   → Deep sleep, unconscious repair, regeneration
- *   • Theta  (4–8 Hz)     → Creativity, meditation, memory consolidation
- *   • Alpha  (8–13 Hz)    → Calm awareness, relaxation, flow state
- *   • Beta   (13–30 Hz)   → Active thinking, focus, problem solving
- *   • Gamma  (30–44 Hz)   → Higher cognition, insight, peak awareness
+ *   • Base     (0.5–4 Hz)   → Nivel de inmersión corporal / profundidad
+ *   • Flujo    (4–8 Hz)     → Movimiento interno, deriva, asociación
+ *   • Pulso    (8–13 Hz)    → Estabilidad y continuidad de la atención
+ *   • Trazo    (13–30 Hz)   → Dirección, intención, acción
+ *   • Destello (30–44 Hz)   → Momentos de intensidad o claridad
  *
  * Each band becomes a petal layer in the flower visualization.
  *
- * Why these colors (pastel, botanical):
- *   Delta  → Lavender (#C4B7D8)  — Night, deep rest, the quiet purple of twilight
- *   Theta  → Sage (#A8D8B9)      — Growth, new sprouts, creative germination
- *   Alpha  → Rose (#FFD1DC)      — Bloom, soft awareness, gentle opening
- *   Beta   → Peach (#FFDAB9)     — Warmth, active energy, daytime vitality
- *   Gamma  → Lemon (#FFF3B0)     — Sunlight, illumination, highest clarity
+ * Why these colors (vibrant, botanical):
+ *   Base     → Lavender (#8B5CF6)  — Noche, descanso profundo, quietud del crepúsculo
+ *   Flujo    → Sage (#22C55E)      — Crecimiento, brotes nuevos, germinación creativa
+ *   Pulso    → Rose (#EC4899)      — Florecimiento, conciencia suave, apertura gentil
+ *   Trazo    → Peach (#F97316)     — Calor, energía activa, vitalidad diurna
+ *   Destello → Lemon (#EAB308)     — Luz solar, iluminación, claridad suprema
  *
  * Muse 2 channels:
  *   Channel 1 = TP9  (left temporal)
@@ -27,69 +27,69 @@
 // ─── Band Constants ──────────────────────────────────────────────────────────
 const BANDS = [
     {
-        name: 'Delta', key: 'delta',
+        name: 'Base', key: 'delta',
         low: 0.5, high: 4,
-        color: '#C4B7D8', colorDeep: '#7B68AE', colorLight: '#E2DBF0',
+        color: '#8B5CF6', colorDeep: '#6D28D9', colorLight: '#C4B5FD',
         emoji: '🌙',
-        meaning: 'Descanso profundo y regeneración',
-        description: 'Las ondas Delta representan los procesos inconscientes más profundos — ' +
-            'el sueño reparador, la regeneración celular y la sanación del cuerpo. ' +
-            'Como las raíces de una flor, nutren todo lo que crece desde lo invisible.',
-        petalMeaning: 'Los pétalos de Delta forman la base envolvente de la flor, ' +
-            'anchos y suaves como la noche que abraza el descanso. ' +
-            'Su tono lavanda evoca la calma del crepúsculo.'
+        meaning: 'Nivel de inmersión corporal / profundidad',
+        description: 'La onda Base representa los procesos inconscientes más profundos — ' +
+            'la inmersión total del cuerpo, la regeneración celular y la sanación desde lo invisible. ' +
+            'Como las raíces de una flor, nutren todo lo que crece desde las profundidades.',
+        petalMeaning: 'Los pétalos de Base forman la capa envolvente de la flor, ' +
+            'anchos y suaves como la noche que abraza el descanso más profundo. ' +
+            'Su tono lavanda evoca la quietud del crepúsculo y la inmersión total.'
     },
     {
-        name: 'Theta', key: 'theta',
+        name: 'Flujo', key: 'theta',
         low: 4, high: 8,
-        color: '#A8D8B9', colorDeep: '#4CAF7A', colorLight: '#D4F0DE',
+        color: '#22C55E', colorDeep: '#15803D', colorLight: '#86EFAC',
         emoji: '🌿',
-        meaning: 'Creatividad y meditación',
-        description: 'Theta es el puente entre lo consciente y lo inconsciente — ' +
-            'el espacio de la creatividad, la meditación profunda y los sueños lúcidos. ' +
-            'Como un brote verde, conecta la semilla con la luz.',
-        petalMeaning: 'Los pétalos Theta son alargados y elegantes, como hojas nuevas ' +
-            'que buscan la luz. Su verde menta representa el crecimiento creativo ' +
-            'y la frescura de las ideas emergentes.'
+        meaning: 'Movimiento interno, deriva, asociación',
+        description: 'Flujo es el puente entre lo consciente y lo inconsciente — ' +
+            'el espacio del movimiento interno, la deriva libre y la asociación creativa. ' +
+            'Como un brote verde que emerge, conecta la semilla con la luz del día.',
+        petalMeaning: 'Los pétalos de Flujo son alargados y elegantes, como hojas nuevas ' +
+            'que se mueven suavemente con la brisa. Su verde representa el movimiento ' +
+            'interno y la frescura de las asociaciones emergentes.'
     },
     {
-        name: 'Alpha', key: 'alpha',
+        name: 'Pulso', key: 'alpha',
         low: 8, high: 13,
-        color: '#FFD1DC', colorDeep: '#E8719D', colorLight: '#FFE8EF',
+        color: '#EC4899', colorDeep: '#BE185D', colorLight: '#F9A8D4',
         emoji: '🌸',
-        meaning: 'Calma y presencia consciente',
-        description: 'Alpha es el estado de relajación alerta — ' +
-            'la presencia del momento, los ojos cerrados en peace, la meditación ligera. ' +
-            'Es la flor en su máximo esplendor, abierta y receptiva.',
-        petalMeaning: 'Los pétalos Alpha son los más prominentes y abiertos, ' +
-            'como una rosa en plena floración. Su color rosado pastel transmite ' +
-            'la dulzura de estar presente y en calma.'
+        meaning: 'Estabilidad y continuidad de la atención',
+        description: 'Pulso es el estado de relajación alerta — ' +
+            'la estabilidad de la presencia, la atención que fluye sin esfuerzo. ' +
+            'Es la flor en su máximo esplendor, abierta y continua en su ritmo propio.',
+        petalMeaning: 'Los pétalos de Pulso son los más prominentes y abiertos, ' +
+            'como una rosa en plena floración que late con ritmo constante. ' +
+            'Su color rosado vibrante transmite la dulzura de la atención sostenida.'
     },
     {
-        name: 'Beta', key: 'beta',
+        name: 'Trazo', key: 'beta',
         low: 13, high: 30,
-        color: '#FFDAB9', colorDeep: '#F0A05A', colorLight: '#FFF0E0',
+        color: '#F97316', colorDeep: '#C2410C', colorLight: '#FDBA74',
         emoji: '☀️',
-        meaning: 'Pensamiento activo y concentración',
-        description: 'Beta refleja la mente consciente en acción — ' +
-            'la resolución de problemas, la conversación, la toma de decisiones. ' +
-            'Es la energía del mediodía, productiva y dirigida.',
-        petalMeaning: 'Los pétalos Beta son más agudos y definidos, ' +
-            'como rayos de sol que se extienden con propósito. ' +
-            'Su tono durazno cálido representa la vitalidad del pensamiento activo.'
+        meaning: 'Dirección, intención, acción',
+        description: 'Trazo refleja la mente consciente en acción dirigida — ' +
+            'la resolución de problemas, la intención clara, la acción con propósito. ' +
+            'Es la energía del mediodía, trazando caminos con precisión y vitalidad.',
+        petalMeaning: 'Los pétalos de Trazo son más agudos y definidos, ' +
+            'como rayos de sol que se extienden con dirección e intención. ' +
+            'Su tono durazno cálido representa la energía de la acción consciente.'
     },
     {
-        name: 'Gamma', key: 'gamma',
+        name: 'Destello', key: 'gamma',
         low: 30, high: 44,
-        color: '#FFF3B0', colorDeep: '#E6D44E', colorLight: '#FFFBE0',
+        color: '#EAB308', colorDeep: '#A16207', colorLight: '#FDE047',
         emoji: '✨',
-        meaning: 'Percepción elevada e intuición',
-        description: 'Gamma es la frecuencia más alta — ' +
-            'momentos de insight, percepción unificada, estados de conciencia expandida. ' +
-            'Es el destello dorado en el centro de la flor.',
-        petalMeaning: 'Los pétalos Gamma son delicados y luminosos, ' +
-            'como destellos de luz solar entre los pétalos. ' +
-            'Su dorado suave captura esos momentos de claridad absoluta.'
+        meaning: 'Momentos de intensidad o claridad',
+        description: 'Destello es la frecuencia más alta — ' +
+            'momentos de insight súbito, claridad intensa, instantes de conciencia expandida. ' +
+            'Es el destello dorado que ilumina el centro de todo lo que somos.',
+        petalMeaning: 'Los pétalos de Destello son delicados y luminosos, ' +
+            'como destellos de luz solar que aparecen y desaparecen con intensidad. ' +
+            'Su dorado captura esos instantes de claridad y brillo absoluto.'
     },
 ];
 
@@ -499,16 +499,16 @@ class EEGBandAnalyzer {
         };
 
         const definitions = [
-            { key: 'serenity',   label: 'Serenidad',           raw: clamp01(a / (b + g + 0.001), 0, 3),   color: '#FFD1DC', colorDeep: '#E8719D', emoji: '🕊️', description: 'Calma profunda y presencia' },
-            { key: 'agitation',  label: 'Agitación',           raw: clamp01((b + g) / (a + 0.001), 0, 3), color: '#FFDAB9', colorDeep: '#F0A05A', emoji: '⚡',  description: 'Mente acelerada y activa' },
-            { key: 'heaviness',  label: 'Pesadez',             raw: clamp01(d / (a + b + 0.001), 0, 3),   color: '#C4B7D8', colorDeep: '#7B68AE', emoji: '🪨',  description: 'Cansancio o densidad corporal' },
-            { key: 'lightness',  label: 'Ligereza',            raw: clamp01((a + b) / (d + 0.001), 0, 5), color: '#FFD1DC', colorDeep: '#FFDAB9', emoji: '🪶',  description: 'Sensación liviana y despejada' },
-            { key: 'absorption', label: 'Absorción interna',   raw: clamp01(t / (b + 0.001), 0, 3),       color: '#A8D8B9', colorDeep: '#4CAF7A', emoji: '🌀',  description: 'Ensimismamiento e imaginación' },
-            { key: 'focus',      label: 'Enfoque externo',     raw: clamp01(b / (t + 0.001), 0, 3),       color: '#FFDAB9', colorDeep: '#F0A05A', emoji: '🎯',  description: 'Atención analítica dirigida' },
-            { key: 'balance',    label: 'Equilibrio',          raw: clamp01(a / (t + b + 0.001), 0, 2),   color: '#FFD1DC', colorDeep: '#E8719D', emoji: '⚖️',  description: 'Regulación estable y centrada' },
-            { key: 'dispersion', label: 'Dispersión',          raw: clamp01((t + b) / (a + 0.001), 0, 4), color: '#A8D8B9', colorDeep: '#FFDAB9', emoji: '💨',  description: 'Desorganización mental' },
-            { key: 'intensity',  label: 'Intensidad vivencial',raw: clamp01(g / (a + 0.001), 0, 2),       color: '#FFF3B0', colorDeep: '#E6D44E', emoji: '✨',  description: 'Experiencia vívida y saturada' },
-            { key: 'neutrality', label: 'Neutralidad',         raw: clamp01(a / (g + 0.001), 0, 5),       color: '#FFE8EF', colorDeep: '#FFD1DC', emoji: '🫧',  description: 'Estado plano y neutro' },
+            { key: 'serenity',   label: 'Serenidad',           raw: clamp01(a / (b + g + 0.001), 0, 3),   color: '#EC4899', colorDeep: '#BE185D', emoji: '🕊️', description: 'Calma profunda y presencia' },
+            { key: 'agitation',  label: 'Agitación',           raw: clamp01((b + g) / (a + 0.001), 0, 3), color: '#F97316', colorDeep: '#C2410C', emoji: '⚡',  description: 'Mente acelerada y activa' },
+            { key: 'heaviness',  label: 'Pesadez',             raw: clamp01(d / (a + b + 0.001), 0, 3),   color: '#8B5CF6', colorDeep: '#6D28D9', emoji: '🪨',  description: 'Cansancio o densidad corporal' },
+            { key: 'lightness',  label: 'Ligereza',            raw: clamp01((a + b) / (d + 0.001), 0, 5), color: '#EC4899', colorDeep: '#F97316', emoji: '🪶',  description: 'Sensación liviana y despejada' },
+            { key: 'absorption', label: 'Absorción interna',   raw: clamp01(t / (b + 0.001), 0, 3),       color: '#22C55E', colorDeep: '#15803D', emoji: '🌀',  description: 'Ensimismamiento e imaginación' },
+            { key: 'focus',      label: 'Enfoque externo',     raw: clamp01(b / (t + 0.001), 0, 3),       color: '#F97316', colorDeep: '#C2410C', emoji: '🎯',  description: 'Atención analítica dirigida' },
+            { key: 'balance',    label: 'Equilibrio',          raw: clamp01(a / (t + b + 0.001), 0, 2),   color: '#EC4899', colorDeep: '#BE185D', emoji: '⚖️',  description: 'Regulación estable y centrada' },
+            { key: 'dispersion', label: 'Dispersión',          raw: clamp01((t + b) / (a + 0.001), 0, 4), color: '#22C55E', colorDeep: '#F97316', emoji: '💨',  description: 'Desorganización mental' },
+            { key: 'intensity',  label: 'Intensidad vivencial',raw: clamp01(g / (a + 0.001), 0, 2),       color: '#EAB308', colorDeep: '#A16207', emoji: '✨',  description: 'Experiencia vívida y saturada' },
+            { key: 'neutrality', label: 'Neutralidad',         raw: clamp01(a / (g + 0.001), 0, 5),       color: '#F9A8D4', colorDeep: '#EC4899', emoji: '🫧',  description: 'Estado plano y neutro' },
         ];
 
         // Normalize so all values sum to 1 (proportional share of 100%)
@@ -563,15 +563,15 @@ class EEGBandAnalyzer {
         // Determine dominant mental state
         let state;
         if (dominant.key === 'delta') {
-            state = { label: 'Descanso Profundo', icon: '🌙', desc: 'Tu cerebro muestra predominancia de ondas lentas — un estado de regeneración y descanso profundo.' };
+            state = { label: 'Inmersión Profunda', icon: '🌙', desc: 'Tu cerebro muestra predominancia de Base — un estado de inmersión corporal y descanso en las profundidades.' };
         } else if (dominant.key === 'theta') {
-            state = { label: 'Estado Meditativo', icon: '🧘', desc: 'Las ondas Theta dominan — un estado de creatividad, meditación y conexión interior.' };
+            state = { label: 'Estado de Flujo', icon: '🧘', desc: 'Las ondas Flujo dominan — un estado de movimiento interno, deriva libre y asociación creativa.' };
         } else if (dominant.key === 'alpha') {
-            state = { label: 'Calma Consciente', icon: '🌸', desc: 'Alpha predomina — estás en un estado de relajación alerta, presencia y paz interior.' };
+            state = { label: 'Pulso Consciente', icon: '🌸', desc: 'Pulso predomina — estás en un estado de atención estable y continua, presencia y equilibrio interior.' };
         } else if (dominant.key === 'beta') {
-            state = { label: 'Mente Activa', icon: '💡', desc: 'Beta domina tu actividad cerebral — concentración, pensamiento lógico y resolución activa.' };
+            state = { label: 'Trazo Activo', icon: '💡', desc: 'Trazo domina tu actividad cerebral — dirección clara, intención y acción con propósito.' };
         } else {
-            state = { label: 'Percepción Elevada', icon: '✨', desc: 'Gamma destaca — momentos de insight, percepción unificada y conciencia expandida.' };
+            state = { label: 'Destello de Claridad', icon: '✨', desc: 'Destello sobresale — momentos de intensidad, claridad súbita y conciencia expandida.' };
         }
 
         return {

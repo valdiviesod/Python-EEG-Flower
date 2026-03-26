@@ -101,11 +101,11 @@ class Garden3D {
         this.scene.add(mainLight);
 
         // Magical rim lights from ground
-        const fillLight = new THREE.PointLight(0xA8D8B9, 0.5, 30);
+        const fillLight = new THREE.PointLight(0x22C55E, 0.5, 30);
         fillLight.position.set(0, 2, 0);
         this.scene.add(fillLight);
 
-        const fillLight2 = new THREE.PointLight(0xB4A5C9, 0.6, 30);
+        const fillLight2 = new THREE.PointLight(0x8B5CF6, 0.6, 30);
         fillLight2.position.set(0, -2, 0);
         this.scene.add(fillLight2);
 
@@ -150,7 +150,7 @@ class Garden3D {
         // Use standard particle material for fireflies
         const mat = new THREE.PointsMaterial({
             size: 0.15,
-            color: 0xFFFFCC,
+            color: 0xFDE047,
             transparent: true,
             opacity: 0.6,
             blending: THREE.AdditiveBlending,
@@ -341,7 +341,7 @@ class Garden3D {
 
         const geo = new THREE.TubeGeometry(curve, 16, radius, 8, false);
         const mat = new THREE.MeshStandardMaterial({
-            color: 0x4e8c2c,
+            color: 0x22C55E,
             roughness: 0.8,
         });
 
@@ -400,9 +400,9 @@ class Garden3D {
         const centerR = 0.55;
         const centerGeo = new THREE.SphereGeometry(centerR * 0.68, 16, 16);
         const centerMat = new THREE.MeshStandardMaterial({
-            color: 0xFFE4C9,
+            color: 0xFDE68A,
             roughness: 0.5,
-            emissive: 0xF5D0A9,
+            emissive: 0xF59E0B,
             emissiveIntensity: 0.15,
         });
         const center = new THREE.Mesh(centerGeo, centerMat);

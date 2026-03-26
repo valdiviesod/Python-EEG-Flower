@@ -88,11 +88,19 @@ class WebCaptureController:
 
     def start_capture(self, duration_seconds: float | None = None):
         with self.lock:
-            if self.running:
-                raise RuntimeError('Ya hay una captura en curso')
-
+            already_running = self.running
             previous_converter = self.converter
             self.converter = None
+            self.running = False
+
+        # If a capture was already in progress, stop it cleanly before starting a new one
+        if already_running and previous_converter:
+            try:
+                previous_converter.stop_capture()
+            except Exception:
+                pass
+            self._close_converter_resources(previous_converter)
+            previous_converter = None
 
         self._close_converter_resources(previous_converter)
 
@@ -312,8 +320,6 @@ class VizHandler(SimpleHTTPRequestHandler):
                     'message': 'Captura iniciada',
                     'durationSeconds': duration_value,
                 })
-            except RuntimeError as exc:
-                self._send_json(409, {'ok': False, 'error': str(exc)})
             except Exception as exc:
                 traceback.print_exc()
                 self._send_json(500, {'ok': False, 'error': f'No se pudo iniciar captura: {exc}'})

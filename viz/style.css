@@ -6,10 +6,10 @@
     --text-secondary: #aaaaaa;
     
     /* Channel Colors */
-    --ch1-color: #FF5A5F; /* Redish / TP9 */
-    --ch2-color: #00A8E8; /* Cyan / AF7 */
-    --ch3-color: #A2D800; /* Lime / AF8 */
-    --ch4-color: #F7B500; /* Yellow / TP10 */
+    --ch1-color: #8B5CF6; /* Delta vibrante / TP9 */
+    --ch2-color: #22C55E; /* Theta vibrante / AF7 */
+    --ch3-color: #EC4899; /* Alpha vibrante / AF8 */
+    --ch4-color: #F97316; /* Beta vibrante / TP10 */
     
     /* Psycho Colors (Dynamic) */
     --psy-calm: #FF80AB; /* Pink - Romance/Calm */
@@ -78,23 +78,29 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 0.25rem 0.7rem;
+    border-radius: 999px;
 }
 
 .logo h1 {
     font-family: var(--font-head);
-    font-size: 1.5rem;
+    font-size: 1.8rem;
+    font-weight: 800;
     margin: 0;
     letter-spacing: -0.02em;
+    color: #000;
 }
 
 .logo .highlight {
-    background: linear-gradient(90deg, #00A8E8, #A2D800);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: #000;
+    font-size: 1em;
+    font-weight: inherit;
 }
 
 .logo .icon {
     font-size: 1.5rem;
+    color: #000;
 }
 
 .status-indicator {

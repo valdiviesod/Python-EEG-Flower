@@ -1,31 +1,31 @@
 const FLOWER_BANDS = [
     {
         key: 'delta', name: 'Delta', emoji: '🌙', low: 0.5, high: 4,
-        color: '#C4B7D8', colorDeep: '#7B68AE', colorLight: '#E2DBF0',
+        color: '#8B5CF6', colorDeep: '#6D28D9', colorLight: '#C4B5FD',
         defendable: 'Presión fisiológica, fatiga y desconexión corporal.',
         usefulRead: 'Densidad corporal / peso interno.'
     },
     {
         key: 'theta', name: 'Theta', emoji: '🌿', low: 4, high: 8,
-        color: '#A8D8B9', colorDeep: '#4CAF7A', colorLight: '#D4F0DE',
+        color: '#22C55E', colorDeep: '#15803D', colorLight: '#86EFAC',
         defendable: 'Inmersión interna, memoria autobiográfica, imaginación y emoción interna.',
         usefulRead: 'Profundidad subjetiva / absorción.'
     },
     {
         key: 'alpha', name: 'Alpha', emoji: '🌸', low: 8, high: 13,
-        color: '#FFD1DC', colorDeep: '#E8719D', colorLight: '#FFE8EF',
+        color: '#EC4899', colorDeep: '#BE185D', colorLight: '#F9A8D4',
         defendable: 'Calma regulada, inhibición funcional y presencia sin esfuerzo.',
         usefulRead: 'Calma integrada / equilibrio.'
     },
     {
         key: 'beta', name: 'Beta', emoji: '☀️', low: 13, high: 30,
-        color: '#FFDAB9', colorDeep: '#F0A05A', colorLight: '#FFF0E0',
+        color: '#F97316', colorDeep: '#C2410C', colorLight: '#FDBA74',
         defendable: 'Activación cognitiva, alerta sostenida, control ejecutivo y esfuerzo mental.',
         usefulRead: 'Tensión mental / activación.'
     },
     {
         key: 'gamma', name: 'Gamma', emoji: '✨', low: 30, high: 44,
-        color: '#FFF3B0', colorDeep: '#E6D44E', colorLight: '#FFFBE0',
+        color: '#EAB308', colorDeep: '#A16207', colorLight: '#FDE047',
         defendable: 'Intensidad perceptiva e integración; en Muse-like se interpreta con cautela.',
         usefulRead: 'Intensidad / chispa / saturación.'
     },

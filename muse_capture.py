@@ -474,7 +474,7 @@ class MuseOSCToMidi:
         for track in range(4):
             mid.addTrackName(track, 0, track_names[track])
             mid.addTempo(track, 0, 120)  # 120 BPM
-            mid.addProgramChange(track, 0, 0, instruments[track])
+            mid.addProgramChange(track, track, 0, instruments[track])
         
         # Calcular duración real basada en timestamps
         if len(self.timestamps) > 1:
@@ -512,7 +512,7 @@ class MuseOSCToMidi:
                     velocity = self.calculate_note_velocity(eeg_val)
                     
                     # Agregar nota MIDI con duración calculada
-                    mid.addNote(channel, 0, midi_note, time_in_beats, note_duration * 2, velocity)
+                    mid.addNote(channel, channel, midi_note, time_in_beats, note_duration * 2, velocity)
         
         # Guardar archivo MIDI
         try:
@@ -576,7 +576,7 @@ class MuseOSCToMidi:
             for track in range(4):
                 mid.addTrackName(track, 0, track_names[track])
                 mid.addTempo(track, 0, 120)
-                mid.addProgramChange(track, 0, 0, instruments[track])
+                mid.addProgramChange(track, track, 0, instruments[track])
             
             # Calcular duración por nota basada en la duración real
             # Encontrar el canal con más datos para calcular duración precisa
@@ -610,7 +610,7 @@ class MuseOSCToMidi:
                         midi_note = self.map_eeg_to_midi_note(eeg_val, track_idx)
                         velocity = self.calculate_note_velocity(eeg_val)
                         
-                        mid.addNote(track_idx, 0, midi_note, time_in_beats, note_duration * 2, velocity)
+                        mid.addNote(track_idx, track_idx, midi_note, time_in_beats, note_duration * 2, velocity)
             
             # Guardar archivo
             with open(output_midi, 'wb') as output_file:

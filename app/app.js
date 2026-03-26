@@ -14,11 +14,22 @@
     // ── Channel colors (Flower vibrant palette) ──
     const CH_COLORS = ['#8B5CF6', '#22C55E', '#EC4899', '#F97316'];
     const CH_NAMES = ['TP9', 'AF7', 'AF8', 'TP10'];
-    const GARDEN_PLAYBACK_MAX_NOTES_PER_TRACK = 1200;
-    const GARDEN_PLAYBACK_MIN_NOTE_DURATION = 0.05;
-    const GARDEN_PLAYBACK_MAX_NOTE_DURATION = 0.9;
-    const GARDEN_CHANNEL_WAVEFORMS = ['triangle', 'sine', 'square', 'sawtooth'];
-    const GARDEN_CHANNEL_PAN = [-0.72, -0.24, 0.24, 0.72];
+    const GARDEN_PLAYBACK_MAX_NOTES_PER_TRACK = 300;
+    const GARDEN_PLAYBACK_MIN_NOTE_DURATION = 0.15;
+    const GARDEN_PLAYBACK_MAX_NOTE_DURATION = 2.0;
+    const GARDEN_PLAYBACK_MIN_SPACING = 0.08;       // minimum seconds between notes
+    const GARDEN_CHANNEL_PAN = [-0.55, -0.18, 0.18, 0.55];
+
+    // Pentatonic major scale intervals from C (in semitones): C D E G A
+    const GARDEN_PENTATONIC = [0, 2, 4, 7, 9];
+
+    // GM instrument names for soundfont-player (one per channel for variety)
+    const GARDEN_INSTRUMENTS = [
+        'acoustic_guitar_nylon',    // ch 0 — warm nylon guitar
+        'acoustic_guitar_nylon',    // ch 1 — same guitar for coherence
+        'acoustic_guitar_nylon',    // ch 2
+        'acoustic_guitar_nylon',    // ch 3
+    ];
 
     // ══════════════════════════════════════════════════════════════════════
     // Global Tab Switching
@@ -36,6 +47,22 @@
             // Trigger resize for flower 3D if switching to it
             if (viewName === 'flower' && flower3d) {
                 setTimeout(() => flower3d._onResize(), 100);
+            }
+
+            // Re-show capture tour whenever user navigates to the capture tab
+            // Only show if capture setup is visible (not mid-capture or results)
+            if (viewName === 'capture') {
+                setTimeout(() => {
+                    const setup = document.getElementById('capture-setup');
+                    const live  = document.getElementById('capture-live');
+                    const res   = document.getElementById('capture-results');
+                    const setupVisible = setup && setup.style.display !== 'none';
+                    const liveVisible  = live  && live.style.display  !== 'none';
+                    const resVisible   = res   && res.style.display   !== 'none';
+                    if (setupVisible && !liveVisible && !resVisible) {
+                        startTour(captureSetupTourSteps);
+                    }
+                }, 400);
             }
         });
     });
@@ -640,6 +667,7 @@
         setupSection.style.display = 'flex';
         lastCaptureData = null;
         captureWaveBuffer = { 0: [], 1: [], 2: [], 3: [] };
+        setTimeout(() => startTour(captureSetupTourSteps), 300);
     });
 
     // ══════════════════════════════════════════════════════════════════════
@@ -727,7 +755,6 @@
     // INTERACTIVE TOUR
     // ══════════════════════════════════════════════════════════════════════
 
-    const TOUR_STORAGE_KEY = 'nad_tour_seen';
     const tourOverlay = document.getElementById('tour-overlay');
     const tourBackdrop = document.getElementById('tour-backdrop');
     const tourSpotlight = document.getElementById('tour-spotlight');
@@ -895,7 +922,6 @@
 
     if (tourBtnSkip) {
         tourBtnSkip.addEventListener('click', () => {
-            localStorage.setItem(TOUR_STORAGE_KEY, 'true');
             endTour();
         });
     }
@@ -909,17 +935,11 @@
         });
     }
 
-    // Auto-start tour on first visit to capture view
+    // Start the capture setup tour unconditionally
     function maybeStartCaptureTour() {
-        if (!localStorage.getItem(TOUR_STORAGE_KEY)) {
-            setTimeout(() => {
-                // Only start if we're on the capture setup view
-                if (setupSection.style.display !== 'none' || setupSection.offsetParent !== null) {
-                    startTour(captureSetupTourSteps);
-                    localStorage.setItem(TOUR_STORAGE_KEY, 'true');
-                }
-            }, 600);
-        }
+        setTimeout(() => {
+            startTour(captureSetupTourSteps);
+        }, 600);
     }
 
     // Show post-capture tour
@@ -1283,11 +1303,16 @@
     let gardenAnalyzer = null;
     let gardenCurrentFile = null;
     let gardenCurrentJson = null;
-    let gardenAudioContext = null;
-    let gardenMidiTimeouts = [];
-    let gardenMidiOscillators = [];
+    let gardenAudioContext    = null;
+    let gardenMidiTimeouts   = [];
+    let gardenMidiNodes      = [];      // active AudioNodes for cleanup
     let gardenMidiLoopTimeout = null;
-    let gardenMidiLoopId = 0;
+    let gardenMidiLoopId     = 0;
+    let gardenInstruments    = {};      // loaded soundfont instruments by name
+    let gardenReverbNode     = null;    // ConvolverNode for ambient reverb
+    let gardenReverbGain     = null;    // reverb wet level
+    let gardenDryGain        = null;    // dry level
+    let gardenMasterGain     = null;    // master output
 
     // The main garden environment
     // Auto-load garden when switching to it
@@ -1478,11 +1503,11 @@
         gardenMidiTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
         gardenMidiTimeouts = [];
 
-        gardenMidiOscillators.forEach(osc => {
-            try { osc.stop(); } catch (_) { }
-            try { osc.disconnect(); } catch (_) { }
+        gardenMidiNodes.forEach(node => {
+            try { node.stop(); } catch (_) { }
+            try { node.disconnect(); } catch (_) { }
         });
-        gardenMidiOscillators = [];
+        gardenMidiNodes = [];
     }
 
     function reduceTrackNotes(trackNotes, maxNotes) {
@@ -1496,6 +1521,22 @@
             reduced.push(trackNotes[idx]);
         }
         return reduced;
+    }
+
+    /**
+     * Snap a MIDI note number to the nearest note in C-major pentatonic scale.
+     * Pentatonic intervals: C(0) D(2) E(4) G(7) A(9)
+     */
+    function quantizeToPentatonic(midiNote) {
+        const octave = Math.floor(midiNote / 12);
+        const pc     = midiNote % 12;                        // pitch class 0–11
+        // find the nearest pentatonic pitch class
+        let bestPc = 0, bestDist = 99;
+        for (const p of GARDEN_PENTATONIC) {
+            const dist = Math.min(Math.abs(pc - p), 12 - Math.abs(pc - p));
+            if (dist < bestDist) { bestDist = dist; bestPc = p; }
+        }
+        return octave * 12 + bestPc;
     }
 
     function buildGardenPlaybackPlan(midi) {
@@ -1520,13 +1561,30 @@
 
         if (!playableTracks.length) return null;
 
-        const notes = playableTracks.flat().sort((a, b) => a.time - b.time);
+        let notes = playableTracks.flat().sort((a, b) => a.time - b.time);
         if (!notes.length) return null;
 
-        const fallbackDuration = notes.reduce((maxDuration, note) => {
-            return Math.max(maxDuration, note.time + note.duration);
-        }, 0);
+        // ── Musical post-processing ──────────────────────────────────────
+        // 1) Quantize all pitches to pentatonic scale, clamp to warm range
+        notes = notes.map(n => ({
+            ...n,
+            midi:     Math.max(48, Math.min(84, quantizeToPentatonic(n.midi))),  // C3–C6
+            duration: Math.max(GARDEN_PLAYBACK_MIN_NOTE_DURATION,
+                      Math.min(GARDEN_PLAYBACK_MAX_NOTE_DURATION, n.duration * 3)),
+            velocity: Math.max(0.08, Math.min(0.28, n.velocity * 0.55)),  // softer
+        }));
 
+        // 2) Enforce minimum spacing: drop notes too close together per-channel
+        const lastTimeByChannel = {};
+        notes = notes.filter(n => {
+            const key = n.channel;
+            const prev = lastTimeByChannel[key] ?? -Infinity;
+            if (n.time - prev < GARDEN_PLAYBACK_MIN_SPACING) return false;
+            lastTimeByChannel[key] = n.time;
+            return true;
+        });
+
+        const fallbackDuration = notes.reduce((mx, n) => Math.max(mx, n.time + n.duration), 0);
         const totalDuration = Math.max(Number(midi?.duration) || 0, fallbackDuration, 0.5);
         return { notes, totalDuration };
     }
@@ -1540,63 +1598,82 @@
         const baseTime = ctx.currentTime + 0.05;
         gardenMidiTimeouts = [];
 
+        // Resolve the instrument name used for all channels (currently all the same)
+        const instrumentName = GARDEN_INSTRUMENTS[0] || 'acoustic_guitar_nylon';
+        const instrument = gardenInstruments[instrumentName];
+
+        // Fallback: if instruments failed to load, skip silently
+        if (!instrument) {
+            console.warn('Garden MIDI: instrument not loaded, skipping playback');
+            return;
+        }
+
         notes.forEach(note => {
+            const delayMs = Math.max(0, (baseTime - ctx.currentTime + note.time) * 1000);
+
             const timeoutId = setTimeout(() => {
                 if (playbackId !== gardenMidiLoopId) return;
 
-                const now = ctx.currentTime;
                 const channelIdx = Math.max(0, note.channel % 4);
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                const velocity = Math.max(0.07, Math.min(0.38, note.velocity || 0.24));
-                const duration = Math.max(
-                    GARDEN_PLAYBACK_MIN_NOTE_DURATION,
-                    Math.min(GARDEN_PLAYBACK_MAX_NOTE_DURATION, note.duration || 0.25)
-                );
-                const midiValue = note.midi || 60;
-                const frequency = 440 * (2 ** ((midiValue - 69) / 12));
+                const gain       = note.velocity || 0.12;      // already processed by buildGardenPlaybackPlan
+                const duration   = note.duration  || 0.5;      // already clamped/stretched
+                const midiValue  = note.midi || 60;
+                const pan        = GARDEN_CHANNEL_PAN[channelIdx];
 
-                osc.type = GARDEN_CHANNEL_WAVEFORMS[channelIdx];
-                osc.frequency.setValueAtTime(frequency, now);
+                try {
+                    // soundfont-player .play() returns an AudioNode we can route
+                    const player = instrument.play(midiValue, ctx.currentTime, {
+                        duration: duration,
+                        gain:     gain,
+                    });
 
-                gain.gain.setValueAtTime(0.0001, now);
-                gain.gain.exponentialRampToValueAtTime(velocity, now + 0.015);
-                gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+                    if (player) {
+                        // Route through panner → dry + reverb buses
+                        // Disconnect from default destination first
+                        try { player.disconnect(); } catch (_) {}
 
-                osc.connect(gain);
-                let panner = null;
-                if (typeof ctx.createStereoPanner === 'function') {
-                    panner = ctx.createStereoPanner();
-                    panner.pan.setValueAtTime(GARDEN_CHANNEL_PAN[channelIdx], now);
-                    gain.connect(panner);
-                    panner.connect(ctx.destination);
-                } else {
-                    gain.connect(ctx.destination);
+                        if (typeof ctx.createStereoPanner === 'function' && gardenDryGain) {
+                            const panner = ctx.createStereoPanner();
+                            panner.pan.setValueAtTime(pan, ctx.currentTime);
+                            player.connect(panner);
+                            panner.connect(gardenDryGain);
+                            if (gardenReverbNode) {
+                                panner.connect(gardenReverbNode);
+                            }
+                        } else if (gardenDryGain) {
+                            player.connect(gardenDryGain);
+                        }
+                        // else: player stays connected to destination (soundfont default)
+
+                        gardenMidiNodes.push(player);
+
+                        // Cleanup reference after note ends
+                        const cleanupId = setTimeout(() => {
+                            const idx = gardenMidiNodes.indexOf(player);
+                            if (idx >= 0) gardenMidiNodes.splice(idx, 1);
+                        }, (duration + 0.5) * 1000);
+                        gardenMidiTimeouts.push(cleanupId);
+                    }
+                } catch (e) {
+                    console.warn('Garden MIDI note error:', e);
                 }
 
-                osc.onended = () => {
-                    try { osc.disconnect(); } catch (_) { }
-                    try { gain.disconnect(); } catch (_) { }
-                    if (panner) {
-                        try { panner.disconnect(); } catch (_) { }
-                    }
-                    const idx = gardenMidiOscillators.indexOf(osc);
-                    if (idx >= 0) gardenMidiOscillators.splice(idx, 1);
-                };
-
-                osc.start(now);
-                osc.stop(now + duration + 0.02);
-                gardenMidiOscillators.push(osc);
-            }, Math.max(0, (baseTime - ctx.currentTime + note.time) * 1000));
+            }, delayMs);
 
             gardenMidiTimeouts.push(timeoutId);
         });
 
+        // Loop: restart playback after the full plan finishes
         gardenMidiLoopTimeout = setTimeout(() => {
             scheduleGardenMidiLoop(ctx, playbackPlan, playbackId);
-        }, Math.max(250, (loopDuration + 0.05) * 1000));
+        }, Math.max(250, (loopDuration + 0.5) * 1000));
     }
 
+    /**
+     * Create (or resume) the AudioContext, set up the reverb/dry/master bus,
+     * and pre-load all soundfont instruments needed for playback.
+     * Returns { ctx, instruments } so callers can await everything.
+     */
     async function getGardenAudioContext() {
         if (!gardenAudioContext) {
             const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -1606,13 +1683,70 @@
         if (gardenAudioContext.state === 'suspended') {
             await gardenAudioContext.resume();
         }
-        return gardenAudioContext;
+
+        const ctx = gardenAudioContext;
+
+        // ── Build audio bus (once) ─────────────────────────────────────────
+        if (!gardenMasterGain) {
+            gardenMasterGain = ctx.createGain();
+            gardenMasterGain.gain.value = 0.85;
+            gardenMasterGain.connect(ctx.destination);
+
+            // Dry path
+            gardenDryGain = ctx.createGain();
+            gardenDryGain.gain.value = 0.65;
+            gardenDryGain.connect(gardenMasterGain);
+
+            // Reverb path (ConvolverNode with synthetic impulse response)
+            try {
+                gardenReverbNode = ctx.createConvolver();
+                const irLength = ctx.sampleRate * 2.2;   // 2.2-second reverb tail
+                const irBuffer = ctx.createBuffer(2, irLength, ctx.sampleRate);
+                for (let ch = 0; ch < 2; ch++) {
+                    const data = irBuffer.getChannelData(ch);
+                    for (let i = 0; i < irLength; i++) {
+                        // Exponential decay with slight randomness for natural diffusion
+                        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / irLength, 2.8);
+                    }
+                }
+                gardenReverbNode.buffer = irBuffer;
+
+                gardenReverbGain = ctx.createGain();
+                gardenReverbGain.gain.value = 0.35;      // wet level
+                gardenReverbNode.connect(gardenReverbGain);
+                gardenReverbGain.connect(gardenMasterGain);
+            } catch (e) {
+                console.warn('Garden reverb creation failed, using dry only:', e);
+                gardenReverbNode = null;
+                gardenReverbGain = null;
+            }
+        }
+
+        // ── Load soundfont instruments (once) ──────────────────────────────
+        if (typeof Soundfont !== 'undefined' && Object.keys(gardenInstruments).length === 0) {
+            const uniqueNames = [...new Set(GARDEN_INSTRUMENTS)];
+            const loadPromises = uniqueNames.map(async (name) => {
+                try {
+                    const inst = await Soundfont.instrument(ctx, name, {
+                        soundfont: 'MusyngKite',
+                        gain: 1.0,
+                    });
+                    gardenInstruments[name] = inst;
+                } catch (e) {
+                    console.warn(`Failed to load soundfont "${name}":`, e);
+                }
+            });
+            await Promise.all(loadPromises);
+        }
+
+        return ctx;
     }
 
     async function playGardenMidi(captureData) {
         if (!captureData || typeof Midi === 'undefined') return;
 
         try {
+            // Fetch MIDI binary from the server
             const resp = await fetch('/api/json-to-midi', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1627,7 +1761,16 @@
             const playbackPlan = buildGardenPlaybackPlan(midi);
             if (!playbackPlan) return;
 
+            // Init audio context, reverb bus, and load soundfont instruments
             const ctx = await getGardenAudioContext();
+
+            // Verify at least one instrument loaded
+            const instrumentName = GARDEN_INSTRUMENTS[0] || 'acoustic_guitar_nylon';
+            if (!gardenInstruments[instrumentName]) {
+                console.warn('Garden MIDI: soundfont instruments not available. Playback skipped.');
+                return;
+            }
+
             stopGardenMidiPlayback();
             const playbackId = gardenMidiLoopId;
             scheduleGardenMidiLoop(ctx, playbackPlan, playbackId);

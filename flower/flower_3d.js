@@ -5,7 +5,7 @@
  *   • 5 petal layers (one per frequency band) growing in height by power
  *   • Organic stem with leaves
  *   • Pistil center with tiny spheres
- *   • Soft pastel materials with subsurface scattering feel
+ *   • Vibrant materials with subsurface scattering feel
  *   • Gentle particle pollen effects
  *   • Printable solid continuous mesh with stable circular base
  *   • Auto-rotation + orbit controls
@@ -121,9 +121,9 @@ class Flower3D {
 
         // Subtle colored point lights matching band colors
         const bandLights = [
-            { color: '#C4B7D8', pos: [-2, 2, 2] },
-            { color: '#A8D8B9', pos: [2, 1.5, -2] },
-            { color: '#FFD1DC', pos: [0, 4, 0] },
+            { color: '#8B5CF6', pos: [-2, 2, 2] },
+            { color: '#22C55E', pos: [2, 1.5, -2] },
+            { color: '#EC4899', pos: [0, 4, 0] },
         ];
 
         bandLights.forEach(bl => {
@@ -137,17 +137,17 @@ class Flower3D {
         topLight.position.set(0, 12, 0);
         this.scene.add(topLight);
 
-        // Hemisphere: cielo pastel → tierra cálida (cubre todos los ángulos)
-        const hemi = new THREE.HemisphereLight(0xF0E8FF, 0xFFE8D0, 0.55);
+        // Hemisphere: cielo vibrante → tierra cálida (cubre todos los ángulos)
+        const hemi = new THREE.HemisphereLight(0xDDD6FE, 0xFDBA74, 0.55);
         this.scene.add(hemi);
 
         // Rim light lateral: mejora volumen y color en vista cenital
-        const rimLight = new THREE.DirectionalLight(0xFFEAF4, 0.45);
+        const rimLight = new THREE.DirectionalLight(0xF9A8D4, 0.45);
         rimLight.position.set(-6, 5, -6);
         this.scene.add(rimLight);
     }
 
-    _vibrantPastel(baseColor, saturationBoost = 0.32, lightnessBoost = 0.03) {
+    _boostVibrance(baseColor, saturationBoost = 0.32, lightnessBoost = 0.03) {
         const hsl = { h: 0, s: 0, l: 0 };
         baseColor.getHSL(hsl);
         const boosted = new THREE.Color();
@@ -163,7 +163,7 @@ class Flower3D {
     _addBase() {
         const baseGeo = new THREE.CylinderGeometry(1.2, 1.4, 0.08, 64);
         const baseMat = new THREE.MeshStandardMaterial({
-            color: new THREE.Color('#E8E0D0'),
+            color: new THREE.Color('#F59E0B'),
             metalness: 0.05,
             roughness: 0.8,
         });
@@ -175,7 +175,7 @@ class Flower3D {
         // Decorative ring
         const ringGeo = new THREE.TorusGeometry(1.3, 0.02, 8, 64);
         const ringMat = new THREE.MeshStandardMaterial({
-            color: new THREE.Color('#D4C8B8'),
+            color: new THREE.Color('#C2410C'),
             metalness: 0.1,
             roughness: 0.6,
         });
@@ -204,7 +204,7 @@ class Flower3D {
         const tubeGeo = new THREE.TubeGeometry(curve, segments, stemRadius, 8, false);
 
         const stemMat = new THREE.MeshStandardMaterial({
-            color: new THREE.Color('#7EAD8B'),
+            color: new THREE.Color('#16A34A'),
             roughness: 0.7,
             metalness: 0.05,
         });
@@ -230,13 +230,13 @@ class Flower3D {
         // Left leaf
         this._createLeaf(
             new THREE.Vector3(-0.05, stemH * 0.35, 0.02),
-            0.6, -Math.PI / 5, '#A8D8B9'
+            0.6, -Math.PI / 5, '#22C55E'
         );
 
         // Right leaf (higher, smaller)
         this._createLeaf(
             new THREE.Vector3(0.04, stemH * 0.55, -0.02),
-            0.4, Math.PI / 4, '#B5E0C3'
+            0.4, Math.PI / 4, '#86EFAC'
         );
     }
 
@@ -445,8 +445,8 @@ class Flower3D {
 
         // ── Material: more saturated for higher-percentage bands ──
         const satBoost = lerp(0.22, 0.48, pctNorm);
-        const softAccent = this._vibrantPastel(color.clone().lerp(colorDeep, 0.28), satBoost, 0.02);
-        const deepVibrant = this._vibrantPastel(colorDeep.clone(), satBoost * 0.7, 0.0);
+        const softAccent = this._boostVibrance(color.clone().lerp(colorDeep, 0.28), satBoost, 0.02);
+        const deepVibrant = this._boostVibrance(colorDeep.clone(), satBoost * 0.7, 0.0);
         const emissiveStrength = lerp(0.25, 0.50, pctNorm);
 
         const mat = new THREE.MeshStandardMaterial({
@@ -475,7 +475,7 @@ class Flower3D {
         // This ensures nothing floats — all petals are physically joined here
         const diskGeo = new THREE.CylinderGeometry(centerR * 1.05, centerR * 1.1, 0.12, 48);
         const diskMat = new THREE.MeshStandardMaterial({
-            color: new THREE.Color('#FFE4C9'),
+            color: new THREE.Color('#FDE68A'),
             roughness: 0.6,
             metalness: 0.05,
         });
@@ -488,10 +488,10 @@ class Flower3D {
         // Main spherical center dome on top of disk
         const centerGeo = new THREE.SphereGeometry(centerR * 0.68, 32, 32);
         const centerMat = new THREE.MeshStandardMaterial({
-            color: new THREE.Color('#FFE4C9'),
+            color: new THREE.Color('#FDE68A'),
             roughness: 0.5,
             metalness: 0.1,
-            emissive: new THREE.Color('#F5D0A9'),
+            emissive: new THREE.Color('#F59E0B'),
             emissiveIntensity: 0.15,
         });
         const center = new THREE.Mesh(centerGeo, centerMat);
@@ -509,10 +509,10 @@ class Flower3D {
         const stemTop = this.stemTop || 2.5;
 
         const pollenColors = [
-            new THREE.Color('#FFF3B0'),
-            new THREE.Color('#FFE4C9'),
-            new THREE.Color('#FFD1DC'),
-            new THREE.Color('#F5D0A9'),
+            new THREE.Color('#EAB308'),
+            new THREE.Color('#FDE68A'),
+            new THREE.Color('#EC4899'),
+            new THREE.Color('#F97316'),
         ];
 
         for (let i = 0; i < count; i++) {
@@ -551,7 +551,7 @@ class Flower3D {
     _addGround() {
         const geo = new THREE.CircleGeometry(6, 64);
         const mat = new THREE.MeshStandardMaterial({
-            color: new THREE.Color('#E7DED3'),
+            color: new THREE.Color('#D97706'),
             metalness: 0.0,
             roughness: 1.0,
         });
