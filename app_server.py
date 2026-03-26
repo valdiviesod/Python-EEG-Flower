@@ -123,10 +123,19 @@ class WebCaptureController:
     def start_capture(self, duration_seconds: float | None = None,
                       user_name: str = '', user_age: int | None = None):
         with self.lock:
-            if self.running:
-                raise RuntimeError('Ya hay una captura en curso')
+            already_running = self.running
             previous_converter = self.converter
             self.converter = None
+            self.running = False
+
+        # If a capture was already in progress, stop it cleanly before starting a new one
+        if already_running and previous_converter:
+            try:
+                previous_converter.stop_capture()
+            except Exception:
+                pass
+            self._close_converter_resources(previous_converter)
+            previous_converter = None
 
         self._close_converter_resources(previous_converter)
 
@@ -366,8 +375,6 @@ class AppHandler(SimpleHTTPRequestHandler):
                     'durationSeconds': duration_value,
                     'userName': user_name, 'userAge': user_age,
                 })
-            except RuntimeError as exc:
-                self._send_json(409, {'ok': False, 'error': str(exc)})
             except Exception as exc:
                 traceback.print_exc()
                 self._send_json(500, {'ok': False, 'error': f'No se pudo iniciar captura: {exc}'})
@@ -386,6 +393,29 @@ class AppHandler(SimpleHTTPRequestHandler):
         # ── JSON to MIDI ──
         if parsed.path == '/api/json-to-midi':
             self._handle_json_to_midi()
+            return
+
+        # ── Garden: delete a capture ──
+        if parsed.path == '/api/garden/delete':
+            try:
+                body = self._read_json_body()
+                filename = body.get('filename', '')
+                self._handle_garden_delete(filename)
+            except Exception as exc:
+                traceback.print_exc()
+                self._send_json(500, {'ok': False, 'error': str(exc)})
+            return
+
+        # ── Garden: rename (update user_name) ──
+        if parsed.path == '/api/garden/rename':
+            try:
+                body = self._read_json_body()
+                filename = body.get('filename', '')
+                new_name = body.get('newName', '').strip()
+                self._handle_garden_rename(filename, new_name)
+            except Exception as exc:
+                traceback.print_exc()
+                self._send_json(500, {'ok': False, 'error': str(exc)})
             return
 
         self._send_json(404, {'ok': False, 'error': 'Endpoint no encontrado'})
@@ -598,6 +628,50 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _handle_garden_delete(self, filename: str):
+        if not filename or '..' in filename or '/' in filename or '\\' in filename:
+            self._send_json(400, {'ok': False, 'error': 'Nombre de archivo inválido'})
+            return
+
+        captures_dir = get_captures_dir()
+        filepath = captures_dir / filename
+
+        if not filepath.exists() or not filepath.is_file():
+            self._send_json(404, {'ok': False, 'error': 'Archivo no encontrado'})
+            return
+
+        filepath.unlink()
+        print(f'🗑️ Captura eliminada: {filename}')
+        self._send_json(200, {'ok': True, 'message': f'Captura "{filename}" eliminada.'})
+
+    def _handle_garden_rename(self, filename: str, new_name: str):
+        if not filename or '..' in filename or '/' in filename or '\\' in filename:
+            self._send_json(400, {'ok': False, 'error': 'Nombre de archivo inválido'})
+            return
+
+        if not new_name:
+            self._send_json(400, {'ok': False, 'error': 'El nuevo nombre no puede estar vacío'})
+            return
+
+        captures_dir = get_captures_dir()
+        filepath = captures_dir / filename
+
+        if not filepath.exists() or not filepath.is_file():
+            self._send_json(404, {'ok': False, 'error': 'Archivo no encontrado'})
+            return
+
+        try:
+            data = json.loads(filepath.read_text(encoding='utf-8'))
+            if 'metadata' not in data:
+                data['metadata'] = {}
+            data['metadata']['user_name'] = new_name
+            filepath.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+            print(f'✏️ Captura renombrada: {filename} → "{new_name}"')
+            self._send_json(200, {'ok': True, 'message': f'Nombre actualizado a "{new_name}".'})
+        except Exception as exc:
+            traceback.print_exc()
+            self._send_json(500, {'ok': False, 'error': f'Error al renombrar: {exc}'})
 
 
 # ══════════════════════════════════════════════════════════════════════════════

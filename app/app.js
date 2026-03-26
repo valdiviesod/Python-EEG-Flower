@@ -55,12 +55,9 @@
     const btnStop = document.getElementById('btn-stop-capture');
 
     const liveUserLabel = document.getElementById('live-user-label');
-    const liveSamples = document.getElementById('live-samples');
     const liveTime = document.getElementById('live-time');
-    const liveRate = document.getElementById('live-rate');
 
-    const wavesCanvas = document.getElementById('waves-canvas');
-    const wavesCtx = wavesCanvas.getContext('2d');
+    const wavesCanvas = null; // replaced by scalp map
 
     const resultsSummary = document.getElementById('results-summary');
     const btnDownloadMandala = document.getElementById('btn-download-mandala');
@@ -77,6 +74,201 @@
     const MAX_WAVE_POINTS = 800;
     let lastCaptureData = null;
     let captureAnimId = null;
+
+    // ── ScalpMap + FocusTracker ──
+    let scalpMap = null;
+
+    // FocusTracker: detects Beta (Trazo) threshold crossings
+    const FocusTracker = {
+        // Configuration
+        SAMPLE_RATE: 256,        // Muse 2 nominal rate
+        WINDOW_SECS: 1.0,        // FFT window
+        BETA_LO: 13,             // Hz
+        BETA_HI: 30,             // Hz
+        CALIBRATION_SECS: 3,     // seconds to collect baseline
+        THRESHOLD_FACTOR: 0.8,   // mean + factor * std
+
+        // State
+        buffer: [],              // ring buffer of raw samples (all 4 ch averaged)
+        calibrationBuffer: [],
+        threshold: null,
+        wasAbove: false,
+        birds: 0,
+        recoveries: 0,
+        calibrationDone: false,
+        waitingForRecovery: false,  // true when below threshold after a bird
+
+        reset() {
+            this.buffer = [];
+            this.calibrationBuffer = [];
+            this.threshold = null;
+            this.wasAbove = false;
+            this.birds = 0;
+            this.recoveries = 0;
+            this.calibrationDone = false;
+            this.waitingForRecovery = false;
+            document.getElementById('bird-count').textContent = '0';
+            document.getElementById('recovery-count').textContent = '0';
+        },
+
+        push(samples4ch) {
+            // Average across channels for a single signal
+            const avg = samples4ch.reduce((s, v) => s + v, 0) / samples4ch.length;
+            this.buffer.push(avg);
+
+            const winLen = Math.round(this.SAMPLE_RATE * this.WINDOW_SECS);
+
+            // Trim ring buffer
+            if (this.buffer.length > winLen * 4) {
+                this.buffer = this.buffer.slice(-winLen * 4);
+            }
+
+            // Calibration phase
+            if (!this.calibrationDone) {
+                this.calibrationBuffer.push(avg);
+                const calLen = Math.round(this.SAMPLE_RATE * this.CALIBRATION_SECS);
+                if (this.calibrationBuffer.length >= calLen) {
+                    this._calibrate();
+                }
+                return;
+            }
+
+            // Compute Beta power every ~window
+            if (this.buffer.length >= winLen) {
+                const win = this.buffer.slice(-winLen);
+                const power = this._betaPower(win);
+                this._detectCrossing(power);
+            }
+        },
+
+        _calibrate() {
+            const calLen = Math.round(this.SAMPLE_RATE * this.CALIBRATION_SECS);
+            const slice = this.calibrationBuffer.slice(-calLen);
+            // Compute Beta powers over 1-second windows in calibration data
+            const winLen = Math.round(this.SAMPLE_RATE * this.WINDOW_SECS);
+            const powers = [];
+            for (let i = 0; i + winLen <= slice.length; i += winLen) {
+                powers.push(this._betaPower(slice.slice(i, i + winLen)));
+            }
+            if (powers.length === 0) {
+                this.threshold = 1;
+                this.calibrationDone = true;
+                return;
+            }
+            const mean = powers.reduce((s, v) => s + v, 0) / powers.length;
+            const std = Math.sqrt(powers.reduce((s, v) => s + (v - mean) ** 2, 0) / powers.length);
+            this.threshold = mean + this.THRESHOLD_FACTOR * std;
+            this.calibrationDone = true;
+            console.log(`[FocusTracker] threshold calibrated: ${this.threshold.toFixed(4)} (mean=${mean.toFixed(4)}, std=${std.toFixed(4)})`);
+        },
+
+        _betaPower(samples) {
+            // Simple FFT-based beta power
+            const N = samples.length;
+            const freqRes = this.SAMPLE_RATE / N;
+            const loIdx = Math.ceil(this.BETA_LO / freqRes);
+            const hiIdx = Math.floor(this.BETA_HI / freqRes);
+            // Hann window
+            const windowed = samples.map((v, i) => v * 0.5 * (1 - Math.cos(2 * Math.PI * i / (N - 1))));
+            const spectrum = this._fft(windowed);
+            let power = 0;
+            for (let k = loIdx; k <= Math.min(hiIdx, spectrum.length - 1); k++) {
+                const re = spectrum[k * 2];
+                const im = spectrum[k * 2 + 1];
+                power += re * re + im * im;
+            }
+            return power / (hiIdx - loIdx + 1);
+        },
+
+        _detectCrossing(power) {
+            if (this.threshold === null) return;
+            const above = power > this.threshold;
+            if (above && !this.wasAbove) {
+                // Crossed upward
+                if (!this.waitingForRecovery) {
+                    // First crossing: it's a bird
+                    this.birds++;
+                    this.waitingForRecovery = true;
+                    this._flashCounter('bird-count', this.birds, 'bird-badge', 'counter-birds');
+                } else {
+                    // Was below, now above again: it's a recovery
+                    this.recoveries++;
+                    this.waitingForRecovery = false;
+                    this._flashCounter('recovery-count', this.recoveries, 'recovery-badge', 'counter-recoveries');
+                }
+            }
+            if (!above && this.wasAbove && this.waitingForRecovery) {
+                // Dropped below threshold — waiting for recovery
+                // (no action needed, just track state)
+            }
+            this.wasAbove = above;
+        },
+
+        _flashCounter(valueId, value, badgeId, wrapperId) {
+            const valEl   = document.getElementById(valueId);
+            const badgeEl = document.getElementById(badgeId);
+            const iconEl  = document.querySelector(`#${wrapperId} .focus-counter-icon`);
+            if (valEl)   valEl.textContent = value;
+            if (iconEl) {
+                iconEl.classList.remove('pop');
+                void iconEl.offsetWidth; // reflow
+                iconEl.classList.add('pop');
+                setTimeout(() => iconEl.classList.remove('pop'), 500);
+            }
+            if (badgeEl) {
+                badgeEl.style.display = 'inline';
+                badgeEl.style.animation = 'none';
+                void badgeEl.offsetWidth;
+                badgeEl.style.animation = '';
+                setTimeout(() => { badgeEl.style.display = 'none'; }, 1300);
+            }
+        },
+
+        // Cooley-Tukey FFT — returns flat [re0,im0, re1,im1, …] array
+        _fft(x) {
+            const N = x.length;
+            if (N <= 1) return [x[0] || 0, 0];
+            // Zero-pad to next power of 2
+            let n = 1;
+            while (n < N) n <<= 1;
+            const re = new Float64Array(n);
+            const im = new Float64Array(n);
+            for (let i = 0; i < N; i++) re[i] = x[i];
+            // Bit-reverse permutation
+            for (let i = 0, j = 0; i < n; i++) {
+                if (i < j) {
+                    [re[i], re[j]] = [re[j], re[i]];
+                    [im[i], im[j]] = [im[j], im[i]];
+                }
+                let bit = n >> 1;
+                for (; j & bit; bit >>= 1) j ^= bit;
+                j ^= bit;
+            }
+            // Butterfly
+            for (let len = 2; len <= n; len <<= 1) {
+                const ang = -2 * Math.PI / len;
+                const wRe = Math.cos(ang), wIm = Math.sin(ang);
+                for (let i = 0; i < n; i += len) {
+                    let curRe = 1, curIm = 0;
+                    for (let k = 0; k < len / 2; k++) {
+                        const uRe = re[i + k], uIm = im[i + k];
+                        const vRe = re[i + k + len / 2] * curRe - im[i + k + len / 2] * curIm;
+                        const vIm = re[i + k + len / 2] * curIm + im[i + k + len / 2] * curRe;
+                        re[i + k]           = uRe + vRe;
+                        im[i + k]           = uIm + vIm;
+                        re[i + k + len / 2] = uRe - vRe;
+                        im[i + k + len / 2] = uIm - vIm;
+                        const newCurRe = curRe * wRe - curIm * wIm;
+                        curIm = curRe * wIm + curIm * wRe;
+                        curRe = newCurRe;
+                    }
+                }
+            }
+            const out = new Float64Array(n * 2);
+            for (let i = 0; i < n; i++) { out[i * 2] = re[i]; out[i * 2 + 1] = im[i]; }
+            return out;
+        },
+    };
 
     // ── Start Capture ──
     btnStart.addEventListener('click', async () => {
@@ -117,8 +309,8 @@
             captureStreamIdx = 0;
             captureWaveBuffer = { 0: [], 1: [], 2: [], 3: [] };
 
-            // Start polling
-            startPolling();
+            // Start polling (outside try/catch so UI errors don't look like network errors)
+            setTimeout(startPolling, 0);
 
         } catch (err) {
             alert('Error de conexión: ' + err.message);
@@ -143,10 +335,18 @@
     // ── Polling ──
     function startPolling() {
         stopPolling();
+
+        // Init ScalpMap
+        const smCanvas = document.getElementById('scalp-map-canvas');
+        if (smCanvas) {
+            scalpMap = new ScalpMap(smCanvas);
+        }
+
+        // Init FocusTracker
+        FocusTracker.reset();
+
         pollOnce(); // immediate first poll
         capturePollingId = setInterval(pollOnce, 150);
-        resizeWavesCanvas();
-        drawWavesLoop();
         startMindfulness();
     }
 
@@ -155,9 +355,9 @@
             clearInterval(capturePollingId);
             capturePollingId = null;
         }
-        if (captureAnimId) {
-            cancelAnimationFrame(captureAnimId);
-            captureAnimId = null;
+        if (scalpMap) {
+            scalpMap.stop();
+            scalpMap = null;
         }
     }
 
@@ -167,15 +367,14 @@
             const data = await resp.json();
 
             // Update stats
-            liveSamples.textContent = data.totalSamples.toLocaleString();
             if (data.metadata) {
                 const dur = data.metadata.duration_seconds || 0;
                 liveTime.textContent = formatTime(dur);
-                liveRate.textContent = Math.round(data.metadata.sample_rate_hz || 0);
             }
 
-            // Append new samples to wave buffer
+            // Append new samples to wave buffer + feed ScalpMap + FocusTracker
             if (data.eeg_channels) {
+                const newSamplesPerCh = [];
                 for (let ch = 0; ch < 4; ch++) {
                     const key = `channel_${ch + 1}`;
                     const newSamples = data.eeg_channels[key] || [];
@@ -184,21 +383,24 @@
                     if (captureWaveBuffer[ch].length > MAX_WAVE_POINTS) {
                         captureWaveBuffer[ch] = captureWaveBuffer[ch].slice(-MAX_WAVE_POINTS);
                     }
+                    newSamplesPerCh.push(newSamples);
+                }
+
+                // Feed ScalpMap: use latest value per channel
+                if (scalpMap) {
+                    const latest = newSamplesPerCh.map(arr => arr.length ? arr[arr.length - 1] : 0);
+                    scalpMap.update(latest);
+                }
+
+                // Feed FocusTracker: push sample-by-sample (interleaved across channels)
+                const nSamples = newSamplesPerCh.reduce((mx, a) => Math.max(mx, a.length), 0);
+                for (let s = 0; s < nSamples; s++) {
+                    const sample4ch = newSamplesPerCh.map(arr => arr[s] ?? 0);
+                    FocusTracker.push(sample4ch);
                 }
             }
 
             captureStreamIdx = data.endIndex || captureStreamIdx;
-
-            // Update channel stats
-            if (data.statistics) {
-                for (let ch = 1; ch <= 4; ch++) {
-                    const stats = data.statistics[`channel_${ch}`];
-                    const el = document.getElementById(`ch${ch}-val`);
-                    if (el && stats) {
-                        el.textContent = `${stats.last?.toFixed(1) || '—'} µV`;
-                    }
-                }
-            }
 
             // Store latest full data
             lastCaptureData = data;
@@ -215,24 +417,19 @@
         }
     }
 
-    // ── Wave Drawing ──
+    // ── Wave Drawing (kept for results preview only) ──
     function resizeWavesCanvas() {
-        const container = wavesCanvas.parentElement;
-        wavesCanvas.width = container.clientWidth * (window.devicePixelRatio || 1);
-        wavesCanvas.height = container.clientHeight * (window.devicePixelRatio || 1);
-        wavesCanvas.style.width = container.clientWidth + 'px';
-        wavesCanvas.style.height = container.clientHeight + 'px';
+        // No-op: live waves replaced by scalp map
     }
 
     window.addEventListener('resize', () => {
-        if (liveSection.style.display !== 'none') {
-            resizeWavesCanvas();
+        if (liveSection.style.display !== 'none' && scalpMap) {
+            scalpMap.resize();
         }
     });
 
     function drawWavesLoop() {
-        drawWaves(wavesCtx, wavesCanvas, captureWaveBuffer);
-        captureAnimId = requestAnimationFrame(drawWavesLoop);
+        // No-op: live waves replaced by scalp map
     }
 
     function drawWaves(ctx, canvas, buffers) {
@@ -320,12 +517,10 @@
         if (lastCaptureData && lastCaptureData.metadata) {
             const meta = lastCaptureData.metadata;
             const dur = meta.duration_seconds || 0;
-            const samples = lastCaptureData.totalSamples || meta.total_samples || 0;
-            const hz = Math.round(meta.sample_rate_hz || 0);
             const name = meta.user_name || '';
             const age = meta.user_age;
 
-            let text = `${samples.toLocaleString()} muestras · ${formatTime(dur)} · ${hz} Hz`;
+            let text = `Sesión completada · ${formatTime(dur)}`;
             if (name) text = `${name}${age ? ' (' + age + ')' : ''} — ` + text;
             resultsSummary.textContent = text;
         }
@@ -757,7 +952,6 @@
     const flowerMainContent = document.getElementById('flower-main-content');
     const flowerFileInput = document.getElementById('flower-file-input');
     const flowerBtnUpload = document.getElementById('flower-btn-upload');
-    const flowerBtnDemo = document.getElementById('flower-btn-demo');
     const flowerUploadArea = document.getElementById('flower-upload-area');
     const flowerBtnBack = document.getElementById('flower-btn-back');
 
@@ -791,23 +985,6 @@
         e.preventDefault();
         flowerUploadArea.classList.remove('drag-over');
         if (e.dataTransfer.files.length) loadFlowerFile(e.dataTransfer.files[0]);
-    });
-
-    // Demo button
-    flowerBtnDemo.addEventListener('click', async () => {
-        try {
-            flowerBtnDemo.textContent = 'Cargando...';
-            // Try to load from any nearby JSON file
-            const resp = await fetch('../SAD%201.json');
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = await resp.json();
-            processFlowerData(data);
-        } catch (err) {
-            alert('No se pudo cargar el archivo de ejemplo.\n' +
-                'Asegúrate de que exista un archivo JSON EEG en el directorio raíz.\n\n' +
-                'Error: ' + err.message);
-            flowerBtnDemo.innerHTML = '<span>🌸</span> Datos de ejemplo';
-        }
     });
 
     function loadFlowerFile(file) {
@@ -923,6 +1100,44 @@
             </div>
         `;
         analysisContent.innerHTML = html;
+        if (report.emotionMetrics && report.emotionMetrics.length) {
+            renderEmotionChart(report.emotionMetrics);
+        }
+    }
+
+    // ── Emotion Bar Chart ──
+    function renderEmotionChart(emotions) {
+        // Insert before the first .analysis-card inside analysisContent
+        const container = document.createElement('div');
+        container.className = 'emotion-chart';
+        container.innerHTML = `
+            <div class="emotion-chart-title">✨ Tu Estado Emocional</div>
+            ${emotions.map((e, i) => `
+                <div class="emotion-row" style="--delay:${i * 60}ms">
+                    <span class="emotion-emoji" title="${e.description}">${e.emoji}</span>
+                    <span class="emotion-label">${e.label}</span>
+                    <div class="emotion-bar-track">
+                        <div class="emotion-bar-fill" data-target="${Math.round(e.value * 100)}"
+                             style="background:linear-gradient(90deg,${e.color},${e.colorDeep})">
+                        </div>
+                    </div>
+                    <span class="emotion-value">${Math.round(e.value * 100)}%</span>
+                </div>
+            `).join('')}
+        `;
+        analysisContent.insertBefore(container, analysisContent.firstChild);
+
+        // Animate bars after a short paint delay
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                container.querySelectorAll('.emotion-bar-fill').forEach((fill, i) => {
+                    const target = fill.dataset.target;
+                    setTimeout(() => {
+                        fill.style.width = target + '%';
+                    }, i * 60);
+                });
+            });
+        });
     }
 
     function renderBandCard(band) {
@@ -1043,7 +1258,6 @@
             flowerAnalyzer = null;
             flowerMainContent.style.display = 'none';
             flowerUploadSection.style.display = 'flex';
-            flowerBtnDemo.innerHTML = '<span>🌸</span> Datos de ejemplo';
         });
     }
 
@@ -1202,9 +1416,7 @@
         gardenModalTitle.textContent = `Flor de ${userName}`;
 
         const dur = captureData.metadata?.duration_seconds ? formatTime(captureData.metadata.duration_seconds) : '—';
-        const samples = captureData.metadata?.total_samples ? captureData.metadata.total_samples.toLocaleString() : '0';
-        const hz = captureData.metadata?.sample_rate_hz ? Math.round(captureData.metadata.sample_rate_hz) : '—';
-        gardenModalMeta.textContent = `${samples} muestras · ${dur} · ${hz} Hz`;
+        gardenModalMeta.textContent = dur !== '—' ? `Sesión de ${dur}` : 'Sesión EEG';
 
         // Initialize Analyzer for Modal Views
         gardenAnalyzer = new EEGBandAnalyzer(captureData);
@@ -1534,6 +1746,128 @@
             } finally {
                 gardenBtnDownloadMidi.disabled = false;
                 gardenBtnDownloadMidi.innerHTML = '<span>🎵</span> Descargar MIDI';
+            }
+        });
+    }
+
+    // ── Garden: Rename flower ──
+    const gardenBtnRename = document.getElementById('garden-btn-rename');
+    const renameModal = document.getElementById('rename-modal');
+    const renameInput = document.getElementById('rename-input');
+    const renameBtnCancel = document.getElementById('rename-btn-cancel');
+    const renameBtnConfirm = document.getElementById('rename-btn-confirm');
+
+    if (gardenBtnRename) {
+        gardenBtnRename.addEventListener('click', () => {
+            if (!gardenCurrentJson) return;
+            const currentName = gardenCurrentJson.metadata?.user_name || '';
+            renameInput.value = currentName;
+            renameModal.style.display = 'flex';
+            setTimeout(() => renameInput.focus(), 100);
+        });
+    }
+
+    if (renameBtnCancel) {
+        renameBtnCancel.addEventListener('click', () => {
+            renameModal.style.display = 'none';
+        });
+    }
+
+    renameModal?.addEventListener('click', (e) => {
+        if (e.target === renameModal) renameModal.style.display = 'none';
+    });
+
+    renameInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') renameBtnConfirm?.click();
+        if (e.key === 'Escape') renameModal.style.display = 'none';
+    });
+
+    if (renameBtnConfirm) {
+        renameBtnConfirm.addEventListener('click', async () => {
+            const newName = renameInput.value.trim();
+            if (!newName) {
+                renameInput.focus();
+                return;
+            }
+            if (!gardenCurrentFile) return;
+
+            renameBtnConfirm.disabled = true;
+            renameBtnConfirm.textContent = 'Guardando...';
+            try {
+                const resp = await fetch('/api/garden/rename', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: gardenCurrentFile, newName }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Error al renombrar');
+
+                // Update in-memory data and UI
+                if (gardenCurrentJson?.metadata) gardenCurrentJson.metadata.user_name = newName;
+                gardenModalTitle.textContent = `Flor de ${newName}`;
+                renameModal.style.display = 'none';
+
+                // Refresh garden to show updated name
+                gardenLoaded = false;
+                loadGarden();
+            } catch (err) {
+                alert('Error al renombrar: ' + err.message);
+            } finally {
+                renameBtnConfirm.disabled = false;
+                renameBtnConfirm.textContent = 'Guardar nombre';
+            }
+        });
+    }
+
+    // ── Garden: Delete flower ──
+    const gardenBtnDelete = document.getElementById('garden-btn-delete');
+    const deleteModal = document.getElementById('delete-modal');
+    const deleteModalName = document.getElementById('delete-modal-name');
+    const deleteBtnCancel = document.getElementById('delete-btn-cancel');
+    const deleteBtnConfirm = document.getElementById('delete-btn-confirm');
+
+    if (gardenBtnDelete) {
+        gardenBtnDelete.addEventListener('click', () => {
+            if (!gardenCurrentJson) return;
+            const name = gardenCurrentJson.metadata?.user_name || gardenCurrentFile || 'esta flor';
+            if (deleteModalName) deleteModalName.textContent = name;
+            deleteModal.style.display = 'flex';
+        });
+    }
+
+    if (deleteBtnCancel) {
+        deleteBtnCancel.addEventListener('click', () => {
+            deleteModal.style.display = 'none';
+        });
+    }
+
+    deleteModal?.addEventListener('click', (e) => {
+        if (e.target === deleteModal) deleteModal.style.display = 'none';
+    });
+
+    if (deleteBtnConfirm) {
+        deleteBtnConfirm.addEventListener('click', async () => {
+            if (!gardenCurrentFile) return;
+            deleteBtnConfirm.disabled = true;
+            deleteBtnConfirm.textContent = 'Eliminando...';
+            try {
+                const resp = await fetch('/api/garden/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: gardenCurrentFile }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Error al eliminar');
+
+                deleteModal.style.display = 'none';
+                closeGardenModal();
+                gardenLoaded = false;
+                loadGarden();
+            } catch (err) {
+                alert('Error al eliminar: ' + err.message);
+            } finally {
+                deleteBtnConfirm.disabled = false;
+                deleteBtnConfirm.textContent = 'Sí, eliminar';
             }
         });
     }

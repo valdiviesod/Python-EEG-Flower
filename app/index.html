@@ -12,6 +12,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap"
         rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>🧠</text></svg>" type="image/svg+xml">
     <link rel="stylesheet" href="style.css?v=3">
 </head>
 
@@ -31,13 +32,16 @@
                 <!-- Global Tabs (top level) -->
                 <nav class="global-tabs" id="global-tabs">
                     <button class="global-tab active" data-view="capture" id="tab-capture">
-                        <span class="tab-emoji">🧠</span> Captura EEG
+                        <span class="tab-emoji">🧠</span>
+                        <span class="tab-label">Captura EEG</span>
                     </button>
                     <button class="global-tab" data-view="flower" id="tab-flower">
-                        <span class="tab-emoji">🌸</span> Flor Neurofuncional
+                        <span class="tab-emoji">🌸</span>
+                        <span class="tab-label">Flor</span>
                     </button>
                     <button class="global-tab" data-view="garden" id="tab-garden">
-                        <span class="tab-emoji">🌿</span> Jardín
+                        <span class="tab-emoji">🌿</span>
+                        <span class="tab-label">Jardín</span>
                     </button>
                 </nav>
             </div>
@@ -77,8 +81,7 @@
                     </button>
 
                     <div class="setup-hint">
-                        <strong>⚙️ Configuración:</strong>
-                        Asegúrate de que la app Muse envíe datos OSC a <code>127.0.0.1:5000</code>
+                        Asegúrate de que tu diadema Muse esté encendida y conectada antes de iniciar.
                     </div>
                 </div>
             </section>
@@ -104,55 +107,53 @@
                     </div>
                     <div class="live-stats">
                         <div class="live-stat">
-                            <span class="stat-label">Muestras</span>
-                            <span class="stat-value" id="live-samples">0</span>
-                        </div>
-                        <div class="live-stat">
                             <span class="stat-label">Tiempo</span>
                             <span class="stat-value" id="live-time">00:00</span>
-                        </div>
-                        <div class="live-stat">
-                            <span class="stat-label">Hz</span>
-                            <span class="stat-value" id="live-rate">0</span>
                         </div>
                     </div>
                     <button class="btn-stop" id="btn-stop-capture">⏹ Detener</button>
                 </div>
 
-                <!-- Real-time Waves Canvas -->
-                <div class="waves-container">
-                    <canvas id="waves-canvas"></canvas>
-                    <div class="waves-legend">
-                        <span class="wave-ch" data-ch="1"><span class="wave-dot ch1"></span>TP9</span>
-                        <span class="wave-ch" data-ch="2"><span class="wave-dot ch2"></span>AF7</span>
-                        <span class="wave-ch" data-ch="3"><span class="wave-dot ch3"></span>AF8</span>
-                        <span class="wave-ch" data-ch="4"><span class="wave-dot ch4"></span>TP10</span>
+                <!-- Real-time Scalp Map -->
+                <div class="scalp-map-container">
+                    <canvas id="scalp-map-canvas"></canvas>
+                </div>
+
+                <!-- Focus Counters -->
+                <div class="focus-counters" id="focus-counters">
+                    <div class="focus-counter" id="counter-birds">
+                        <div class="focus-counter-icon bird-icon">
+                            <svg viewBox="0 0 40 40" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <!-- Elegant bird in flight -->
+                                <path d="M20 22 C14 18, 6 16, 2 18 C6 14, 14 16, 20 20" stroke="#7C3AED" stroke-width="2" stroke-linecap="round" fill="none"/>
+                                <path d="M20 22 C26 18, 34 16, 38 18 C34 14, 26 16, 20 20" stroke="#7C3AED" stroke-width="2" stroke-linecap="round" fill="none"/>
+                                <path d="M18 22 Q20 19 22 22" stroke="#7C3AED" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+                                <circle cx="21.5" cy="21" r="1.2" fill="#7C3AED"/>
+                            </svg>
+                            <span class="counter-new-badge" id="bird-badge" style="display:none">+1</span>
+                        </div>
+                        <div class="focus-counter-text">
+                            <span class="counter-label">Trazo</span>
+                            <span class="counter-value" id="bird-count">0</span>
+                        </div>
+                    </div>
+                    <div class="focus-counter-divider"></div>
+                    <div class="focus-counter" id="counter-recoveries">
+                        <div class="focus-counter-icon recovery-icon">
+                            <svg viewBox="0 0 40 40" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <!-- Rising arrow / recovery symbol -->
+                                <path d="M8 28 Q14 16 20 18 Q26 20 32 10" stroke="#EC4899" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                                <path d="M26 8 L32 10 L30 16" stroke="#EC4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            </svg>
+                            <span class="counter-new-badge" id="recovery-badge" style="display:none">+1</span>
+                        </div>
+                        <div class="focus-counter-text">
+                            <span class="counter-label">Recuperación</span>
+                            <span class="counter-value" id="recovery-count">0</span>
+                        </div>
                     </div>
                 </div>
 
-                <!-- channel stats -->
-                <div class="channel-stats" id="channel-stats">
-                    <div class="ch-stat" data-ch="1">
-                        <span class="ch-stat-dot ch1"></span>
-                        <span class="ch-stat-name">TP9</span>
-                        <span class="ch-stat-val" id="ch1-val">—</span>
-                    </div>
-                    <div class="ch-stat" data-ch="2">
-                        <span class="ch-stat-dot ch2"></span>
-                        <span class="ch-stat-name">AF7</span>
-                        <span class="ch-stat-val" id="ch2-val">—</span>
-                    </div>
-                    <div class="ch-stat" data-ch="3">
-                        <span class="ch-stat-dot ch3"></span>
-                        <span class="ch-stat-name">AF8</span>
-                        <span class="ch-stat-val" id="ch3-val">—</span>
-                    </div>
-                    <div class="ch-stat" data-ch="4">
-                        <span class="ch-stat-dot ch4"></span>
-                        <span class="ch-stat-name">TP10</span>
-                        <span class="ch-stat-val" id="ch4-val">—</span>
-                    </div>
-                </div>
             </section>
 
             <!-- Results Panel (after capture completes) -->
@@ -163,8 +164,8 @@
                         <p id="results-summary">—</p>
                     </div>
                     <div class="results-actions">
-                        <button class="btn-primary" id="btn-download-json">
-                            <span>📥</span> Descargar JSON
+                        <button class="btn-primary" id="btn-download-mandala">
+                            <span>☸️</span> Descargar Mandala
                         </button>
                         <button class="btn-secondary" id="btn-download-midi">
                             <span>🎵</span> Descargar MIDI
@@ -196,23 +197,23 @@
                     <div class="upload-visual">
                         <div class="upload-flower-icon">
                             <svg viewBox="0 0 140 140" width="140" height="140">
-                                <line x1="70" y1="95" x2="70" y2="130" stroke="#A8D8B9" stroke-width="2.5"
+                                <line x1="70" y1="95" x2="70" y2="130" stroke="#7C5230" stroke-width="2.5"
                                     stroke-linecap="round" />
-                                <path d="M70,115 Q58,108 52,112 Q58,118 70,115" fill="#A8D8B9" opacity="0.6" />
+                                <path d="M70,115 Q58,108 52,112 Q58,118 70,115" fill="#7C5230" opacity="0.6" />
                                 <g opacity="0.5">
-                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#FFD1DC"
+                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#EC4899"
                                         transform="rotate(0,70,72)" />
-                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#C4B7D8"
+                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#8B5CF6"
                                         transform="rotate(72,70,72)" />
-                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#A8D8B9"
+                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#22C55E"
                                         transform="rotate(144,70,72)" />
-                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#FFDAB9"
+                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#F97316"
                                         transform="rotate(216,70,72)" />
-                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#FFF3B0"
+                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#EAB308"
                                         transform="rotate(288,70,72)" />
                                 </g>
-                                <circle cx="70" cy="72" r="10" fill="#FFE4C9" stroke="#F2B5D4" stroke-width="1" />
-                                <circle cx="70" cy="72" r="4" fill="#F2B5D4" opacity="0.7" />
+                                <circle cx="70" cy="72" r="10" fill="#FDE68A" stroke="#EC4899" stroke-width="1" />
+                                <circle cx="70" cy="72" r="4" fill="#EC4899" opacity="0.7" />
                             </svg>
                         </div>
                         <h2>Carga tu lectura EEG</h2>
@@ -222,9 +223,6 @@
                     <div class="upload-actions">
                         <button class="btn-primary" id="flower-btn-upload">
                             <span>📂</span> Seleccionar Archivo
-                        </button>
-                        <button class="btn-secondary" id="flower-btn-demo">
-                            <span>🌸</span> Datos de ejemplo
                         </button>
                     </div>
                     <p class="upload-hint">
@@ -359,11 +357,17 @@
                         <p id="garden-modal-meta">—</p>
                     </div>
                     <div class="garden-modal-actions">
-                        <button class="btn-primary" id="garden-btn-download-json">
-                            <span>📥</span> Descargar JSON
+                        <button class="btn-primary" id="garden-btn-download-mandala">
+                            <span>☸️</span> Descargar Mandala
                         </button>
                         <button class="btn-secondary" id="garden-btn-download-midi">
                             <span>🎵</span> Descargar MIDI
+                        </button>
+                        <button class="btn-secondary" id="garden-btn-rename">
+                            <span>✏️</span> Renombrar
+                        </button>
+                        <button class="btn-danger" id="garden-btn-delete">
+                            <span>🗑️</span> Eliminar Flor
                         </button>
                     </div>
                     <nav class="tabs garden-modal-tabs" id="garden-modal-tabs">
@@ -388,6 +392,32 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- ───── Modal: Renombrar Flor ───── -->
+    <div class="rename-modal-overlay" id="rename-modal" style="display:none">
+        <div class="rename-modal">
+            <h3>✏️ Renombrar Flor</h3>
+            <p>Introduce el nuevo nombre para esta sesión:</p>
+            <input type="text" id="rename-input" placeholder="Ej: María García" maxlength="60" autocomplete="off">
+            <div class="rename-modal-actions">
+                <button class="btn-ghost" id="rename-btn-cancel">Cancelar</button>
+                <button class="btn-primary" id="rename-btn-confirm">Guardar nombre</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ───── Modal: Confirmar Eliminación ───── -->
+    <div class="delete-modal-overlay" id="delete-modal" style="display:none">
+        <div class="delete-modal">
+            <div class="delete-modal-icon">🗑️</div>
+            <h3>Eliminar esta flor</h3>
+            <p>¿Estás segura/o? Esta acción no se puede deshacer.<br>La flor <strong id="delete-modal-name"></strong> será eliminada permanentemente.</p>
+            <div class="delete-modal-actions">
+                <button class="btn-ghost" id="delete-btn-cancel">Cancelar</button>
+                <button class="btn-danger" id="delete-btn-confirm">Sí, eliminar</button>
+            </div>
+        </div>
     </div>
 
     <!-- ───── Tour Overlay ───── -->
@@ -420,6 +450,8 @@
     <script src="/flower/flower_3d.js"></script>
     <script src="/flower/garden.js?v=3"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.28/build/Midi.min.js"></script>
+    <script src="mandala_generator.js"></script>
+    <script src="scalp_map.js"></script>
     <!-- Main App -->
     <script src="app.js?v=3"></script>
 </body>
