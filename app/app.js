@@ -1571,7 +1571,7 @@
             midi:     Math.max(48, Math.min(84, quantizeToPentatonic(n.midi))),  // C3–C6
             duration: Math.max(GARDEN_PLAYBACK_MIN_NOTE_DURATION,
                       Math.min(GARDEN_PLAYBACK_MAX_NOTE_DURATION, n.duration * 3)),
-            velocity: Math.max(0.08, Math.min(0.28, n.velocity * 0.55)),  // softer
+            velocity: Math.max(0.15, Math.min(0.55, n.velocity * 0.85)),  // balanced
         }));
 
         // 2) Enforce minimum spacing: drop notes too close together per-channel
@@ -1689,12 +1689,12 @@
         // ── Build audio bus (once) ─────────────────────────────────────────
         if (!gardenMasterGain) {
             gardenMasterGain = ctx.createGain();
-            gardenMasterGain.gain.value = 0.85;
+            gardenMasterGain.gain.value = 1.3;
             gardenMasterGain.connect(ctx.destination);
 
             // Dry path
             gardenDryGain = ctx.createGain();
-            gardenDryGain.gain.value = 0.65;
+            gardenDryGain.gain.value = 0.85;
             gardenDryGain.connect(gardenMasterGain);
 
             // Reverb path (ConvolverNode with synthetic impulse response)
@@ -1712,7 +1712,7 @@
                 gardenReverbNode.buffer = irBuffer;
 
                 gardenReverbGain = ctx.createGain();
-                gardenReverbGain.gain.value = 0.35;      // wet level
+                gardenReverbGain.gain.value = 0.45;      // wet level
                 gardenReverbNode.connect(gardenReverbGain);
                 gardenReverbGain.connect(gardenMasterGain);
             } catch (e) {
