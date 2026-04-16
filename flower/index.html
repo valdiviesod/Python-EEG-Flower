@@ -75,7 +75,7 @@
 
             <!-- Tabs -->
             <nav class="tabs">
-                <button class="tab active" data-tab="flower2d">🌸 Flor 2D</button>
+                <button class="tab active" data-tab="flower2d">🌋 Pulso Lava</button>
                 <button class="tab" data-tab="flower3d">🌺 Flor 3D</button>
                 <button class="tab" data-tab="analysis">🔬 Análisis de Bandas</button>
             </nav>
@@ -88,7 +88,7 @@
                     <div class="canvas-wrapper">
                         <canvas id="flower-2d-canvas"></canvas>
                     </div>
-                    <button class="btn-export" id="btn-export-2d">📥 Descargar Flor 2D (PNG)</button>
+                    <button class="btn-export" id="btn-export-2d">📥 Descargar Pulso Lava (PNG)</button>
                 </div>
 
                 <!-- 3D Flower -->
@@ -183,7 +183,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="eeg_band_analyzer.js"></script>
-    <script src="flower_2d.js"></script>
+    <!-- REVERT: swap comments below to go back to Flower2D -->
+    <!-- <script src="flower_2d.js"></script> -->
+    <script src="lava_pulse.js"></script>
     <script src="flower_3d.js"></script>
     <script src="app.js"></script>
 </body>

@@ -116,15 +116,18 @@
         switchTab('flower2d');
     }
 
-    // ── 2D Flower ─────────────────────────────────────────────────────────
+    // ── 2D Pulse (replaces Flower2D — REVERT: change LavaPulse → Flower2D and use flower2d.draw(size)) ──
     function draw2DFlower() {
         if (!analyzer) return;
-        flower2d = new Flower2D(canvas2d, analyzer);
+        if (flower2d) flower2d.stop();
         const containerW = canvas2d.parentElement.clientWidth;
-        const size = Math.min(2048, Math.max(800, containerW * 2));
-        flower2d.draw(size);
+        const size = Math.min(1200, Math.max(600, containerW));
+        canvas2d.width = size;
+        canvas2d.height = size;
         canvas2d.style.width = '100%';
         canvas2d.style.height = 'auto';
+        flower2d = new LavaPulse(canvas2d, analyzer);
+        flower2d.start();
     }
 
     // ── 3D Flower ─────────────────────────────────────────────────────────
@@ -141,6 +144,14 @@
     });
 
     function switchTab(tabName) {
+        // Pause/resume pulse animation on tab changes
+        if (currentTab === 'flower2d' && tabName !== 'flower2d' && flower2d) {
+            flower2d.stop();
+        }
+        if (tabName === 'flower2d' && flower2d) {
+            flower2d.start();
+        }
+
         currentTab = tabName;
         tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
         panels.forEach(p => p.classList.toggle('active', p.id === `panel-${tabName}`));
@@ -178,10 +189,10 @@
         const html = `
             <!-- Band Detail Cards -->
             <div class="analysis-card">
-                <h3>🌸 Anatomía de tu Flor</h3>
+                <h3>🌋 Anatomía de tu Pulso</h3>
                 <p style="font-size:0.85rem;color:var(--text-dim);margin-bottom:1rem;line-height:1.6">
-                    Cada capa de pétalos representa una banda de frecuencia cerebral.
-                    El tamaño de los pétalos es proporcional a la potencia relativa de cada banda.
+                    Cada banda de frecuencia cerebral moldea la forma, color y velocidad del pulso.
+                    El tamaño y complejidad de la curva refleja la potencia relativa de cada banda.
                 </p>
                 <div class="band-detail-grid">
                     ${bands.map(band => renderBandCard(band)).join('')}
@@ -190,7 +201,7 @@
 
             <!-- Flower Interpretation -->
             <div class="analysis-card flower-meaning-card">
-                <h3>🌺 Lectura de tu Flor</h3>
+                <h3>🌋 Lectura de tu Pulso</h3>
                 <div class="flower-meaning-text">
                     ${report.interpretation}
                 </div>
@@ -238,7 +249,7 @@
     // ── Export ─────────────────────────────────────────────────────────────
     if (btnExport2d) {
         btnExport2d.addEventListener('click', () => {
-            if (flower2d) flower2d.exportPNG('flor_neurofuncional_2d.png');
+            if (flower2d) flower2d.exportPNG('pulso_lava_eeg.png');
         });
     }
     if (btnExport3d) {
@@ -335,7 +346,7 @@
     if (btnBack) {
         btnBack.addEventListener('click', () => {
             if (flower3d) { flower3d.destroy(); flower3d = null; }
-            flower2d = null;
+            if (flower2d) { flower2d.stop(); flower2d = null; }
             analyzer = null;
             mainContent.style.display = 'none';
             uploadSection.style.display = 'flex';

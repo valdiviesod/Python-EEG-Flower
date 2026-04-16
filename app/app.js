@@ -87,7 +87,6 @@
     const wavesCanvas = null; // replaced by scalp map
 
     const resultsSummary = document.getElementById('results-summary');
-    const btnDownloadMandala = document.getElementById('btn-download-mandala');
     const btnDownloadMidi = document.getElementById('btn-download-midi');
     const btnSendToFlower = document.getElementById('btn-send-to-flower');
     const btnNewCapture = document.getElementById('btn-new-capture');
@@ -569,36 +568,6 @@
         drawWaves(resultsWavesCtx, resultsWavesCanvas, captureWaveBuffer);
     }
 
-    // ── Download Mandala (capture results) ──
-    btnDownloadMandala.addEventListener('click', async () => {
-        btnDownloadMandala.disabled = true;
-        btnDownloadMandala.innerHTML = '<span>☸️</span> Generando...';
-        try {
-            const [resp, refResp] = await Promise.all([
-                fetch('/api/capture/status'),
-                fetch('/mandala_reference.svg')
-            ]);
-            const captureJson = await resp.json();
-            const referenceSvg = await refResp.text();
-            if (!captureJson.eeg_channels || !captureJson.metadata) {
-                alert('No hay datos de captura disponibles.');
-                return;
-            }
-            const analyzer = new EEGBandAnalyzer(captureJson);
-            const report = analyzer.getReport();
-            const mandala = new MandalaGenerator(report, referenceSvg);
-            const svg = mandala.generate();
-            const blob = new Blob([svg], { type: 'image/svg+xml' });
-            const safeName = (captureJson.metadata.user_name || 'eeg').replace(/[^a-zA-Z0-9_-]/g, '_');
-            downloadBlob(blob, `mandala_${safeName}.svg`);
-        } catch (err) {
-            alert('Error generando mandala: ' + err.message);
-        } finally {
-            btnDownloadMandala.disabled = false;
-            btnDownloadMandala.innerHTML = '<span>☸️</span> Descargar Mandala';
-        }
-    });
-
     // ── Download MIDI ──
     btnDownloadMidi.addEventListener('click', async () => {
         btnDownloadMidi.disabled = true;
@@ -1045,15 +1014,18 @@
         switchFlowerTab('flower2d');
     }
 
-    // ── Draw 2D Flower ──
+    // ── Draw 2D (LavaPulse) ──
     function drawFlower2D() {
         if (!flowerAnalyzer) return;
-        flower2d = new Flower2D(canvas2d, flowerAnalyzer);
+        if (flower2d) flower2d.stop();
         const containerW = canvas2d.parentElement.clientWidth;
-        const size = Math.min(2048, Math.max(800, containerW * 2));
-        flower2d.draw(size);
+        const size = Math.min(1200, Math.max(600, containerW));
+        canvas2d.width = size;
+        canvas2d.height = size;
         canvas2d.style.width = '100%';
         canvas2d.style.height = 'auto';
+        flower2d = new LavaPulse(canvas2d, flowerAnalyzer);
+        flower2d.start();
     }
 
     // ── Init 3D Flower ──
@@ -1070,6 +1042,13 @@
     });
 
     function switchFlowerTab(tabName) {
+        // Pause/resume LavaPulse on tab changes
+        if (currentFlowerTab === 'flower2d' && tabName !== 'flower2d' && flower2d) {
+            flower2d.stop();
+        }
+        if (tabName === 'flower2d' && flower2d) {
+            flower2d.start();
+        }
         currentFlowerTab = tabName;
         flowerTabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
         flowerPanels.forEach(p => p.classList.toggle('active', p.id === `panel-${tabName}`));
@@ -1274,7 +1253,7 @@
     if (flowerBtnBack) {
         flowerBtnBack.addEventListener('click', () => {
             if (flower3d) { flower3d.destroy(); flower3d = null; }
-            flower2d = null;
+            if (flower2d) { flower2d.stop(); flower2d = null; }
             flowerAnalyzer = null;
             flowerMainContent.style.display = 'none';
             flowerUploadSection.style.display = 'flex';
@@ -1291,7 +1270,6 @@
     const gardenModalClose = document.getElementById('garden-modal-close');
     const gardenModalTitle = document.getElementById('garden-modal-title');
     const gardenModalMeta = document.getElementById('garden-modal-meta');
-    const gardenBtnDownloadMandala = document.getElementById('garden-btn-download-mandala');
     const gardenBtnDownloadMidi = document.getElementById('garden-btn-download-midi');
     const gardenModalTabs = document.querySelectorAll('#garden-modal-tabs .tab');
     const gardenPanels = document.querySelectorAll('.garden-modal-panel');
@@ -1406,14 +1384,12 @@
 
                 container.appendChild(item);
 
-                // Draw 2D flower
+                // Draw LavaPulse thumbnail (static single frame)
                 const analyzer = new EEGBandAnalyzer(fullCaptureData);
-                const flower2d = new Flower2D(canvas, analyzer);
-
-                // Set sizes
                 canvas.width = 600;
                 canvas.height = 600;
-                flower2d.draw(600, { transparentBackground: true, gardenMode: true });
+                const pulse = new LavaPulse(canvas, analyzer);
+                pulse._draw(); // single static frame — no animation loop
 
                 // Click handler
                 item.addEventListener('click', () => {
@@ -1446,21 +1422,17 @@
         // Initialize Analyzer for Modal Views
         gardenAnalyzer = new EEGBandAnalyzer(captureData);
 
-        // 1. Draw 2D
+        // 1. Draw 2D (LavaPulse animated)
         const canvas2dGarden = document.getElementById('garden-flower-2d-canvas');
-        if (!gardenFlower2d) {
-            gardenFlower2d = new Flower2D(canvas2dGarden, gardenAnalyzer);
-        } else {
-            gardenFlower2d.analyzer = gardenAnalyzer;
-            gardenFlower2d.params = gardenAnalyzer.flowerParams;
-            gardenFlower2d.bands = gardenAnalyzer.normalizedBands;
-            gardenFlower2d.profile = gardenAnalyzer.profile;
-        }
+        if (gardenFlower2d) { gardenFlower2d.stop(); gardenFlower2d = null; }
         const containerW = canvas2dGarden.parentElement.clientWidth;
-        const size = Math.min(2048, Math.max(600, containerW * 2));
-        gardenFlower2d.draw(size);
+        const size = Math.min(1200, Math.max(600, containerW));
+        canvas2dGarden.width = size;
+        canvas2dGarden.height = size;
         canvas2dGarden.style.width = '100%';
         canvas2dGarden.style.height = 'auto';
+        gardenFlower2d = new LavaPulse(canvas2dGarden, gardenAnalyzer);
+        gardenFlower2d.start();
 
         // 2. Prepare 3D (will init on tab click to avoid layout issues)
         if (gardenFlowerModal3d) {
@@ -1811,6 +1783,7 @@
     function closeGardenModal() {
         stopGardenMidiPlayback();
         gardenModal.style.display = 'none';
+        if (gardenFlower2d) { gardenFlower2d.stop(); gardenFlower2d = null; }
         if (gardenFlowerModal3d) {
             gardenFlowerModal3d.destroy();
             gardenFlowerModal3d = null;
@@ -1837,30 +1810,6 @@
             }
         });
     });
-
-    // Garden mandala download
-    if (gardenBtnDownloadMandala) {
-        gardenBtnDownloadMandala.addEventListener('click', async () => {
-            if (!gardenAnalyzer || !gardenCurrentJson) return;
-            gardenBtnDownloadMandala.disabled = true;
-            gardenBtnDownloadMandala.innerHTML = '<span>☸️</span> Generando...';
-            try {
-                const refResp = await fetch('/mandala_reference.svg');
-                const referenceSvg = await refResp.text();
-                const report = gardenAnalyzer.getReport();
-                const mandala = new MandalaGenerator(report, referenceSvg);
-                const svg = mandala.generate();
-                const blob = new Blob([svg], { type: 'image/svg+xml' });
-                const safeName = (gardenCurrentFile || 'eeg').replace('.json', '');
-                downloadBlob(blob, `mandala_${safeName}.svg`);
-            } catch (err) {
-                alert('Error generando mandala: ' + err.message);
-            } finally {
-                gardenBtnDownloadMandala.disabled = false;
-                gardenBtnDownloadMandala.innerHTML = '<span>☸️</span> Descargar Mandala';
-            }
-        });
-    }
 
     if (gardenBtnDownloadMidi) {
         gardenBtnDownloadMidi.addEventListener('click', async () => {

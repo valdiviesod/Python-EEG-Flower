@@ -164,9 +164,6 @@
                         <p id="results-summary">—</p>
                     </div>
                     <div class="results-actions">
-                        <button class="btn-primary" id="btn-download-mandala">
-                            <span>☸️</span> Descargar Mandala
-                        </button>
                         <button class="btn-secondary" id="btn-download-midi">
                             <span>🎵</span> Descargar MIDI
                         </button>
@@ -197,23 +194,30 @@
                     <div class="upload-visual">
                         <div class="upload-flower-icon">
                             <svg viewBox="0 0 140 140" width="140" height="140">
-                                <line x1="70" y1="95" x2="70" y2="130" stroke="#7C5230" stroke-width="2.5"
-                                    stroke-linecap="round" />
-                                <path d="M70,115 Q58,108 52,112 Q58,118 70,115" fill="#7C5230" opacity="0.6" />
-                                <g opacity="0.5">
-                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#EC4899"
-                                        transform="rotate(0,70,72)" />
-                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#8B5CF6"
-                                        transform="rotate(72,70,72)" />
-                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#22C55E"
-                                        transform="rotate(144,70,72)" />
-                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#F97316"
-                                        transform="rotate(216,70,72)" />
-                                    <ellipse cx="70" cy="52" rx="12" ry="22" fill="#EAB308"
-                                        transform="rotate(288,70,72)" />
-                                </g>
-                                <circle cx="70" cy="72" r="10" fill="#FDE68A" stroke="#EC4899" stroke-width="1" />
-                                <circle cx="70" cy="72" r="4" fill="#EC4899" opacity="0.7" />
+                                <defs>
+                                    <radialGradient id="plGlow" cx="50%" cy="50%" r="50%">
+                                        <stop offset="0%" stop-color="#FF4400" stop-opacity="0.15"/>
+                                        <stop offset="100%" stop-color="#FF4400" stop-opacity="0"/>
+                                    </radialGradient>
+                                </defs>
+                                <!-- ambient glow -->
+                                <circle cx="70" cy="70" r="60" fill="url(#plGlow)"/>
+                                <!-- outer bloom -->
+                                <circle cx="70" cy="70" r="46" fill="none" stroke="#7A1000" stroke-width="10" opacity="0.18"/>
+                                <circle cx="70" cy="70" r="44" fill="none" stroke="#FF4400" stroke-width="6" opacity="0.35"/>
+                                <!-- mid glow -->
+                                <circle cx="70" cy="70" r="41" fill="none" stroke="#FF6600" stroke-width="4" opacity="0.55"/>
+                                <!-- bright ring -->
+                                <circle cx="70" cy="70" r="39" fill="none" stroke="#FFBB00" stroke-width="2.5" opacity="0.82"/>
+                                <!-- hot core line -->
+                                <circle cx="70" cy="70" r="38" fill="none" stroke="#FFFAE8" stroke-width="1" opacity="0.95"/>
+                                <!-- spark dots -->
+                                <circle cx="70" cy="31" r="2.2" fill="#FFDD99" opacity="0.8"/>
+                                <circle cx="103" cy="52" r="1.6" fill="#FF9900" opacity="0.7"/>
+                                <circle cx="103" cy="88" r="2" fill="#FFBB00" opacity="0.75"/>
+                                <circle cx="70" cy="109" r="1.8" fill="#FFDD99" opacity="0.7"/>
+                                <circle cx="37" cy="88" r="2.2" fill="#FF6600" opacity="0.75"/>
+                                <circle cx="37" cy="52" r="1.6" fill="#FF9900" opacity="0.7"/>
                             </svg>
                         </div>
                         <h2>Carga tu lectura EEG</h2>
@@ -357,9 +361,6 @@
                         <p id="garden-modal-meta">—</p>
                     </div>
                     <div class="garden-modal-actions">
-                        <button class="btn-primary" id="garden-btn-download-mandala">
-                            <span>☸️</span> Descargar Mandala
-                        </button>
                         <button class="btn-secondary" id="garden-btn-download-midi">
                             <span>🎵</span> Descargar MIDI
                         </button>
@@ -451,7 +452,7 @@
     <script src="/flower/garden.js?v=3"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.28/build/Midi.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
-    <script src="mandala_generator.js"></script>
+    <script src="/flower/lava_pulse.js"></script>
     <script src="scalp_map.js"></script>
     <!-- Main App -->
     <script src="app.js?v=3"></script>
