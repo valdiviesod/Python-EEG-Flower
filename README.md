@@ -10,7 +10,7 @@ NAD es una aplicación web de código abierto que conecta la diadema **Muse 2** 
 
 | Captura EEG en vivo | Flor Neurofuncional | Jardín de sesiones |
 |---|---|---|
-| Mapa cerebral 3D con zonas anatómicas que pulsan según la actividad EEG | Flor 2D/3D generada desde 5 bandas de frecuencia cerebral | Galería interactiva de todas tus capturas anteriores |
+| Gráfica butterfly multicanal sobre fondo negro, con trazos dinámicos y diferenciados por canal | Flor 2D/3D generada desde 5 bandas de frecuencia cerebral | Galería interactiva de todas tus capturas anteriores |
 
 ---
 
@@ -19,12 +19,11 @@ NAD es una aplicación web de código abierto que conecta la diadema **Muse 2** 
 ### Captura EEG en tiempo real
 - Recibe datos de la diadema **Muse 2** vía protocolo **OSC/UDP** (puerto 5000)
 - 4 canales simultáneos: `TP9` (temporal izquierdo), `AF7` (frontal izquierdo), `AF8` (frontal derecho), `TP10` (temporal derecho)
-- Visualización en directo del **mapa cerebral** — silhouette anatómica SVG con 5 zonas coloreadas que se iluminan y pulsan en tiempo real:
-  - 🟣 **Pensamiento** (frontal) — AF7 + AF8
-  - 🟢 **Sentidos** (parietal) — todos los canales
-  - 🩷 **Visión** (occipital) — TP9 + TP10
-  - 🟠 **Memoria** (temporal izquierdo) — TP9
-  - 🟡 **Emoción** (temporal derecho) — TP10
+- Visualización en directo con **gráfica butterfly EEG**:
+  - Fondo negro con glow y retícula sutil
+  - 4 canales superpuestos (`TP9`, `AF7`, `AF8`, `TP10`) con color independiente
+  - Trazos múltiples por canal para una sensación más orgánica y dinámica
+  - Vista resumen posterior con la misma estética butterfly
 - Contador de picos de actividad beta (**Trazo**) y recuperaciones alfa (**Recuperación**)
 - Guía de mindfulness animada durante la sesión
 - Captura con duración fija o manual (detención libre)
@@ -79,9 +78,9 @@ NAD/
 ├── app/                   # SPA principal (vanilla JS + HTML + CSS)
 │   ├── index.html         # Shell de la app, 3 vistas: Captura / Flor / Jardín
 │   ├── app.js             # Lógica principal: captura, tour, MIDI, jardín
-│   ├── scalp_map.js       # Mapa cerebral en tiempo real (Canvas 2D + SVG anatómico)
+│   ├── scalp_map.js       # Render butterfly EEG en tiempo real (Canvas 2D)
 │   ├── mandala_generator.js
-│   ├── brain.svg          # Silueta cerebral realista con zonas anatómicas
+│   ├── brain.svg          # Recurso legado de la visualización cerebral anterior
 │   └── style.css
 │
 ├── flower/                # Motor de flores (compartido con app)
@@ -192,7 +191,7 @@ Configura **Mind Monitor** en tu teléfono:
 
 ## Filosofía de diseño
 
-NAD está pensada para **personas sin conocimientos técnicos**. La interfaz no muestra datos de ingeniería — en lugar de frecuencias en Hz, ve bandas con nombres poéticos; en lugar de un osciloscopio, ve un cerebro que respira. El objetivo es que la experiencia sea accesible, íntima y significativa: tu actividad cerebral como obra de arte.
+NAD está pensada para **personas sin conocimientos técnicos**. La interfaz no muestra datos de ingeniería — en lugar de frecuencias en Hz, ve bandas con nombres poéticos; en lugar de un monitor clínico, ve una visualización butterfly viva y expresiva. El objetivo es que la experiencia sea accesible, íntima y significativa: tu actividad cerebral como obra de arte.
 
 ---
 

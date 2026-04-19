@@ -1,436 +1,311 @@
 /**
- * ScalpMap — Zonal brain activity map for NAD
+ * ScalpMap — live butterfly EEG renderer for NAD.
  *
- * Renders the realistic brain silhouette (from brain.svg, 190×190 viewBox)
- * divided into anatomical zones, each zone filled with its own base colour
- * that brightens and pulses according to the EEG signal from the mapped
- * Muse 2 electrodes.
- *
- * Zone → electrode mapping (Muse 2: TP9, AF7, AF8, TP10):
- *   frontal    (Pensamiento) → AF7 (ch1) + AF8 (ch2) avg — violet  #8B5CF6
- *   parietal   (Sentidos)    → all four average            — emerald #22C55E
- *   occipital  (Visión)      → TP9 (ch0) + TP10 (ch3) avg — pink    #EC4899
- *   temporal_l (Memoria)     → TP9 (ch0)                  — orange  #F97316
- *   temporal_r (Emoción)     → TP10 (ch3)                 — amber   #EAB308
- *
- * The brain.svg file must contain one <path data-zone="…"> per zone
- * plus an outer <path id="outline"> for the silhouette stroke.
- *
- * Public API:
+ * Keeps the existing public API used by app.js:
  *   const sm = new ScalpMap(canvas);
  *   sm.update([tp9, af7, af8, tp10]);
  *   sm.stop();
  *   sm.resize();
+ *
+ * The visualization is a dense multi-channel butterfly plot on a black stage,
+ * with independent color, glow, drift and motion per channel.
  */
 
 class ScalpMap {
     constructor(canvas) {
         this.canvas = canvas;
-        this.ctx    = canvas.getContext('2d');
+        this.ctx = canvas.getContext('2d');
         if (!this.ctx) throw new Error('ScalpMap: could not get 2D context');
 
-        // Latest smoothed value per channel [TP9, AF7, AF8, TP10]
-        this._smooth = [0, 0, 0, 0];
-        this._alpha  = 0.14;   // EMA smoothing
-
-        // Running adaptive range for normalisation
-        this._min =  Infinity;
-        this._max = -Infinity;
-        this._hasData = false;
-
-        // Animation phase (for pulsing)
-        this._phase = 0;
-
-        // Zone definitions: name, base colour [r,g,b], electrode indices and weights
-        this._zones = [
-            {
-                name:   'frontal',
-                color:  [139, 92, 246],   // violet
-                elecs:  [1, 2],           // AF7, AF8
-                path2d: null,
-            },
-            {
-                name:   'parietal',
-                color:  [34, 197, 94],    // emerald
-                elecs:  [0, 1, 2, 3],     // all four
-                path2d: null,
-            },
-            {
-                name:   'occipital',
-                color:  [236, 72, 153],   // pink
-                elecs:  [0, 3],           // TP9, TP10
-                path2d: null,
-            },
-            {
-                name:   'temporal_l',
-                color:  [249, 115, 22],   // orange
-                elecs:  [0],              // TP9
-                path2d: null,
-            },
-            {
-                name:   'temporal_r',
-                color:  [234, 179, 8],    // amber
-                elecs:  [3],              // TP10
-                path2d: null,
-            },
+        this.colors = [
+            { line: '#8BF0FF', glow: '139,240,255' }, // TP9
+            { line: '#C7F284', glow: '199,242,132' }, // AF7
+            { line: '#FFD36E', glow: '255,211,110' }, // AF8
+            { line: '#FF8A5B', glow: '255,138,91' },  // TP10
         ];
-
-        // Sulci paths (white separator lines drawn on top)
-        this._sulciPaths = [];
-
-        // Outer brain outline (stroke only)
-        this._outlinePath = null;
-
-        // SVG transform: maps SVG coords → canvas coords
-        this._svgViewBox = { w: 190.496, h: 190.497 };
-        this._svgReady = false;
-
+        this.names = ['TP9', 'AF7', 'AF8', 'TP10'];
+        this.histories = Array.from({ length: 4 }, () => []);
+        this.trailCount = 7;
+        this.maxPoints = 320;
+        this.phase = 0;
+        this.running = false;
+        this.animId = null;
+        this.smooth = [0, 0, 0, 0];
+        this.alpha = 0.18;
+        this.lastValues = [0, 0, 0, 0];
+        this.min = Infinity;
+        this.max = -Infinity;
+        this.noiseSeed = Array.from({ length: 4 }, (_, i) => i * 1.618);
+        this.sparkles = [];
         this._W = 0;
         this._H = 0;
 
-        this._animId  = null;
-        this._running = false;
-
-        this._loadSVG();
+        this._seedHistory();
+        this._seedSparkles();
         this._resize();
         this._loop();
     }
 
-    // ── Public ──────────────────────────────────────────────────────────────
-
     update(channelValues) {
-        // channelValues: [tp9, af7, af8, tp10]
-        this._hasData = true;
+        if (!Array.isArray(channelValues) || channelValues.length < 4) return;
         for (let i = 0; i < 4; i++) {
-            const v = channelValues[i] ?? 0;
-            if (v < this._min) this._min = v;
-            if (v > this._max) this._max = v;
-            this._smooth[i] = this._smooth[i] * (1 - this._alpha) + v * this._alpha;
+            const raw = Number.isFinite(channelValues[i]) ? channelValues[i] : 0;
+            this.lastValues[i] = raw;
+            this.min = Math.min(this.min, raw);
+            this.max = Math.max(this.max, raw);
+            this.smooth[i] = this.smooth[i] * (1 - this.alpha) + raw * this.alpha;
+
+            const history = this.histories[i];
+            history.push(this.smooth[i]);
+            if (history.length > this.maxPoints) history.splice(0, history.length - this.maxPoints);
         }
-        // Slowly relax the adaptive range
-        const range = this._max - this._min;
+
+        const range = this.max - this.min;
         if (range > 0) {
-            this._min += range * 0.0003;
-            this._max -= range * 0.0003;
+            this.min += range * 0.0008;
+            this.max -= range * 0.0008;
         }
     }
 
     stop() {
-        this._running = false;
-        if (this._animId) cancelAnimationFrame(this._animId);
-        this._animId = null;
+        this.running = false;
+        if (this.animId) cancelAnimationFrame(this.animId);
+        this.animId = null;
     }
 
-    resize() { this._resize(); }
+    resize() {
+        this._resize();
+    }
 
-    // ── Private ─────────────────────────────────────────────────────────────
-
-    async _loadSVG() {
-        try {
-            const resp = await fetch('brain.svg');
-            const text = await resp.text();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(text, 'image/svg+xml');
-
-            const svg = doc.querySelector('svg');
-            if (svg) {
-                const vb = svg.getAttribute('viewBox');
-                if (vb) {
-                    const parts = vb.trim().split(/[\s,]+/).map(Number);
-                    if (parts.length >= 4) {
-                        this._svgViewBox = { w: parts[2], h: parts[3] };
-                    }
-                }
+    _seedHistory() {
+        for (let ch = 0; ch < 4; ch++) {
+            const history = this.histories[ch];
+            history.length = 0;
+            for (let i = 0; i < this.maxPoints; i++) {
+                const t = i / this.maxPoints;
+                history.push(
+                    Math.sin(t * Math.PI * (2.4 + ch * 0.28)) * (18 + ch * 4) +
+                    Math.cos(t * Math.PI * (6.5 + ch)) * (6 + ch * 2)
+                );
             }
-
-            // Load zone paths
-            for (const zone of this._zones) {
-                const el = doc.querySelector(`[data-zone="${zone.name}"]`);
-                if (el) {
-                    const d = el.getAttribute('d');
-                    if (d) zone.path2d = new Path2D(d);
-                }
-            }
-
-            // Load sulci
-            const sulciEls = doc.querySelectorAll('.sulcus');
-            sulciEls.forEach(el => {
-                const d = el.getAttribute('d');
-                if (d) {
-                    this._sulciPaths.push({
-                        path2d:       new Path2D(d),
-                        stroke:       el.getAttribute('stroke')       || 'rgba(255,255,255,0.35)',
-                        strokeWidth:  parseFloat(el.getAttribute('stroke-width') || '1.5'),
-                        dashArray:    el.getAttribute('stroke-dasharray') || null,
-                    });
-                }
-            });
-
-            // Load outer outline
-            const outlineEl = doc.getElementById('outline');
-            if (outlineEl) {
-                const d = outlineEl.getAttribute('d');
-                if (d) this._outlinePath = new Path2D(d);
-            }
-
-            this._svgReady = true;
-        } catch (err) {
-            console.warn('ScalpMap: failed to load brain.svg', err);
         }
+    }
+
+    _seedSparkles() {
+        this.sparkles = Array.from({ length: 56 }, () => ({
+            x: Math.random(),
+            y: Math.random(),
+            r: 0.8 + Math.random() * 2.6,
+            a: 0.12 + Math.random() * 0.35,
+            drift: 0.1 + Math.random() * 0.4,
+            speed: 0.2 + Math.random() * 0.7,
+        }));
     }
 
     _resize() {
         const container = this.canvas.parentElement;
         if (!container) return;
         const dpr = window.devicePixelRatio || 1;
-        const w = Math.max(container.clientWidth  || 0, 80);
-        const h = Math.max(container.clientHeight || 0, 80);
+        const w = Math.max(container.clientWidth || 0, 120);
+        const h = Math.max(container.clientHeight || 0, 120);
         if (w === this._W && h === this._H) return;
-        this.canvas.width  = w * dpr;
-        this.canvas.height = h * dpr;
-        this.canvas.style.width  = w + 'px';
-        this.canvas.style.height = h + 'px';
+        this.canvas.width = Math.round(w * dpr);
+        this.canvas.height = Math.round(h * dpr);
+        this.canvas.style.width = `${w}px`;
+        this.canvas.style.height = `${h}px`;
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this._W = w;
         this._H = h;
     }
 
     _loop() {
-        this._running = true;
-        const tick = () => {
-            if (!this._running) return;
+        this.running = true;
+        let last = performance.now();
+        const tick = (ts) => {
+            if (!this.running) return;
+            const dt = Math.min(0.05, Math.max(0.001, (ts - last) / 1000));
+            last = ts;
+            this.phase += dt * 1.35;
             this._resize();
-            this._phase += 0.022;
-            this._draw();
-            this._animId = requestAnimationFrame(tick);
+            this._draw(dt);
+            this.animId = requestAnimationFrame(tick);
         };
-        tick();
+        this.animId = requestAnimationFrame(tick);
     }
 
-    /** Map SVG coords → canvas coords. Returns {scale, tx, ty}. */
-    _getTransform(W, H) {
-        const vw = this._svgViewBox.w;
-        const vh = this._svgViewBox.h;
-        const pad = 0.06;
-        const availW = W * (1 - 2 * pad);
-        const availH = H * (1 - 2 * pad);
-        const scale  = Math.min(availW / vw, availH / vh);
-        const tx = (W - vw * scale) / 2;
-        const ty = (H - vh * scale) / 2;
-        return { scale, tx, ty };
-    }
-
-    /** Normalise a channel value to [0,1] */
-    _norm(v) {
-        const range = this._max - this._min || 1;
-        return Math.max(0, Math.min(1, (v - this._min) / range));
-    }
-
-    /** Compute the normalised activity [0,1] for a zone by averaging its electrodes. */
-    _zoneActivity(zone) {
-        if (!this._hasData) return 0;
-        let sum = 0;
-        for (const i of zone.elecs) sum += this._norm(this._smooth[i]);
-        return sum / zone.elecs.length;
-    }
-
-    _draw() {
+    _draw(dt) {
         const ctx = this.ctx;
         const W = this._W;
         const H = this._H;
         if (!W || !H) return;
 
         ctx.clearRect(0, 0, W, H);
-
-        if (!this._svgReady) {
-            this._drawFallback(ctx, W, H);
-            return;
-        }
-
-        const { scale, tx, ty } = this._getTransform(W, H);
-
-        // ── 1. Clipped zone layer (translate+scale once, clip to outline) ─
-        ctx.save();
-        ctx.translate(tx, ty);
-        ctx.scale(scale, scale);
-
-        // Clip all zone fills to the brain outline
-        if (this._outlinePath) {
-            ctx.clip(this._outlinePath, 'nonzero');
-        }
-
-        // ── 2. Draw each zone ────────────────────────────────────────────
-        for (let zi = 0; zi < this._zones.length; zi++) {
-            const zone = this._zones[zi];
-            if (!zone.path2d) continue;
-
-            const activity = this._zoneActivity(zone);
-
-            // Per-zone pulsing offset so zones breathe at different rates
-            const phaseOffset = zi * 0.72;
-            const pulse = 0.5 + 0.5 * Math.sin(this._phase + phaseOffset);
-
-            // Brightness: idle base + activity drive + pulse shimmer
-            const brightness = 0.30 + activity * 0.60 + pulse * 0.10;
-            const alpha      = 0.55 + activity * 0.40 + pulse * 0.05;
-
-            const [r, g, b] = zone.color;
-
-            // Base zone fill
-            ctx.save();
-            ctx.fillStyle = `rgba(${Math.round(r * brightness)},${Math.round(g * brightness)},${Math.round(b * brightness)},${alpha.toFixed(2)})`;
-            ctx.fill(zone.path2d);
-            ctx.restore();
-
-            // Radial bloom glow when active
-            if (activity > 0.15) {
-                const glowAlpha = activity * 0.40 * (0.7 + 0.3 * pulse);
-                const grad = this._createZoneGlow(ctx, zone, r, g, b, glowAlpha);
-                if (grad) {
-                    ctx.save();
-                    ctx.fillStyle = grad;
-                    ctx.fill(zone.path2d);
-                    ctx.restore();
-                }
-            }
-        }
-
-        // ── 3. Sulci lines (zone separator strokes) ───────────────────────
-        for (const s of this._sulciPaths) {
-            ctx.save();
-            ctx.strokeStyle = s.stroke;
-            ctx.lineWidth   = s.strokeWidth;
-            ctx.lineCap     = 'round';
-            if (s.dashArray) {
-                ctx.setLineDash(s.dashArray.split(/[\s,]+/).map(Number));
-            }
-            ctx.stroke(s.path2d);
-            ctx.restore();
-        }
-
-        ctx.restore(); // pop translate+scale+clip
-
-        // ── 4. Brain outline stroke (outside clip, on top) ────────────────
-        ctx.save();
-        ctx.translate(tx, ty);
-        ctx.scale(scale, scale);
-        if (this._outlinePath) {
-            ctx.shadowColor = 'rgba(180,140,255,0.45)';
-            ctx.shadowBlur  = 8 / scale;
-            ctx.strokeStyle = 'rgba(210,185,255,0.70)';
-            ctx.lineWidth   = 1.5 / scale;
-            ctx.stroke(this._outlinePath);
-        }
-        ctx.restore();
-
-        // ── 5. Zone labels ────────────────────────────────────────────────
-        this._drawLabels(ctx, W, H, scale, tx, ty);
+        this._drawBackground(ctx, W, H, dt);
+        this._drawGrid(ctx, W, H);
+        this._drawButterfly(ctx, W, H);
+        this._drawLegend(ctx, W, H);
     }
 
-    /**
-     * Create a radial glow gradient centered on the zone's approximate centroid.
-     * Operates in SVG coordinate space (caller is already translated+scaled).
-     */
-    _createZoneGlow(ctx, zone, r, g, b, alpha) {
-        // Approximate centroids in SVG coords (viewBox 0 0 190.496 190.497)
-        const centroids = {
-            frontal:    { x: 95, y: 35  },
-            parietal:   { x: 95, y: 88  },
-            occipital:  { x: 95, y: 150 },
-            temporal_l: { x: 32, y: 120 },
-            temporal_r: { x: 158, y: 120 },
-        };
-        const c = centroids[zone.name];
-        if (!c) return null;
+    _drawBackground(ctx, W, H, dt) {
+        const bg = ctx.createLinearGradient(0, 0, 0, H);
+        bg.addColorStop(0, '#020307');
+        bg.addColorStop(0.5, '#050814');
+        bg.addColorStop(1, '#010204');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, W, H);
 
-        const radius = 45;
-        const grad = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, radius);
-        grad.addColorStop(0,   `rgba(${r},${g},${b},${alpha.toFixed(2)})`);
-        grad.addColorStop(0.5, `rgba(${r},${g},${b},${(alpha * 0.4).toFixed(2)})`);
-        grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
-        return grad;
-    }
+        const halo = ctx.createRadialGradient(W * 0.5, H * 0.48, H * 0.05, W * 0.5, H * 0.48, H * 0.62);
+        halo.addColorStop(0, 'rgba(120, 130, 255, 0.07)');
+        halo.addColorStop(0.5, 'rgba(64, 90, 255, 0.04)');
+        halo.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = halo;
+        ctx.fillRect(0, 0, W, H);
 
-    /** Draw small zone name labels */
-    _drawLabels(ctx, W, H, scale, tx, ty) {
-        const labelDefs = [
-            { zone: 'frontal',    x: 95,  y: 32,  label: 'Pensamiento',  rotate: 0   },
-            { zone: 'parietal',   x: 95,  y: 88,  label: 'Sentidos',     rotate: 0   },
-            { zone: 'occipital',  x: 95,  y: 152, label: 'Visión',       rotate: 0   },
-            { zone: 'temporal_l', x: 30,  y: 120, label: 'Memoria',      rotate: -90 },
-            { zone: 'temporal_r', x: 160, y: 120, label: 'Emoción',      rotate:  90 },
-        ];
-
-        // Font size in SVG units (~5px at full 190px scale)
-        const fontSize = 5;
-
-        ctx.save();
-        ctx.translate(tx, ty);
-        ctx.scale(scale, scale);
-
-        for (const def of labelDefs) {
-            const zoneObj = this._zones.find(z => z.name === def.zone);
-            const activity = zoneObj ? this._zoneActivity(zoneObj) : 0;
-            const [r, g, b] = zoneObj ? zoneObj.color : [255, 255, 255];
-
-            ctx.save();
-            ctx.translate(def.x, def.y);
-            if (def.rotate) ctx.rotate(def.rotate * Math.PI / 180);
-
-            // Text shadow for legibility
-            ctx.shadowColor = 'rgba(0,0,0,0.6)';
-            ctx.shadowBlur  = 2 / scale;
-
-            const alpha = 0.55 + activity * 0.45;
-            ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
-            ctx.font = `bold ${fontSize}px Inter, system-ui`;
-            ctx.textAlign    = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(def.label, 0, 0);
-            ctx.restore();
-        }
-        ctx.restore();
-    }
-
-    /** Fallback: simple coloured ellipse zones when SVG hasn't loaded yet */
-    _drawFallback(ctx, W, H) {
-        const cx = W / 2;
-        const cy = H / 2;
-        const rx = W * 0.38;
-        const ry = H * 0.43;
-
-        // Brain background
-        ctx.save();
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(30,20,50,0.9)';
-        ctx.fill();
-
-        // Simple zone bands
-        const bands = [
-            { label: 'F', cx: cx, cy: cy - ry * 0.5, r: rx * 0.5, elecs: [1,2], color: [139,92,246] },
-            { label: 'P', cx: cx, cy: cy,             r: rx * 0.45, elecs: [0,1,2,3], color: [34,197,94] },
-            { label: 'O', cx: cx, cy: cy + ry * 0.55, r: rx * 0.4, elecs: [0,3], color: [236,72,153] },
-        ];
-        for (const b of bands) {
-            let activity = 0;
-            if (this._hasData) {
-                for (const i of b.elecs) activity += this._norm(this._smooth[i]);
-                activity /= b.elecs.length;
+        for (const p of this.sparkles) {
+            p.y += dt * p.speed * 0.018;
+            if (p.y > 1.05) {
+                p.y = -0.05;
+                p.x = Math.random();
             }
-            const brightness = 0.3 + activity * 0.7;
-            const [r,g,bl] = b.color;
+            const x = p.x * W + Math.sin(this.phase * p.drift + p.x * 10) * 8;
+            const y = p.y * H;
+            const alpha = p.a * (0.65 + 0.35 * Math.sin(this.phase * (1 + p.drift) + p.y * 12));
+            ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
             ctx.beginPath();
-            ctx.ellipse(b.cx, b.cy, b.r, b.r * 0.6, 0, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(${Math.round(r*brightness)},${Math.round(g*brightness)},${Math.round(bl*brightness)},0.7)`;
+            ctx.arc(x, y, p.r, 0, Math.PI * 2);
             ctx.fill();
         }
+    }
 
-        ctx.strokeStyle = 'rgba(200,170,255,0.5)';
-        ctx.lineWidth = 2;
+    _drawGrid(ctx, W, H) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(150, 170, 255, 0.07)';
+        ctx.lineWidth = 1;
+
+        const cols = 10;
+        const rows = 6;
+        for (let i = 1; i < cols; i++) {
+            const x = (W / cols) * i;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, H);
+            ctx.stroke();
+        }
+        for (let i = 1; i < rows; i++) {
+            const y = (H / rows) * i;
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(W, y);
+            ctx.stroke();
+        }
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
         ctx.beginPath();
-        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        ctx.moveTo(0, H * 0.5);
+        ctx.lineTo(W, H * 0.5);
         ctx.stroke();
         ctx.restore();
+    }
+
+    _drawButterfly(ctx, W, H) {
+        const midY = H * 0.5;
+        const range = Math.max(1, this.max - this.min);
+        const bandHeight = H * 0.34;
+        const channelOffsets = [-0.16, -0.05, 0.06, 0.17].map(v => v * H);
+
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        for (let ch = 0; ch < 4; ch++) {
+            const history = this.histories[ch];
+            if (history.length < 2) continue;
+
+            const { line, glow } = this.colors[ch];
+            const channelEnergy = this._channelEnergy(history);
+            const amplitude = bandHeight * (0.22 + channelEnergy * 0.52);
+            const baseY = midY + channelOffsets[ch] * (0.45 + channelEnergy * 0.4);
+
+            for (let trail = this.trailCount - 1; trail >= 0; trail--) {
+                const trailMix = trail / Math.max(1, this.trailCount - 1);
+                const offsetY = (trailMix - 0.5) * (16 + channelEnergy * 34) * (1 + ch * 0.07);
+                const drift = Math.sin(this.phase * (1.15 + ch * 0.12) + trail * 0.55 + this.noiseSeed[ch]) * (8 + 12 * trailMix);
+
+                ctx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const x = (i / (history.length - 1)) * W;
+                    const normalized = ((history[i] - this.min) / range) - 0.5;
+                    const envelope = 0.8 + 0.2 * Math.sin((i / history.length) * Math.PI * (2.2 + ch * 0.35) + this.phase * 0.8);
+                    const y = baseY
+                        - normalized * amplitude * envelope
+                        + offsetY
+                        + Math.sin((i / history.length) * Math.PI * 8 + this.phase * (1.3 + ch * 0.18) + trail * 0.4) * (3 + channelEnergy * 8)
+                        + drift;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+
+                ctx.strokeStyle = `rgba(${glow}, ${0.06 + trailMix * 0.1})`;
+                ctx.lineWidth = 10 - trailMix * 4;
+                ctx.shadowBlur = 16 + trailMix * 14;
+                ctx.shadowColor = `rgba(${glow}, ${0.18 + trailMix * 0.16})`;
+                ctx.stroke();
+            }
+
+            ctx.beginPath();
+            for (let i = 0; i < history.length; i++) {
+                const x = (i / (history.length - 1)) * W;
+                const normalized = ((history[i] - this.min) / range) - 0.5;
+                const y = baseY
+                    - normalized * amplitude
+                    + Math.sin((i / history.length) * Math.PI * 7 + this.phase * (1.6 + ch * 0.2)) * (2 + channelEnergy * 5);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.strokeStyle = line;
+            ctx.lineWidth = 2.2 + channelEnergy * 1.4;
+            ctx.shadowBlur = 18;
+            ctx.shadowColor = `rgba(${glow}, 0.42)`;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    _drawLegend(ctx, W, H) {
+        const padX = 22;
+        const baseY = 22;
+        ctx.font = '600 12px Inter, system-ui, sans-serif';
+        ctx.textBaseline = 'middle';
+
+        for (let i = 0; i < this.names.length; i++) {
+            const x = padX + i * 82;
+            const y = baseY;
+            ctx.fillStyle = `rgba(${this.colors[i].glow}, 0.16)`;
+            ctx.beginPath();
+            ctx.roundRect(x - 10, y - 10, 68, 20, 10);
+            ctx.fill();
+
+            ctx.fillStyle = this.colors[i].line;
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(235, 242, 255, 0.9)';
+            ctx.fillText(this.names[i], x + 10, y);
+        }
+
+        ctx.textAlign = 'right';
+        ctx.fillStyle = 'rgba(210,220,255,0.55)';
+        ctx.fillText('Butterfly EEG en vivo', W - 20, baseY);
+        ctx.textAlign = 'start';
+    }
+
+    _channelEnergy(history) {
+        const len = Math.min(48, history.length - 1);
+        if (len <= 1) return 0.35;
+        let delta = 0;
+        for (let i = history.length - len; i < history.length; i++) {
+            delta += Math.abs(history[i] - history[i - 1]);
+        }
+        return Math.max(0.12, Math.min(1, delta / len / 22));
     }
 }

@@ -23,8 +23,8 @@
     --radius: 16px;
     --radius-sm: 10px;
     --radius-lg: 24px;
-    --font: 'Inter', system-ui, -apple-system, sans-serif;
-    --font-display: 'Playfair Display', Georgia, serif;
+    --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'Segoe UI', sans-serif;
+    --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', 'Segoe UI', sans-serif;
     --transition: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 
     /* Band colors */
@@ -385,7 +385,7 @@ body::before {
 }
 
 .setup-hint code {
-    background: #1E1E2E;
+    background: #111111;
     color: #A6E3A1;
     padding: 0.15rem 0.45rem;
     border-radius: 4px;
@@ -400,6 +400,10 @@ body::before {
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
+    background:
+        radial-gradient(circle at 50% 45%, rgba(70, 90, 180, 0.16) 0%, rgba(9, 12, 22, 0) 36%),
+        linear-gradient(180deg, #04060C 0%, #03040A 100%);
+    color: #ECF2FF;
 }
 
 .live-status-bar {
@@ -407,9 +411,10 @@ body::before {
     align-items: center;
     gap: 1.5rem;
     padding: 0.6rem 1.5rem;
-    background: var(--bg-surface);
-    border-bottom: 1px solid var(--border);
+    background: rgba(5, 8, 18, 0.9);
+    border-bottom: 1px solid rgba(170, 190, 255, 0.12);
     flex-wrap: wrap;
+    color: #ECF2FF;
 }
 
 .live-info {
@@ -418,6 +423,7 @@ body::before {
     gap: 0.5rem;
     font-weight: 600;
     font-size: 0.9rem;
+    color: #F6F8FF;
 }
 
 .live-dot {
@@ -454,7 +460,7 @@ body::before {
 
 .stat-label {
     font-size: 0.65rem;
-    color: var(--text-dim);
+    color: rgba(220, 228, 255, 0.58);
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
@@ -463,12 +469,13 @@ body::before {
     font-size: 1rem;
     font-weight: 600;
     font-family: 'Consolas', monospace;
+    color: #F8FBFF;
 }
 
 .btn-stop {
-    background: #FEE2E2;
-    color: #DC2626;
-    border: 1px solid #FECACA;
+    background: rgba(255, 120, 120, 0.12);
+    color: #FFB4B4;
+    border: 1px solid rgba(255, 153, 153, 0.2);
     padding: 0.45rem 1.2rem;
     border-radius: var(--radius-sm);
     font-size: 0.85rem;
@@ -479,8 +486,8 @@ body::before {
 }
 
 .btn-stop:hover {
-    background: #FECACA;
-    border-color: #FCA5A5;
+    background: rgba(255, 120, 120, 0.2);
+    border-color: rgba(255, 170, 170, 0.34);
 }
 
 /* ─── Waves Canvas ───────────────────────────────────────────────────────── */
@@ -548,7 +555,7 @@ body::before {
     flex: 1;
     position: relative;
     min-height: 0;
-    background: var(--bg);
+    background: #02040A;
     display: flex;
     overflow: hidden;
 }
@@ -568,8 +575,8 @@ body::before {
     justify-content: center;
     gap: 0;
     padding: 0.8rem 1.5rem;
-    background: var(--bg);
-    border-top: 1px solid var(--border);
+    background: rgba(4, 7, 15, 0.96);
+    border-top: 1px solid rgba(170, 190, 255, 0.12);
 }
 
 .focus-counter {
@@ -582,7 +589,7 @@ body::before {
 .focus-counter-divider {
     width: 1px;
     height: 36px;
-    background: var(--border);
+    background: rgba(170, 190, 255, 0.12);
 }
 
 .focus-counter-icon {
@@ -593,8 +600,8 @@ body::before {
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
+    background: rgba(12, 16, 28, 0.92);
+    border: 1px solid rgba(170, 190, 255, 0.12);
     transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
                 box-shadow var(--transition);
 }
@@ -652,7 +659,7 @@ body::before {
 .counter-label {
     font-size: 0.7rem;
     font-weight: 500;
-    color: var(--text-dim);
+    color: rgba(220, 228, 255, 0.58);
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
@@ -661,7 +668,7 @@ body::before {
     font-size: 1.6rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
-    color: var(--text);
+    color: #F4F7FF;
     line-height: 1;
     transition: color 0.3s;
 }
@@ -769,8 +776,8 @@ body::before {
     margin-top: 1rem;
     border-radius: var(--radius);
     overflow: hidden;
-    border: 1px solid var(--border);
-    background: var(--bg);
+    border: 1px solid rgba(170, 190, 255, 0.12);
+    background: #02040A;
 }
 
 #results-waves-canvas {
@@ -1492,7 +1499,7 @@ body::before {
     flex-direction: column;
     width: 100%;
     overflow: hidden;
-    background: #E8EDE9;
+    background: #000000;
 }
 
 #garden-2d-scene {
@@ -1586,7 +1593,7 @@ body::before {
 }
 
 .garden-2d-label {
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(20, 20, 20, 0.85);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     padding: 0.5rem 1rem;
@@ -2278,6 +2285,187 @@ body::before {
     }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Jelly Galaxy Restore Overrides
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+body,
+body::before,
+body::after {
+    background: #000000 !important;
+}
+
+body::before,
+body::after {
+    animation: none !important;
+}
+
+.logo-glyph {
+    color: #b785ff;
+    filter: drop-shadow(0 0 10px rgba(170, 118, 255, 0.45));
+}
+
+.logo h1 {
+    color: #ffffff;
+    text-shadow: 0 0 14px rgba(172, 112, 255, 0.34);
+}
+
+.logo .accent {
+    color: #b785ff;
+    text-shadow: 0 0 12px rgba(173, 121, 255, 0.66);
+}
+
+#view-capture.active {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+}
+
+#view-capture > *:not(.jelly-galaxy) {
+    position: relative;
+    z-index: 2;
+}
+
+.jelly-galaxy {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    background: #000000;
+}
+
+#jelly-galaxy-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.96;
+}
+
+.jelly-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(34px);
+    mix-blend-mode: screen;
+    opacity: 0.86;
+    animation: jelly-drift 17s ease-in-out infinite;
+}
+
+.orb-a {
+    width: 620px;
+    height: 620px;
+    left: -140px;
+    top: 8%;
+    background: radial-gradient(circle at 30% 30%, rgba(235, 194, 255, 0.76) 0%, rgba(180, 102, 255, 0.54) 38%, rgba(63, 24, 110, 0) 78%);
+}
+
+.orb-b {
+    width: 680px;
+    height: 680px;
+    right: -180px;
+    top: -90px;
+    background: radial-gradient(circle at 42% 36%, rgba(228, 207, 255, 0.74) 0%, rgba(147, 82, 255, 0.5) 40%, rgba(62, 27, 125, 0) 76%);
+    animation-delay: -4.8s;
+}
+
+.orb-c {
+    width: 620px;
+    height: 620px;
+    left: 22%;
+    bottom: -220px;
+    background: radial-gradient(circle at 50% 36%, rgba(245, 182, 255, 0.72) 0%, rgba(217, 80, 221, 0.5) 42%, rgba(79, 22, 119, 0) 80%);
+    animation-delay: -9.2s;
+}
+
+.orb-d {
+    width: 480px;
+    height: 480px;
+    right: 15%;
+    bottom: -120px;
+    background: radial-gradient(circle at 52% 48%, rgba(205, 186, 255, 0.7) 0%, rgba(119, 108, 255, 0.46) 46%, rgba(47, 38, 110, 0) 82%);
+    animation-delay: -12.2s;
+}
+
+.jelly-vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(130% 115% at 50% 40%, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.8) 100%);
+}
+
+@keyframes jelly-drift {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+
+    33% {
+        transform: translate3d(22px, -18px, 0) scale(1.08);
+    }
+
+    66% {
+        transform: translate3d(-20px, 14px, 0) scale(0.92);
+    }
+}
+
+.setup-card {
+    background: linear-gradient(140deg, rgba(19, 12, 34, 0.82) 0%, rgba(15, 10, 31, 0.74) 100%);
+    border: 1px solid rgba(233, 224, 255, 0.2);
+    box-shadow: 0 20px 60px rgba(2, 1, 7, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(10px);
+}
+
+.capture-live {
+    background: rgba(10, 4, 21, 0.28);
+}
+
+.live-status-bar {
+    background: linear-gradient(90deg, rgba(16, 8, 34, 0.76) 0%, rgba(20, 10, 41, 0.52) 100%);
+    border-bottom: 1px solid rgba(238, 226, 255, 0.14);
+}
+
+.scalp-map-container {
+    background: transparent;
+}
+
+.focus-counters {
+    background: linear-gradient(90deg, rgba(18, 8, 35, 0.76) 0%, rgba(11, 6, 25, 0.7) 100%);
+    border-top: 1px solid rgba(224, 204, 255, 0.14);
+}
+
+.results-card {
+    background: linear-gradient(145deg, rgba(20, 12, 36, 0.82) 0%, rgba(16, 10, 30, 0.72) 100%);
+    border: 1px solid rgba(232, 219, 255, 0.18);
+    box-shadow: 0 22px 60px rgba(2, 1, 8, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(10px);
+}
+
+@media (max-width: 900px) {
+    .orb-a,
+    .orb-b,
+    .orb-c,
+    .orb-d {
+        filter: blur(26px);
+        opacity: 0.84;
+    }
+
+    .orb-a,
+    .orb-c {
+        width: 300px;
+        height: 300px;
+    }
+
+    .orb-b {
+        width: 340px;
+        height: 340px;
+    }
+
+    .orb-d {
+        width: 240px;
+        height: 240px;
+    }
+}
+
 @media (max-width: 380px) {
     .emotion-row {
         grid-template-columns: 22px 90px 1fr 38px;
@@ -2386,3 +2574,159 @@ body::before {
     font-size: 3rem;
     margin-bottom: 0.75rem;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Global Black Mode Hard Lock
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+    --bg: #000000;
+    --bg-surface: rgba(14, 14, 14, 0.92);
+    --bg-glass: rgba(10, 10, 10, 0.82);
+    --bg-warm: #0a0a0a;
+    --border: rgba(214, 187, 255, 0.18);
+    --border-hover: rgba(222, 198, 255, 0.34);
+    --text: #f7efff;
+    --text-dim: #b6a6cc;
+    --text-accent: #ca9cff;
+    --accent: #b785ff;
+    --accent-hover: #ca9cff;
+    --accent-glow: rgba(183, 133, 255, 0.42);
+    --shadow-soft: 0 12px 32px rgba(0, 0, 0, 0.6);
+    --shadow-medium: 0 18px 42px rgba(0, 0, 0, 0.72);
+    --shadow-glow: 0 0 30px rgba(183, 133, 255, 0.24);
+    --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'Segoe UI', sans-serif;
+    --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', 'Segoe UI', sans-serif;
+}
+
+#root,
+.view,
+.header,
+.global-tabs,
+.global-tab.active,
+.upload-card,
+.setup-card,
+.results-card,
+.emotion-chart,
+.band-detail-card,
+.garden-toolbar,
+.garden-empty,
+.garden-card,
+.garden-modal,
+.garden-modal-panel,
+.rename-modal,
+.delete-modal,
+.tour-tooltip,
+.live-status-bar,
+.focus-counters,
+.mindfulness-slider,
+.tab,
+.tabs,
+.btn-secondary,
+.btn-ghost,
+.btn-export,
+.upload-actions,
+.setup-hint,
+.form-group input,
+.results-waves,
+.scalp-map-container,
+.garden-stats,
+.garden-stat,
+.ch-stat,
+.results-actions {
+    background-color: transparent;
+}
+
+.header,
+.global-tabs,
+.upload-card,
+.emotion-chart,
+.band-detail-card,
+.garden-toolbar,
+.garden-empty,
+.garden-card,
+.garden-modal,
+.rename-modal,
+.delete-modal,
+.tour-tooltip,
+.tab,
+.tabs,
+.btn-secondary,
+.btn-ghost,
+.btn-export,
+.setup-hint,
+.form-group input,
+.results-waves,
+.garden-stats,
+.garden-stat,
+.ch-stat {
+    background: var(--bg-surface) !important;
+    border-color: var(--border) !important;
+    color: var(--text) !important;
+}
+
+.garden-empty,
+.btn-danger {
+    background: rgba(46, 14, 24, 0.78) !important;
+    border-color: rgba(255, 154, 176, 0.34) !important;
+    color: #ffd7e1 !important;
+}
+
+.btn-danger:hover {
+    background: rgba(72, 22, 37, 0.9) !important;
+    border-color: rgba(255, 176, 194, 0.46) !important;
+}
+
+.global-tab:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.global-tab.active {
+    background: rgba(183, 133, 255, 0.2) !important;
+    box-shadow: 0 0 18px rgba(183, 133, 255, 0.35), inset 0 0 18px rgba(183, 133, 255, 0.16) !important;
+}
+
+.tagline,
+.stat-label,
+.counter-label,
+.ch-stat-val,
+.emotion-value,
+.garden-empty p,
+.rename-modal p,
+.delete-modal p,
+.upload-hint,
+.setup-desc,
+.results-header p {
+    color: var(--text-dim) !important;
+}
+
+.waves-legend,
+.garden-2d-label,
+.garden-overlay-header,
+.garden-status-overlay,
+.garden-status-content,
+.mindfulness-slider {
+    background: var(--bg-surface) !important;
+    border-color: var(--border) !important;
+    color: var(--text) !important;
+}
+
+.mindfulness-slider::before {
+    background: linear-gradient(90deg,
+        rgba(183, 133, 255, 0.16) 0%,
+        rgba(225, 118, 219, 0.12) 45%,
+        rgba(134, 116, 255, 0.14) 100%) !important;
+}
+
+.export-status--info,
+.export-status--success,
+.export-status--warn,
+.export-status--error {
+    background: rgba(18, 18, 18, 0.95) !important;
+    border: 1px solid var(--border) !important;
+}
+
+.export-status--info { color: #8bc1ff !important; }
+.export-status--success { color: #92f7b4 !important; }
+.export-status--warn { color: #ffd79a !important; }
+.export-status--error { color: #ffb0c1 !important; }

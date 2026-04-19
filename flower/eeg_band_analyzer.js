@@ -465,15 +465,25 @@ class EEGBandAnalyzer {
     }
 
     // ── Normalize band powers to percentages ──────────────────────────────
+    // EEG follows ~1/f² spectrum: Delta has 10–100× more raw power than Gamma
+    // by physics, not brain state. We apply per-band spectral compensation
+    // (center_freq²) so all bands get equal visual weight at baseline, and
+    // deviations from baseline — which encode the actual brain state — become
+    // visible as distinct shapes and proportions.
     _normalizeBands() {
-        const total = this.bandPowers.reduce((a, b) => a + b, 0) || 1;
+        // Center frequencies (geometric mean of band edges)
+        const centerFreqs = BANDS.map(b => Math.sqrt(b.low * b.high));
+        // Compensation: multiply raw power by f_center² to flatten 1/f² spectrum
+        const compensated = this.bandPowers.map((p, i) => p * centerFreqs[i] * centerFreqs[i]);
+        const compTotal = compensated.reduce((a, b) => a + b, 0) || 1;
+        const rawTotal  = this.bandPowers.reduce((a, b) => a + b, 0) || 1;
+
         return this.bandPowers.map((p, i) => ({
             ...BANDS[i],
             absolutePower: p,
-            relativePower: p / total,
-            percentage: (p / total) * 100,
-            // Log-scale for visual sizing (avoids one band dominating)
-            visualSize: Math.log1p(p / total * 10) / Math.log1p(10),
+            relativePower: p / rawTotal,                          // true physics ratio (for emotion metrics)
+            percentage: (compensated[i] / compTotal) * 100,       // perceptually balanced for display
+            visualSize: Math.sqrt(compensated[i] / compTotal),    // sqrt for gentle visual scaling
         }));
     }
 

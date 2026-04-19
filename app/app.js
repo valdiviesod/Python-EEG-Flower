@@ -31,12 +31,163 @@
         'acoustic_guitar_nylon',    // ch 3
     ];
 
+    class JellyGalaxy {
+        constructor(canvas) {
+            this.canvas = canvas;
+            this.ctx = canvas ? canvas.getContext('2d') : null;
+            this.particles = [];
+            this.running = false;
+            this.rafId = null;
+            this.lastTs = 0;
+            this.w = 0;
+            this.h = 0;
+            this.dpr = window.devicePixelRatio || 1;
+            this.maxParticles = 220;
+
+            if (!this.canvas || !this.ctx) return;
+
+            this.resize();
+            this._seed();
+            this.start();
+        }
+
+        _seed() {
+            this.particles.length = 0;
+            for (let i = 0; i < this.maxParticles; i++) {
+                this.particles.push(this._createParticle(true));
+            }
+        }
+
+        _createParticle(seedRandomY = false) {
+            const depth = Math.random();
+            const speedBase = 8 + depth * 24;
+            const radius = 2.4 + depth * 13.2;
+            const palette = [
+                [236, 209, 255],
+                [198, 133, 255],
+                [160, 104, 255],
+                [228, 96, 220],
+                [139, 125, 255],
+            ];
+            const tone = palette[Math.floor(Math.random() * palette.length)];
+            return {
+                x: Math.random() * this.w,
+                y: seedRandomY ? Math.random() * this.h : this.h + Math.random() * 30,
+                vx: (Math.random() - 0.5) * (4 + depth * 16),
+                vy: -(speedBase + Math.random() * 24),
+                r: radius,
+                alpha: 0.35 + depth * 0.47,
+                wobble: Math.random() * Math.PI * 2,
+                wobbleSpeed: 0.4 + Math.random() * 1.6,
+                life: 10 + Math.random() * 14,
+                age: Math.random() * 10,
+                color: tone,
+            };
+        }
+
+        resize() {
+            if (!this.canvas || !this.ctx) return;
+            const rect = this.canvas.getBoundingClientRect();
+            const w = rect.width || this.canvas.parentElement?.clientWidth || 0;
+            const h = rect.height || this.canvas.parentElement?.clientHeight || 0;
+            if (w < 1 || h < 1) return;
+            if (w === this.w && h === this.h) return;
+            const needReseed = this.w < 10 && w > 10;
+            this.w = w;
+            this.h = h;
+            this.dpr = window.devicePixelRatio || 1;
+            this.canvas.width = Math.round(w * this.dpr);
+            this.canvas.height = Math.round(h * this.dpr);
+            this.canvas.style.width = `${w}px`;
+            this.canvas.style.height = `${h}px`;
+            this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+            if (needReseed) this._seed();
+        }
+
+        start() {
+            if (!this.ctx || this.running) return;
+            this.running = true;
+            this.lastTs = performance.now();
+            this._loop(this.lastTs);
+        }
+
+        stop() {
+            this.running = false;
+            if (this.rafId) cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+        }
+
+        _loop(ts) {
+            if (!this.running) return;
+            if (this.w < 10 || this.h < 10) {
+                this.resize();
+                this.rafId = requestAnimationFrame(this._loop.bind(this));
+                return;
+            }
+            const dt = Math.min(0.05, Math.max(0.001, (ts - this.lastTs) / 1000));
+            this.lastTs = ts;
+            this.resize();
+            this._render(dt);
+            this.rafId = requestAnimationFrame(this._loop.bind(this));
+        }
+
+        _render(dt) {
+            const ctx = this.ctx;
+            ctx.clearRect(0, 0, this.w, this.h);
+            ctx.globalCompositeOperation = 'lighter';
+
+            for (let i = 0; i < this.particles.length; i++) {
+                const p = this.particles[i];
+                p.age += dt;
+                p.wobble += p.wobbleSpeed * dt;
+                p.x += p.vx * dt + Math.cos(p.wobble) * 6 * dt;
+                p.y += p.vy * dt;
+
+                const lifeT = p.age / p.life;
+                if (p.y < -p.r * 4 || p.x < -80 || p.x > this.w + 80 || lifeT > 1.1) {
+                    this.particles[i] = this._createParticle(false);
+                    continue;
+                }
+
+                const fadeIn = Math.min(1, lifeT / 0.18);
+                const fadeOut = Math.max(0, 1 - Math.max(0, lifeT - 0.72) / 0.38);
+                const a = p.alpha * fadeIn * fadeOut;
+                const rr = p.r * (0.9 + Math.sin(p.wobble * 0.9) * 0.12);
+                const [r, g, b] = p.color;
+
+                const grad = ctx.createRadialGradient(p.x, p.y, rr * 0.1, p.x, p.y, rr * 2.3);
+                grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${Math.min(0.96, a + 0.24)})`);
+                grad.addColorStop(0.42, `rgba(${r}, ${g}, ${b}, ${Math.min(0.88, a * 0.74)})`);
+                grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, rr * 2.3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.globalCompositeOperation = 'source-over';
+        }
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // Global Tab Switching
     // ══════════════════════════════════════════════════════════════════════
 
     const globalTabs = document.querySelectorAll('.global-tab');
     const views = document.querySelectorAll('.view');
+    const jellyGalaxyCanvas = document.getElementById('jelly-galaxy-canvas');
+    const jellyGalaxy = new JellyGalaxy(jellyGalaxyCanvas);
+
+    window.addEventListener('resize', () => {
+        if (jellyGalaxy) jellyGalaxy.resize();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (!jellyGalaxy) return;
+        if (document.hidden) jellyGalaxy.stop();
+        else jellyGalaxy.start();
+    });
 
     globalTabs.forEach(tab => {
         tab.addEventListener('click', () => {
@@ -84,7 +235,7 @@
     const liveUserLabel = document.getElementById('live-user-label');
     const liveTime = document.getElementById('live-time');
 
-    const wavesCanvas = null; // replaced by scalp map
+    const wavesCanvas = null; // replaced by live butterfly renderer
 
     const resultsSummary = document.getElementById('results-summary');
     const btnDownloadMidi = document.getElementById('btn-download-midi');
@@ -101,7 +252,7 @@
     let lastCaptureData = null;
     let captureAnimId = null;
 
-    // ── ScalpMap + FocusTracker ──
+    // ── Live butterfly renderer + FocusTracker ──
     let scalpMap = null;
 
     // FocusTracker: detects Beta (Trazo) threshold crossings
@@ -362,7 +513,7 @@
     function startPolling() {
         stopPolling();
 
-        // Init ScalpMap
+        // Init live butterfly renderer
         const smCanvas = document.getElementById('scalp-map-canvas');
         if (smCanvas) {
             scalpMap = new ScalpMap(smCanvas);
@@ -398,7 +549,7 @@
                 liveTime.textContent = formatTime(dur);
             }
 
-            // Append new samples to wave buffer + feed ScalpMap + FocusTracker
+            // Append new samples to wave buffer + feed live butterfly + FocusTracker
             if (data.eeg_channels) {
                 const newSamplesPerCh = [];
                 for (let ch = 0; ch < 4; ch++) {
@@ -412,16 +563,13 @@
                     newSamplesPerCh.push(newSamples);
                 }
 
-                // Feed ScalpMap: use latest value per channel
-                if (scalpMap) {
-                    const latest = newSamplesPerCh.map(arr => arr.length ? arr[arr.length - 1] : 0);
-                    scalpMap.update(latest);
-                }
-
-                // Feed FocusTracker: push sample-by-sample (interleaved across channels)
+                // Feed renderer + FocusTracker sample by sample for more fluid motion
                 const nSamples = newSamplesPerCh.reduce((mx, a) => Math.max(mx, a.length), 0);
                 for (let s = 0; s < nSamples; s++) {
                     const sample4ch = newSamplesPerCh.map(arr => arr[s] ?? 0);
+                    if (scalpMap) {
+                        scalpMap.update(sample4ch);
+                    }
                     FocusTracker.push(sample4ch);
                 }
             }
@@ -443,9 +591,9 @@
         }
     }
 
-    // ── Wave Drawing (kept for results preview only) ──
+    // ── Butterfly Drawing (results preview only) ──
     function resizeWavesCanvas() {
-        // No-op: live waves replaced by scalp map
+        // No-op: live renderer handles its own resize
     }
 
     window.addEventListener('resize', () => {
@@ -455,16 +603,42 @@
     });
 
     function drawWavesLoop() {
-        // No-op: live waves replaced by scalp map
+        // No-op: live renderer handles its own animation
     }
 
     function drawWaves(ctx, canvas, buffers) {
         const W = canvas.width;
         const H = canvas.height;
-        const laneH = H / 4;
+        const midY = H * 0.5;
 
-        ctx.fillStyle = '#FAFAF8';
+        const bg = ctx.createLinearGradient(0, 0, 0, H);
+        bg.addColorStop(0, '#03050A');
+        bg.addColorStop(0.5, '#08101C');
+        bg.addColorStop(1, '#020307');
+        ctx.fillStyle = bg;
         ctx.fillRect(0, 0, W, H);
+
+        ctx.strokeStyle = 'rgba(150, 170, 255, 0.08)';
+        ctx.lineWidth = 1;
+        for (let i = 1; i < 10; i++) {
+            const x = (W / 10) * i;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, H);
+            ctx.stroke();
+        }
+        for (let i = 1; i < 6; i++) {
+            const y = (H / 6) * i;
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(W, y);
+            ctx.stroke();
+        }
+        ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+        ctx.beginPath();
+        ctx.moveTo(0, midY);
+        ctx.lineTo(W, midY);
+        ctx.stroke();
 
         // Find global min/max for normalization
         let gMin = Infinity, gMax = -Infinity;
@@ -477,59 +651,74 @@
         }
         if (gMin === Infinity) { gMin = -100; gMax = 100; }
         const range = (gMax - gMin) || 1;
+        const channelOffsets = [-0.17, -0.06, 0.06, 0.17].map(v => v * H);
+        const lineColors = [
+            { solid: '#8BF0FF', glow: '139,240,255' },
+            { solid: '#C7F284', glow: '199,242,132' },
+            { solid: '#FFD36E', glow: '255,211,110' },
+            { solid: '#FF8A5B', glow: '255,138,91' },
+        ];
 
         for (let ch = 0; ch < 4; ch++) {
             const buf = buffers[ch];
             if (buf.length < 2) continue;
+            const bandHeight = H * 0.34;
+            const baseY = midY + channelOffsets[ch];
+            const energy = estimateChannelEnergy(buf);
+            const amp = bandHeight * (0.22 + energy * 0.52);
 
-            const centerY = laneH * ch + laneH / 2;
-
-            // Lane separator
-            if (ch > 0) {
-                ctx.strokeStyle = 'rgba(0, 0, 0, 0.04)';
-                ctx.lineWidth = 1;
+            for (let trail = 0; trail < 4; trail++) {
                 ctx.beginPath();
-                ctx.moveTo(0, laneH * ch);
-                ctx.lineTo(W, laneH * ch);
+                const trailMix = trail / 3;
+                for (let i = 0; i < buf.length; i++) {
+                    const x = (i / Math.max(1, buf.length - 1)) * W;
+                    const norm = ((buf[i] - gMin) / range) - 0.5;
+                    const y = baseY - norm * amp + (trailMix - 0.5) * (12 + energy * 24);
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.strokeStyle = `rgba(${lineColors[ch].glow}, ${0.08 + trailMix * 0.08})`;
+                ctx.lineWidth = 8 - trailMix * 2.5;
+                ctx.shadowBlur = 12 + trailMix * 8;
+                ctx.shadowColor = `rgba(${lineColors[ch].glow}, 0.24)`;
                 ctx.stroke();
             }
 
-            // Channel label
-            ctx.fillStyle = CH_COLORS[ch];
-            ctx.globalAlpha = 0.12;
-            ctx.fillRect(0, laneH * ch, W, laneH);
-            ctx.globalAlpha = 1;
-
-            ctx.fillStyle = CH_COLORS[ch];
-            ctx.font = `bold ${Math.max(11, H * 0.025)}px Inter, system-ui`;
-            ctx.fillText(CH_NAMES[ch], 8, laneH * ch + 18);
-
-            // Wave
             ctx.beginPath();
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = CH_COLORS[ch];
-            ctx.lineJoin = 'round';
-
             for (let i = 0; i < buf.length; i++) {
-                const x = (i / (MAX_WAVE_POINTS - 1)) * W;
-                const norm = (buf[i] - gMin) / range;
-                const y = centerY + (0.5 - norm) * laneH * 0.85;
+                const x = (i / Math.max(1, buf.length - 1)) * W;
+                const norm = ((buf[i] - gMin) / range) - 0.5;
+                const y = baseY - norm * amp;
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
             }
+            ctx.strokeStyle = lineColors[ch].solid;
+            ctx.lineWidth = 2.2;
+            ctx.shadowBlur = 16;
+            ctx.shadowColor = `rgba(${lineColors[ch].glow}, 0.36)`;
             ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            ctx.fillStyle = lineColors[ch].solid;
+            ctx.font = `600 ${Math.max(11, H * 0.065)}px Inter, system-ui`;
+            ctx.fillText(CH_NAMES[ch], 12, 18 + ch * 16);
         }
 
-        // Current time line
-        const xNow = W - 2;
-        ctx.strokeStyle = 'rgba(232, 160, 191, 0.5)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(xNow, 0);
-        ctx.lineTo(xNow, H);
-        ctx.stroke();
-        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(235,242,255,0.62)';
+        ctx.font = `600 ${Math.max(11, H * 0.07)}px Inter, system-ui`;
+        ctx.textAlign = 'right';
+        ctx.fillText('Butterfly EEG', W - 12, 18);
+        ctx.textAlign = 'start';
+    }
+
+    function estimateChannelEnergy(buf) {
+        const len = Math.min(48, buf.length - 1);
+        if (len <= 1) return 0.35;
+        let delta = 0;
+        for (let i = buf.length - len; i < buf.length; i++) {
+            delta += Math.abs(buf[i] - buf[i - 1]);
+        }
+        return Math.max(0.12, Math.min(1, delta / len / 22));
     }
 
     // ── Results ──

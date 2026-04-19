@@ -7,13 +7,9 @@
     <title>NAD — Neuroarmonía Divergente</title>
     <meta name="description"
         content="Captura ondas cerebrales EEG en tiempo real con Muse 2 y genera tu flor neurofuncional única. Descarga JSON y MIDI.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap"
-        rel="stylesheet">
+
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>🧠</text></svg>" type="image/svg+xml">
-    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="style.css?v=5">
 </head>
 
 <body>
@@ -35,10 +31,6 @@
                         <span class="tab-emoji">🧠</span>
                         <span class="tab-label">Captura EEG</span>
                     </button>
-                    <button class="global-tab" data-view="flower" id="tab-flower">
-                        <span class="tab-emoji">🌸</span>
-                        <span class="tab-label">Flor</span>
-                    </button>
                     <button class="global-tab" data-view="garden" id="tab-garden">
                         <span class="tab-emoji">🌿</span>
                         <span class="tab-label">Jardín</span>
@@ -51,6 +43,14 @@
         <!-- VIEW: Captura EEG                                            -->
         <!-- ══════════════════════════════════════════════════════════════ -->
         <div class="view active" id="view-capture">
+            <div class="jelly-galaxy" aria-hidden="true">
+                <canvas id="jelly-galaxy-canvas"></canvas>
+                <div class="jelly-orb orb-a"></div>
+                <div class="jelly-orb orb-b"></div>
+                <div class="jelly-orb orb-c"></div>
+                <div class="jelly-orb orb-d"></div>
+                <div class="jelly-vignette"></div>
+            </div>
 
             <!-- Setup Panel (before capture starts) -->
             <section class="capture-setup" id="capture-setup">
@@ -70,8 +70,7 @@
                         <input type="number" id="input-age" placeholder="Ej: 28" min="1" max="120" autocomplete="off">
                     </div>
                     <div class="form-group">
-                        <label for="input-duration">Duración de captura (segundos) <span class="optional">— vacío =
-                                manual</span></label>
+                        <label for="input-duration">Duración de captura (segundos) </label>
                         <input type="number" id="input-duration" placeholder="Ej: 30" min="1" max="3600"
                             autocomplete="off">
                     </div>
@@ -114,7 +113,7 @@
                     <button class="btn-stop" id="btn-stop-capture">⏹ Detener</button>
                 </div>
 
-                <!-- Real-time Scalp Map -->
+                <!-- Real-time Butterfly EEG -->
                 <div class="scalp-map-container">
                     <canvas id="scalp-map-canvas"></canvas>
                 </div>
@@ -453,9 +452,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.28/build/Midi.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
     <script src="/flower/lava_pulse.js"></script>
-    <script src="scalp_map.js"></script>
+    <script src="scalp_map.js?v=2"></script>
     <!-- Main App -->
-    <script src="app.js?v=3"></script>
+    <script src="app.js?v=4"></script>
 </body>
 
 </html>

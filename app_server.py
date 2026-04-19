@@ -2,7 +2,7 @@
 """
 Servidor unificado: Flor Neurofuncional + Captura EEG
 
-Integra flower_local_server.py y viz_local_server.py en un solo proceso.
+Integra flower_local_server.py en un solo proceso.
 - Sirve la SPA en http://127.0.0.1:8000/
 - Flower API:  POST /api/convert-flower
 - Capture API: POST /api/capture/start | /api/capture/stop
@@ -63,7 +63,7 @@ def get_captures_dir() -> Path:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# EEG capture controller (from viz_local_server.py)
+# EEG capture controller
 # ══════════════════════════════════════════════════════════════════════════════
 
 class WebCaptureController:
