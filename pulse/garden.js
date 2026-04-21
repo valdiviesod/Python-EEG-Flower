@@ -2,13 +2,13 @@
  * Garden 3D — Full 3D Interactive Botanical Garden using Three.js
  * 
  * Replaces the 2D grid with a full 3D environment.
- * Each flower represents a saved EEG capture.
+ * Each pulse represents a saved EEG capture.
  */
 
 class Garden3D {
-    constructor(containerId, onFlowerClick) {
+    constructor(containerId, onPulseClick) {
         this.container = document.getElementById(containerId);
-        this.onFlowerClick = onFlowerClick; // Callback for when a flower is clicked
+        this.onPulseClick = onPulseClick; // Callback for when a pulse is clicked
 
         this.scene = null;
         this.camera = null;
@@ -23,7 +23,7 @@ class Garden3D {
         this.flowers = []; // Stores objects containing { group, data, labelElement, stemHeight, timeOffset }
         this.interactables = []; // Meshes to test for raycasting
 
-        this.hoveredFlowerLabel = null;
+        this.hoveredPulseLabel = null;
     }
 
     init() {
@@ -181,12 +181,12 @@ class Garden3D {
 
     _onClick(e) {
         const hovered = this._checkIntersection();
-        if (hovered && this.onFlowerClick) {
+        if (hovered && this.onPulseClick) {
             // Un-hover current
-            if (this.hoveredFlowerLabel) {
-                this.hoveredFlowerLabel.labelElement.classList.remove('hovered');
+            if (this.hoveredPulseLabel) {
+                this.hoveredPulseLabel.labelElement.classList.remove('hovered');
             }
-            this.onFlowerClick(hovered.data);
+            this.onPulseClick(hovered.data);
         }
     }
 
@@ -199,18 +199,18 @@ class Garden3D {
             this.container.style.cursor = 'pointer';
             const flowerObj = intersects[0].object.userData.flowerObj;
 
-            if (this.hoveredFlowerLabel && this.hoveredFlowerLabel !== flowerObj) {
-                this.hoveredFlowerLabel.labelElement.classList.remove('hovered');
+            if (this.hoveredPulseLabel && this.hoveredPulseLabel !== flowerObj) {
+                this.hoveredPulseLabel.labelElement.classList.remove('hovered');
             }
 
             flowerObj.labelElement.classList.add('hovered');
-            this.hoveredFlowerLabel = flowerObj;
+            this.hoveredPulseLabel = flowerObj;
             return flowerObj;
         } else {
             this.container.style.cursor = 'default';
-            if (this.hoveredFlowerLabel) {
-                this.hoveredFlowerLabel.labelElement.classList.remove('hovered');
-                this.hoveredFlowerLabel = null;
+            if (this.hoveredPulseLabel) {
+                this.hoveredPulseLabel.labelElement.classList.remove('hovered');
+                this.hoveredPulseLabel = null;
             }
             // Resume autorotate if not hovering anything
             if (this.controls) this.controls.autoRotate = true;
@@ -218,9 +218,9 @@ class Garden3D {
         }
     }
 
-    // ── Flower Generation ────────────────────────────────────────────────────────
+    // ── Pulse Generation ────────────────────────────────────────────────────────
 
-    clearFlowers() {
+    clearPulses() {
         this.flowers.forEach(f => {
             if (f.group) this.scene.remove(f.group);
             if (f.labelElement && f.labelElement.parentNode) {
@@ -233,7 +233,7 @@ class Garden3D {
     }
 
     async loadCaptures(capturesList) {
-        this.clearFlowers();
+        this.clearPulses();
 
         // Distribute flowers elegantly using Fermat's spiral (sunflower pattern)
         const c = 2.0; // scaling factor
@@ -249,7 +249,7 @@ class Garden3D {
             const captureMeta = capturesList[i];
 
             try {
-                // Fetch the full JSON to build the flower correctly
+                // Fetch the full JSON to build the pulse correctly
                 const resp = await fetch(`/api/garden/file?name=${encodeURIComponent(captureMeta.filename)}`);
                 if (!resp.ok) continue;
                 const fullCaptureData = await resp.json();
@@ -264,17 +264,17 @@ class Garden3D {
                 const x = r * Math.cos(angle) + (Math.random() - 0.5) * 1.5;
                 const z = r * Math.sin(angle) + (Math.random() - 0.5) * 1.5;
 
-                this._buildGardenFlower(fullCaptureData, x, z);
+                this._buildGardenPulse(fullCaptureData, x, z);
             } catch (err) {
-                console.error("Error building garden flower for ", captureMeta, err);
+                console.error("Error building garden pulse for ", captureMeta, err);
             }
         }
     }
 
-    _buildGardenFlower(captureData, px, pz) {
+    _buildGardenPulse(captureData, px, pz) {
         // Initialize analyzer
         const analyzer = new EEGBandAnalyzer(captureData);
-        // We reuse the styling logic from Flower3D but adapt it for the garden
+        // We reuse the styling logic from Pulse3D but adapt it for the garden
 
         const flowerGroup = new THREE.Group();
         flowerGroup.position.set(px, 0, pz);
@@ -288,7 +288,7 @@ class Garden3D {
         this._buildStem(flowerGroup, stemH);
         this._buildPetals(flowerGroup, analyzer, stemH);
 
-        // Create an invisible taller cylinder around the flower for easy clicking
+        // Create an invisible taller cylinder around the pulse for easy clicking
         const hitGeo = new THREE.CylinderGeometry(1.5, 1.5, stemH + 2, 8);
         const hitMat = new THREE.MeshBasicMaterial({ visible: false });
         const hitMesh = new THREE.Mesh(hitGeo, hitMat);
@@ -350,9 +350,9 @@ class Garden3D {
         group.add(mesh);
     }
 
-    // Adapted from Flower3D, simplified for massive rendering
+    // Adapted from Pulse3D, simplified for massive rendering
     _buildPetals(group, analyzer, stemTop) {
-        const layers = analyzer.flowerParams.layers;
+        const layers = analyzer.pulseParams.layers;
         const centerGroup = new THREE.Group();
         centerGroup.position.y = stemTop;
 
@@ -413,7 +413,7 @@ class Garden3D {
         group.add(centerGroup);
     }
 
-    // Reused/simplified from Flower3D
+    // Reused/simplified from Pulse3D
     _createRosePetal(pw, ph, arch, cup, color, colorDeep, pctNorm, layerT) {
         const shape = new THREE.Shape();
         const w = pw * 0.5;
@@ -477,7 +477,7 @@ class Garden3D {
         const tempV = new THREE.Vector3();
 
         this.flowers.forEach(f => {
-            // Focus on the top of the flower for the label
+            // Focus on the top of the pulse for the label
             tempV.set(f.basePos.x, f.stemHeight + 1.2, f.basePos.z);
 
             // Check if behind camera
@@ -556,7 +556,7 @@ class Garden3D {
         if (this.animationId) cancelAnimationFrame(this.animationId);
         window.removeEventListener('resize', this._resizeHandler);
 
-        this.clearFlowers();
+        this.clearPulses();
 
         this.scene.traverse(obj => {
             if (obj.geometry) obj.geometry.dispose();

@@ -1,7 +1,7 @@
 /**
- * Flower 3D — Three.js Botanical Flower Sculpture
+ * Pulse 3D — Three.js Botanical Pulse Sculpture
  *
- * Creates a 3D flower from EEG band analysis:
+ * Creates a 3D pulse from EEG band analysis:
  *   • 5 petal layers (one per frequency band) growing in height by power
  *   • Organic stem with leaves
  *   • Pistil center with tiny spheres
@@ -13,11 +13,11 @@
  * Requires Three.js (r128+) loaded globally as THREE
  */
 
-class Flower3D {
+class Pulse3D {
     constructor(container, analyzer) {
         this.container = container;
         this.analyzer = analyzer;
-        this.params = analyzer.flowerParams;
+        this.params = analyzer.pulseParams;
         this.bands = analyzer.normalizedBands;
         this.profile = analyzer.profile;
 
@@ -74,7 +74,7 @@ class Flower3D {
 
         this.clock = new THREE.Clock();
 
-        // Build the flower
+        // Build the pulse
         this._buildScene();
 
         // Resize
@@ -465,7 +465,7 @@ class Flower3D {
         return new THREE.Mesh(geo, mat);
     }
 
-    // ── Flower Center (pistil) ────────────────────────────────────────────
+    // ── Pulse Center (pistil) ────────────────────────────────────────────
     _addCenter() {
         const stemTop = this.stemTop || 2.5;
         const firstLayerRadius = 0.55;
@@ -620,7 +620,7 @@ class Flower3D {
     exportPNG(filename) {
         this.renderer.render(this.scene, this.camera);
         const link = document.createElement('a');
-        link.download = filename || 'flor_neurofuncional_3d.png';
+        link.download = filename || 'pulso_neurofuncional_3d.png';
         link.href = this.renderer.domElement.toDataURL('image/png');
         link.click();
     }
@@ -668,20 +668,20 @@ class Flower3D {
 
         return {
             format: '3d-print-spec-v1',
-            model: 'flor_neurofuncional_print.glb',
+            model: 'pulso_neurofuncional_print.glb',
             units: 'mm',
             targetHeightMm,
             petals,
         };
     }
 
-    exportGLBFor3DPrint(filename = 'flor_neurofuncional_print.glb', targetHeightMm = 120) {
+    exportGLBFor3DPrint(filename = 'pulso_neurofuncional_print.glb', targetHeightMm = 120) {
         if (!THREE.GLTFExporter) {
             alert('No se encontró GLTFExporter. Recarga la página e intenta de nuevo.');
             return;
         }
         if (!this.flowerGroup) {
-            alert('La flor 3D aún no está lista para exportar.');
+            alert('La pulso 3D aún no está lista para exportar.');
             return;
         }
 
@@ -703,7 +703,7 @@ class Flower3D {
                 const printSpec = this._buildPrintSpec(printable.scaleFactor, targetHeightMm);
                 this._downloadBlob(
                     new Blob([JSON.stringify(printSpec, null, 2)], { type: 'application/json' }),
-                    'flor_neurofuncional_print_spec.json'
+                    'pulso_neurofuncional_print_spec.json'
                 );
             },
             { binary: true, onlyVisible: true, trs: false }
@@ -750,13 +750,13 @@ class Flower3D {
         return { structureGroup, bandGroups };
     }
 
-    exportSTLFor3DPrint(baseFilename = 'flor_neurofuncional_print', targetHeightMm = 120) {
+    exportSTLFor3DPrint(baseFilename = 'pulso_neurofuncional_print', targetHeightMm = 120) {
         if (!THREE.STLExporter) {
             alert('No se encontró STLExporter. Recarga la página e intenta de nuevo.');
             return;
         }
         if (!this.flowerGroup) {
-            alert('La flor 3D aún no está lista para exportar.');
+            alert('La pulso 3D aún no está lista para exportar.');
             return;
         }
 
@@ -808,7 +808,7 @@ class Flower3D {
     // ── Export geometry JSON for local Python conversion ───────────────────
     exportGeometryJSON(targetHeightMm = 120) {
         if (!this.flowerGroup) {
-            throw new Error('La flor 3D aún no está lista.');
+            throw new Error('La pulso 3D aún no está lista.');
         }
 
         const printable = this._buildPrintableGroup(targetHeightMm);
@@ -882,7 +882,7 @@ class Flower3D {
         });
 
         const payload = {
-            format: 'flower-geometry-v1',
+            format: 'pulse-geometry-v1',
             units: 'mm',
             targetHeightMm,
             scaleFactor: printable.scaleFactor,
@@ -906,7 +906,7 @@ class Flower3D {
         const json = JSON.stringify(data);
         this._downloadBlob(
             new Blob([json], { type: 'application/json' }),
-            `flor_neurofuncional_${targetHeightMm}mm.json`
+            `pulso_neurofuncional_${targetHeightMm}mm.json`
         );
         return data;
     }

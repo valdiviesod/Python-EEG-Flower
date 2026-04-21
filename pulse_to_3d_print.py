@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Flor Neurofuncional → Modelos 3D para Impresión
+Pulso Neurofuncional → Modelos 3D para Impresión
 ================================================
 
 Lee el JSON de geometría exportado desde la app web y genera:
@@ -9,10 +9,10 @@ Lee el JSON de geometría exportado desde la app web y genera:
   • STL por banda + STL completo + manifiesto de colores
 
 Uso:
-    python flower_to_3d_print.py                       # busca el JSON más reciente
-    python flower_to_3d_print.py flor_120mm.json       # archivo específico
-    python flower_to_3d_print.py flor.json --format glb 3mf stl
-    python flower_to_3d_print.py flor.json --format all
+    python pulse_to_3d_print.py                       # busca el JSON más reciente
+    python pulse_to_3d_print.py flor_120mm.json       # archivo específico
+    python pulse_to_3d_print.py pulso.json --format glb 3mf stl
+    python pulse_to_3d_print.py pulso.json --format all
 
 Requisitos:
     pip install trimesh numpy
@@ -128,7 +128,7 @@ def build_mesh_from_entry(entry):
 
     # Material PBR doble cara para evitar pérdida de color desde vista superior
     mesh.visual.material = trimesh.visual.material.PBRMaterial(
-        name=entry.get('name', 'flower_part'),
+        name=entry.get('name', 'pulse_part'),
         baseColorFactor=[rgb[0], rgb[1], rgb[2], 255],
         metallicFactor=0.0,
         roughnessFactor=0.88,
@@ -157,7 +157,7 @@ def find_latest_geometry_json(search_dir=None):
     # Buscar archivos que coincidan
     candidates = []
     for d in search_dirs:
-        pattern = os.path.join(d, 'flor_neurofuncional_*mm.json')
+        pattern = os.path.join(d, 'pulso_neurofuncional_*mm.json')
         candidates.extend(glob.glob(pattern))
 
     if not candidates:
@@ -170,10 +170,10 @@ def find_latest_geometry_json(search_dir=None):
 
 def validate_geometry_json(data):
     """Valida que el JSON tenga el formato esperado."""
-    if data.get('format') != 'flower-geometry-v1':
+    if data.get('format') != 'pulse-geometry-v1':
         raise ValueError(
             f"Formato no reconocido: '{data.get('format')}'. "
-            f"Se esperaba 'flower-geometry-v1'.\n"
+            f"Se esperaba 'pulse-geometry-v1'.\n"
             f"¿Exportaste el JSON desde la pestaña 3D de la app web?"
         )
     if 'meshes' not in data or len(data['meshes']) == 0:
@@ -316,7 +316,7 @@ def convert(json_path, formats=None, output_dir=None):
         formats = ['glb', '3mf']
 
     print(f"\n{'═' * 60}")
-    print(f"  🌸 Flor Neurofuncional → Impresión 3D")
+    print(f"  💫 Pulso Neurofuncional → Impresión 3D")
     print(f"{'═' * 60}")
     print(f"  📂 Archivo: {json_path}")
 
@@ -354,7 +354,7 @@ def convert(json_path, formats=None, output_dir=None):
     if output_dir is None:
         output_dir = os.path.dirname(json_path) or os.getcwd()
 
-    base_name = f"flor_neurofuncional_{height_mm}mm"
+    base_name = f"pulso_neurofuncional_{height_mm}mm"
 
     print(f"\n  📦 Exportando formatos: {', '.join(f.upper() for f in formats)}")
     print()
@@ -381,7 +381,7 @@ def convert(json_path, formats=None, output_dir=None):
     print(f"     2. Importa el archivo .GLB o .3MF")
     print(f"     3. Los colores de cada banda EEG ya están asignados")
     print(f"     4. Ajusta los filamentos/colores en tu impresora")
-    print(f"     5. ¡Imprime tu flor neurofuncional!")
+    print(f"     5. ¡Imprime tu pulso neurofuncional!")
     print(f"{'═' * 60}\n")
 
 
@@ -391,14 +391,14 @@ def convert(json_path, formats=None, output_dir=None):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='🌸 Convierte la geometría de la Flor Neurofuncional a modelos 3D imprimibles',
+        description='💫 Convierte la geometría de la Pulso Neurofuncional a modelos 3D imprimibles',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Ejemplos:
-  python flower_to_3d_print.py                          # Auto-busca el JSON más reciente
-  python flower_to_3d_print.py flor_120mm.json          # Archivo específico
-  python flower_to_3d_print.py flor.json --format glb   # Solo GLB
-  python flower_to_3d_print.py flor.json --format all   # Todos los formatos
+  python pulse_to_3d_print.py                          # Auto-busca el JSON más reciente
+  python pulse_to_3d_print.py flor_120mm.json          # Archivo específico
+  python pulse_to_3d_print.py pulso.json --format glb   # Solo GLB
+  python pulse_to_3d_print.py pulso.json --format all   # Todos los formatos
         """
     )
     parser.add_argument(
@@ -425,7 +425,7 @@ Ejemplos:
         if json_path is None:
             print("\n❌ No se encontró un archivo de geometría JSON.")
             print("   Primero exporta desde la app web (pestaña 3D → botón de exportar)")
-            print("   El archivo se descargará como 'flor_neurofuncional_XXXmm.json'")
+            print("   El archivo se descargará como 'pulso_neurofuncional_XXXmm.json'")
             sys.exit(1)
         print(f"\n🔍 Encontrado automáticamente: {json_path}")
 

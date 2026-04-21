@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Servidor unificado: Flor Neurofuncional + Captura EEG
+Servidor unificado: Pulso Neurofuncional + Captura EEG
 
-Integra flower_local_server.py en un solo proceso.
+Integra pulse_local_server.py en un solo proceso.
 - Sirve la SPA en http://127.0.0.1:8000/
-- Flower API:  POST /api/convert-flower
+- Pulse API:  POST /api/convert-pulse
 - Capture API: POST /api/capture/start | /api/capture/stop
                GET  /api/capture/status | /api/capture/stream | /api/capture/download-json
 - Garden API:  GET  /api/garden/list | /api/garden/file?name=...
@@ -29,12 +29,12 @@ from urllib.parse import parse_qs, urlparse
 import numpy as np
 
 from muse_capture import MuseOSCToMidi
-from flower_to_3d_print import convert
+from pulse_to_3d_print import convert
 from safe_json_storage import default_json_dirs, first_writable_dir, write_json_with_fallback
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Flower helpers
+# Pulse helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
 def map_formats(format_value: str) -> list[str]:
@@ -355,9 +355,9 @@ class AppHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
 
-        # ── Flower: 3D conversion ──
-        if parsed.path == '/api/convert-flower':
-            self._handle_convert_flower()
+        # ── Pulse: 3D conversion ──
+        if parsed.path == '/api/convert-pulse':
+            self._handle_convert_pulse()
             return
 
         # ── Capture: start ──
@@ -491,12 +491,12 @@ class AppHandler(SimpleHTTPRequestHandler):
                 self._send_json(500, {'ok': False, 'error': str(exc)})
             return
 
-        # ── Serve static files (flower/ and app/) ──
+        # ── Serve static files (pulse/ and app/) ──
         super().do_GET()
 
-    # ── Flower API handler ────────────────────────────────────────────────
+    # ── Pulse API handler ────────────────────────────────────────────────
 
-    def _handle_convert_flower(self):
+    def _handle_convert_pulse(self):
         try:
             content_length = int(self.headers.get('Content-Length', '0'))
             if content_length <= 0:
@@ -510,15 +510,15 @@ class AppHandler(SimpleHTTPRequestHandler):
             format_value = payload.get('format', 'glb+3mf')
             target_height = payload.get('targetHeightMm', 120)
 
-            if not geometry or geometry.get('format') != 'flower-geometry-v1':
+            if not geometry or geometry.get('format') != 'pulse-geometry-v1':
                 self._send_json(400, {'error': 'Geometría inválida o faltante'})
                 return
 
             formats = map_formats(str(format_value))
 
-            with tempfile.TemporaryDirectory(prefix='flower_convert_') as tmpdir:
+            with tempfile.TemporaryDirectory(prefix='pulse_convert_') as tmpdir:
                 tmp_path = Path(tmpdir)
-                json_file = tmp_path / f'flor_neurofuncional_{target_height}mm.json'
+                json_file = tmp_path / f'pulso_neurofuncional_{target_height}mm.json'
                 json_file.write_text(json.dumps(geometry, ensure_ascii=False), encoding='utf-8')
 
                 convert(str(json_file), formats=formats, output_dir=str(tmp_path))
@@ -530,7 +530,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                             zf.write(out_file, arcname=out_file.relative_to(tmp_path))
 
                 zip_bytes = zip_buffer.getvalue()
-                filename = f"flor_neurofuncional_{target_height}mm_{str(format_value).replace('+', '_')}.zip"
+                filename = f"pulso_neurofuncional_{target_height}mm_{str(format_value).replace('+', '_')}.zip"
 
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/zip')
@@ -680,7 +680,7 @@ class AppHandler(SimpleHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='🌸🧠 Servidor unificado: Flor Neurofuncional + Captura EEG'
+        description='💫🧠 Servidor unificado: Pulso Neurofuncional + Captura EEG'
     )
     parser.add_argument('--host', default='127.0.0.1', help='Host (default: 127.0.0.1)')
     parser.add_argument('--port', type=int, default=8000, help='Puerto HTTP (default: 8000)')
@@ -697,10 +697,10 @@ def main():
     server = ThreadingHTTPServer((args.host, args.port), AppHandler)
     url = f'http://{args.host}:{args.port}'
     print('═' * 72)
-    print('🌸🧠 Servidor Unificado — Flor Neurofuncional + Captura EEG')
+    print('💫🧠 Servidor Unificado — Pulso Neurofuncional + Captura EEG')
     print('═' * 72)
     print(f'  App:     {url}/app/')
-    print(f'  Flower:  {url}/flower/     (legacy)')
+    print(f'  Pulse:  {url}/pulse/     (legacy)')
     print(f'  API:     {url}/api/...')
     print(f'  OSC:     Muse en {args.osc_ip}:{args.osc_port}')
     print('═' * 72)

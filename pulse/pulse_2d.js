@@ -1,7 +1,7 @@
 /**
- * Flower 2D — Canvas-based Botanical Flower Generator
+ * Pulse 2D — Canvas-based Botanical Pulse Generator
  *
- * Draws a unique flower from EEG band analysis:
+ * Draws a unique pulse from EEG band analysis:
  *   • 5 layers of petals (one per frequency band)
  *   • Petal size proportional to band power
  *   • Petal count reflects frequency character
@@ -11,12 +11,12 @@
  *   • Minimalist modern aesthetic
  */
 
-class Flower2D {
+class Pulse2D {
     constructor(canvas, analyzer) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.analyzer = analyzer;
-        this.params = analyzer.flowerParams;
+        this.params = analyzer.pulseParams;
         this.bands = analyzer.normalizedBands;
         this.profile = analyzer.profile;
     }
@@ -33,7 +33,7 @@ class Flower2D {
         const W = canvas.width;
         const H = canvas.height;
 
-        // Flower center position (slightly above center to leave room for stem)
+        // Pulse center position (slightly above center to leave room for stem)
         const cx = W / 2;
         const cy = H * 0.38;
         const maxR = Math.min(W, H * 0.55) * 0.40;
@@ -303,7 +303,7 @@ class Flower2D {
         }
     }
 
-    // ── Flower Center (pistil) ────────────────────────────────────────────
+    // ── Pulse Center (pistil) ────────────────────────────────────────────
     _drawCenter(ctx, cx, cy, maxR) {
         const r = maxR * this.params.centerSize * 1.8;
 
@@ -379,7 +379,7 @@ class Flower2D {
     // ── Export as PNG ─────────────────────────────────────────────────────
     exportPNG(filename) {
         const link = document.createElement('a');
-        link.download = filename || 'flor_neurofuncional_2d.png';
+        link.download = filename || 'pulso_neurofuncional_2d.png';
         link.href = this.canvas.toDataURL('image/png');
         link.click();
     }

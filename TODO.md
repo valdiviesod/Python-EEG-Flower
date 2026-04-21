@@ -9,7 +9,7 @@
 - [x] 5. Implement mindfulness slider JS logic in `app/app.js` (rotating messages, progress bar)
 - [x] 6. Implement interactive tour JS logic in `app/app.js` (steps, spotlight, navigation, localStorage)
 - [x] 7. Fix garden auto-refresh: set `gardenLoaded = false` in `showResults()` in `app/app.js`
-- [x] 8. Add post-capture tour steps guiding user to "Ver Flor" button
+- [x] 8. Add post-capture tour steps guiding user to "Ver Pulso" button
 - [x] 9. Call `stopMindfulness()` on capture stop and auto-finish; call `startMindfulness()` on polling start
 
 ## Summary of Changes
@@ -27,4 +27,4 @@
 - **Mindfulness**: 15 rotating calming messages, 6s interval, animated progress bar (timed or oscillating)
 - **Tour system**: Step-based with spotlight highlighting, prev/next/skip navigation, localStorage persistence
 - **Setup tour**: 5 steps (welcome, name, duration, start button, OSC config) — auto-starts on first visit
-- **Post-capture tour**: 2 steps (completion message, guide to "Ver Flor") — shown after every capture
+- **Post-capture tour**: 2 steps (completion message, guide to "Ver Pulso") — shown after every capture

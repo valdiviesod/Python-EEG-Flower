@@ -8,7 +8,7 @@
  *   • Trazo    (13–30 Hz)   → Dirección, intención, acción
  *   • Destello (30–44 Hz)   → Momentos de intensidad o claridad
  *
- * Each band becomes a petal layer in the flower visualization.
+ * Each band becomes a petal layer in the pulse visualization.
  *
  * Why these colors (vibrant, botanical):
  *   Base     → Lavender (#8B5CF6)  — Noche, descanso profundo, quietud del crepúsculo
@@ -34,8 +34,8 @@ const BANDS = [
         meaning: 'Nivel de inmersión corporal / profundidad',
         description: 'La onda Base representa los procesos inconscientes más profundos — ' +
             'la inmersión total del cuerpo, la regeneración celular y la sanación desde lo invisible. ' +
-            'Como las raíces de una flor, nutren todo lo que crece desde las profundidades.',
-        petalMeaning: 'Los pétalos de Base forman la capa envolvente de la flor, ' +
+            'Como las raíces de una pulso, nutren todo lo que crece desde las profundidades.',
+        petalMeaning: 'Los pétalos de Base forman la capa envolvente de la pulso, ' +
             'anchos y suaves como la noche que abraza el descanso más profundo. ' +
             'Su tono lavanda evoca la quietud del crepúsculo y la inmersión total.'
     },
@@ -43,7 +43,7 @@ const BANDS = [
         name: 'Flujo', key: 'theta',
         low: 4, high: 8,
         color: '#22C55E', colorDeep: '#15803D', colorLight: '#86EFAC',
-        emoji: '🌿',
+        emoji: '🌌',
         meaning: 'Movimiento interno, deriva, asociación',
         description: 'Flujo es el puente entre lo consciente y lo inconsciente — ' +
             'el espacio del movimiento interno, la deriva libre y la asociación creativa. ' +
@@ -56,11 +56,11 @@ const BANDS = [
         name: 'Pulso', key: 'alpha',
         low: 8, high: 13,
         color: '#EC4899', colorDeep: '#BE185D', colorLight: '#F9A8D4',
-        emoji: '🌸',
+        emoji: '💫',
         meaning: 'Estabilidad y continuidad de la atención',
         description: 'Pulso es el estado de relajación alerta — ' +
             'la estabilidad de la presencia, la atención que fluye sin esfuerzo. ' +
-            'Es la flor en su máximo esplendor, abierta y continua en su ritmo propio.',
+            'Es la pulso en su máximo esplendor, abierta y continua en su ritmo propio.',
         petalMeaning: 'Los pétalos de Pulso son los más prominentes y abiertos, ' +
             'como una rosa en plena floración que late con ritmo constante. ' +
             'Su color rosado vibrante transmite la dulzura de la atención sostenida.'
@@ -192,8 +192,8 @@ class EEGBandAnalyzer {
         this.bandPowers = this._computeBandPowers();
         this.normalizedBands = this._normalizeBands();
         this.emotionMetrics = this.computeEmotionMetrics();
-        this.profile = this._computeFlowerProfile();
-        this.flowerParams = this._computeFlowerParams();
+        this.profile = this._computePulseProfile();
+        this.pulseParams = this._computePulseParams();
     }
 
     // ── Data Preprocessing ────────────────────────────────────────────────
@@ -530,8 +530,8 @@ class EEGBandAnalyzer {
         }));
     }
 
-    // ── Flower Profile (psychological mapping) ────────────────────────────
-    _computeFlowerProfile() {
+    // ── Pulse Profile (psychological mapping) ────────────────────────────
+    _computePulseProfile() {
         const bands = this.normalizedBands;
         const s = this.channelStats;
 
@@ -577,7 +577,7 @@ class EEGBandAnalyzer {
         } else if (dominant.key === 'theta') {
             state = { label: 'Estado de Flujo', icon: '🧘', desc: 'Las ondas Flujo dominan — un estado de movimiento interno, deriva libre y asociación creativa.' };
         } else if (dominant.key === 'alpha') {
-            state = { label: 'Pulso Consciente', icon: '🌸', desc: 'Pulso predomina — estás en un estado de atención estable y continua, presencia y equilibrio interior.' };
+            state = { label: 'Pulso Consciente', icon: '💫', desc: 'Pulso predomina — estás en un estado de atención estable y continua, presencia y equilibrio interior.' };
         } else if (dominant.key === 'beta') {
             state = { label: 'Trazo Activo', icon: '💡', desc: 'Trazo domina tu actividad cerebral — dirección clara, intención y acción con propósito.' };
         } else {
@@ -596,8 +596,8 @@ class EEGBandAnalyzer {
         };
     }
 
-    // ── Flower Structural Parameters ──────────────────────────────────────
-    _computeFlowerParams() {
+    // ── Pulse Structural Parameters ──────────────────────────────────────
+    _computePulseParams() {
         const bands = this.normalizedBands;
         const profile = this.profile;
 
@@ -668,22 +668,22 @@ class EEGBandAnalyzer {
             bands: this.normalizedBands,
             emotionMetrics: this.emotionMetrics,
             profile: this.profile,
-            flowerParams: this.flowerParams,
+            pulseParams: this.pulseParams,
             channelStats: this.channelStats,
             interpretation: this._generateInterpretation(),
         };
     }
 
-    // ── Generate Human-Readable Flower Interpretation ─────────────────────
+    // ── Generate Human-Readable Pulse Interpretation ─────────────────────
     _generateInterpretation() {
         const bands = this.normalizedBands;
         const profile = this.profile;
         const dominant = profile.dominant;
         const lines = [];
 
-        lines.push('<strong>Tu Flor Neurofuncional</strong>');
+        lines.push('<strong>Tu Pulso Neurofuncional</strong>');
         lines.push('');
-        lines.push(`Tu flor cerebral está dominada por <em>${dominant.name}</em> (${dominant.percentage.toFixed(1)}%), ` +
+        lines.push(`Tu pulso cerebral está dominada por <em>${dominant.name}</em> (${dominant.percentage.toFixed(1)}%), ` +
             `lo que le da su forma característica: ${dominant.petalMeaning}`);
         lines.push('');
 
@@ -703,23 +703,23 @@ class EEGBandAnalyzer {
             lines.push('');
         });
 
-        // Overall flower meaning
-        lines.push('<strong>🌺 Lectura general de tu flor:</strong>');
+        // Overall pulse meaning
+        lines.push('<strong>🌺 Lectura general de tu pulso:</strong>');
         lines.push('');
 
         if (profile.relaxation > 1.2) {
-            lines.push('Tu flor se abre amplia y suave — los pétalos de Alpha y Theta son prominentes, ' +
-                'indicando un estado profundo de relajación y receptividad. Es una flor nocturna, ' +
+            lines.push('Tu pulso se abre amplia y suave — los pétalos de Alpha y Theta son prominentes, ' +
+                'indicando un estado profundo de relajación y receptividad. Es una pulso nocturna, ' +
                 'que florece en la calma.');
         } else if (profile.focus > 1.2) {
-            lines.push('Tu flor tiene pétalos definidos y angulares — Beta domina, mostrando una mente ' +
-                'activa y enfocada. Es una flor diurna, orientada al sol del pensamiento consciente.');
+            lines.push('Tu pulso tiene pétalos definidos y angulares — Beta domina, mostrando una mente ' +
+                'activa y enfocada. Es una pulso diurna, orientada al sol del pensamiento consciente.');
         } else if (profile.meditation > 1.2) {
-            lines.push('Tu flor tiene raíces profundas en Theta — una flor meditativa que crece ' +
+            lines.push('Tu pulso tiene raíces profundas en Theta — una pulso meditativa que crece ' +
                 'desde el interior. Sus pétalos sugieren un puente entre lo consciente y lo inconsciente.');
         } else {
-            lines.push('Tu flor muestra un equilibrio orgánico entre todas las bandas — ' +
-                'como una flor silvestre que integra todas las frecuencias de la luz. ' +
+            lines.push('Tu pulso muestra un equilibrio orgánico entre todas las bandas — ' +
+                'como una pulso silvestre que integra todas las frecuencias de la luz. ' +
                 'Esta armonía sugiere un estado mental balanceado y adaptativo.');
         }
 

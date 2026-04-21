@@ -82,7 +82,7 @@ Usar la paleta existente del proyecto, asignando colores por la banda dominante 
 
 ## Archivos a Modificar
 
-### 1. `flower/eeg_band_analyzer.js`
+### 1. `pulse/eeg_band_analyzer.js`
 
 **Agregar método** `computeEmotionMetrics()` en la clase `EEGBandAnalyzer`:
 
@@ -201,7 +201,7 @@ computeEmotionMetrics() {
 
 ## Pasos de Ejecución (para la IA)
 
-1. **Leer** `flower/eeg_band_analyzer.js` — ubicar el constructor y `_computeFlowerProfile()`
+1. **Leer** `pulse/eeg_band_analyzer.js` — ubicar el constructor y `_computePulseProfile()`
 2. **Agregar** método `computeEmotionMetrics()` a la clase
 3. **Agregar** llamada en constructor: `this.emotionMetrics = this.computeEmotionMetrics();`
 4. **Leer** `app/app.js` — ubicar `renderAnalysis()` y `renderBandBar()`

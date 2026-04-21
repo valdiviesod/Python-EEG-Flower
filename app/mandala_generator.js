@@ -21,7 +21,7 @@ class MandalaGenerator {
      */
     constructor(report, referenceSvg) {
         this.bands   = report.bands;
-        this.params  = report.flowerParams;
+        this.params  = report.pulseParams;
         this.profile = report.profile;
         this.emotions = report.emotionMetrics;
 

@@ -346,7 +346,7 @@ body::before {
 
 .upload-visual { margin-bottom: 1.5rem; }
 
-.upload-flower-icon {
+.upload-pulse-icon {
     margin-bottom: 1rem;
     opacity: 0.85;
     animation: sway 5s ease-in-out infinite;
@@ -497,14 +497,14 @@ body::before {
     border: 1px solid var(--border);
 }
 
-#flower-2d-canvas {
+#pulse-2d-canvas {
     width: 100%;
     height: auto;
     display: block;
 }
 
 /* ─── 3D Container ───────────────────────────────────────────────────────── */
-#flower-3d-container {
+#pulse-3d-container {
     width: 100%;
     max-width: 800px;
     aspect-ratio: 4/3;
@@ -1044,19 +1044,19 @@ body::before {
     font-family: var(--font);
 }
 
-/* Flower meaning card */
-.flower-meaning-card {
+/* Pulse meaning card */
+.pulse-meaning-card {
     background: linear-gradient(135deg, var(--bg-warm), var(--bg-surface));
     border-color: rgba(232, 160, 191, 0.12);
 }
 
-.flower-meaning-text {
+.pulse-meaning-text {
     font-size: 0.88rem;
     color: var(--text);
     line-height: 1.75;
 }
 
-.flower-meaning-text em {
+.pulse-meaning-text em {
     color: var(--text-accent);
     font-style: italic;
 }

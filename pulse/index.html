@@ -32,7 +32,7 @@
         <section class="upload-section" id="upload-section">
             <div class="upload-card" id="upload-area">
                 <div class="upload-visual">
-                    <div class="upload-flower-icon">
+                    <div class="upload-pulse-icon">
                         <svg viewBox="0 0 140 140" width="140" height="140">
                             <!-- Stem -->
                             <line x1="70" y1="95" x2="70" y2="130" stroke="#7C5230" stroke-width="2.5" stroke-linecap="round"/>
@@ -60,12 +60,12 @@
                         <span>📂</span> Seleccionar Archivo
                     </button>
                     <button class="btn-secondary" id="btn-demo">
-                        <span>🌸</span> Usar datos de ejemplo
+                        <span>💫</span> Usar datos de ejemplo
                     </button>
                 </div>
                 <p class="upload-hint">
                     Cada banda de frecuencia cerebral se transforma en un pétalo.<br>
-                    Cada persona genera una flor única e irrepetible.
+                    Cada persona genera una pulso única e irrepetible.
                 </p>
             </div>
         </section>
@@ -75,25 +75,25 @@
 
             <!-- Tabs -->
             <nav class="tabs">
-                <button class="tab active" data-tab="flower2d">🌋 Pulso Lava</button>
-                <button class="tab" data-tab="flower3d">🌺 Flor 3D</button>
+                <button class="tab active" data-tab="pulse2d">🌋 Pulso Lava</button>
+                <button class="tab" data-tab="pulse3d">🌺 Pulso 3D</button>
                 <button class="tab" data-tab="analysis">🔬 Análisis de Bandas</button>
             </nav>
 
             <!-- Tab Panels -->
             <div class="tab-content">
 
-                <!-- 2D Flower -->
-                <div class="tab-panel active" id="panel-flower2d">
+                <!-- 2D Pulse -->
+                <div class="tab-panel active" id="panel-pulse2d">
                     <div class="canvas-wrapper">
-                        <canvas id="flower-2d-canvas"></canvas>
+                        <canvas id="pulse-2d-canvas"></canvas>
                     </div>
                     <button class="btn-export" id="btn-export-2d">📥 Descargar Pulso Lava (PNG)</button>
                 </div>
 
-                <!-- 3D Flower -->
-                <div class="tab-panel" id="panel-flower3d">
-                    <div id="flower-3d-container"></div>
+                <!-- 3D Pulse -->
+                <div class="tab-panel" id="panel-pulse3d">
+                    <div id="pulse-3d-container"></div>
 
                     <!-- Export Card -->
                     <div class="export-card">
@@ -147,7 +147,7 @@
                                 <div>
                                     <strong>Inicia el servidor Python local</strong>
                                     <span>Abre terminal en la carpeta del proyecto y corre:</span>
-                                    <code id="export-cmd">python flower_local_server.py</code>
+                                    <code id="export-cmd">python pulse_local_server.py</code>
                                 </div>
                             </div>
                             <div class="export-step">
@@ -183,10 +183,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="eeg_band_analyzer.js"></script>
-    <!-- REVERT: swap comments below to go back to Flower2D -->
-    <!-- <script src="flower_2d.js"></script> -->
+    <!-- REVERT: swap comments below to go back to Pulse2D -->
+    <!-- <script src="pulse_2d.js"></script> -->
     <script src="lava_pulse.js"></script>
-    <script src="flower_3d.js"></script>
+    <script src="pulse_3d.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

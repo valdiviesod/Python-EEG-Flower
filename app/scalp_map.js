@@ -20,8 +20,8 @@ class ScalpMap {
         // Colors aligned with EEG band botanical palette (eeg_band_analyzer.js)
         this.colors = [
             { line: '#8B5CF6', glow: '139,92,246'  }, // TP9  → Base    🌙 lavanda
-            { line: '#22C55E', glow: '34,197,94'   }, // AF7  → Flujo   🌿 verde
-            { line: '#EC4899', glow: '236,72,153'  }, // AF8  → Pulso   🌸 rosa
+            { line: '#22C55E', glow: '34,197,94'   }, // AF7  → Flujo   🌌 verde
+            { line: '#EC4899', glow: '236,72,153'  }, // AF8  → Pulso   💫 rosa
             { line: '#F97316', glow: '249,115,22'  }, // TP10 → Trazo   ☀️ durazno
         ];
         this.names = ['TP9', 'AF7', 'AF8', 'TP10'];

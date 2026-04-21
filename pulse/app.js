@@ -1,6 +1,6 @@
 /**
- * App Controller — Flor Neurofuncional
- * Ties EEG band analysis, 2D flower, 3D flower, and UI together
+ * App Controller — Pulso Neurofuncional
+ * Ties EEG band analysis, 2D pulse, 3D pulse, and UI together
  */
 
 (function () {
@@ -8,9 +8,9 @@
 
     // ── State ─────────────────────────────────────────────────────────────
     let analyzer = null;
-    let flower2d = null;
-    let flower3d = null;
-    let currentTab = 'flower2d';
+    let pulse2d = null;
+    let pulse3d = null;
+    let currentTab = 'pulse2d';
 
     // ── DOM Elements ──────────────────────────────────────────────────────
     const uploadSection = document.getElementById('upload-section');
@@ -22,8 +22,8 @@
 
     const tabs = document.querySelectorAll('.tab');
     const panels = document.querySelectorAll('.tab-panel');
-    const canvas2d = document.getElementById('flower-2d-canvas');
-    const container3d = document.getElementById('flower-3d-container');
+    const canvas2d = document.getElementById('pulse-2d-canvas');
+    const container3d = document.getElementById('pulse-3d-container');
     const analysisContent = document.getElementById('analysis-content');
     const bandBar = document.getElementById('band-bar');
 
@@ -64,7 +64,7 @@
             alert('No se pudo cargar el archivo de ejemplo.\n' +
                   'Asegúrate de correr esto en un servidor local (ej: Live Server).\n\n' +
                   'Error: ' + err.message);
-            btnDemo.textContent = '🌸 Usar datos de ejemplo';
+            btnDemo.textContent = '💫 Usar datos de ejemplo';
         }
     });
 
@@ -109,33 +109,33 @@
         // Render analysis
         renderAnalysis(report);
 
-        // Draw 2D flower
-        draw2DFlower();
+        // Draw 2D pulse
+        draw2DPulse();
 
         // Switch to 2D tab
-        switchTab('flower2d');
+        switchTab('pulse2d');
     }
 
-    // ── 2D Pulse (replaces Flower2D — REVERT: change LavaPulse → Flower2D and use flower2d.draw(size)) ──
-    function draw2DFlower() {
+    // ── 2D Pulse (replaces Pulse2D — REVERT: change LavaPulse → Pulse2D and use pulse2d.draw(size)) ──
+    function draw2DPulse() {
         if (!analyzer) return;
-        if (flower2d) flower2d.stop();
+        if (pulse2d) pulse2d.stop();
         const containerW = canvas2d.parentElement.clientWidth;
         const size = Math.min(1200, Math.max(600, containerW));
         canvas2d.width = size;
         canvas2d.height = size;
         canvas2d.style.width = '100%';
         canvas2d.style.height = 'auto';
-        flower2d = new LavaPulse(canvas2d, analyzer);
-        flower2d.start();
+        pulse2d = new LavaPulse(canvas2d, analyzer);
+        pulse2d.start();
     }
 
-    // ── 3D Flower ─────────────────────────────────────────────────────────
-    function init3DFlower() {
+    // ── 3D Pulse ─────────────────────────────────────────────────────────
+    function init3DPulse() {
         if (!analyzer) return;
-        if (flower3d) flower3d.destroy();
-        flower3d = new Flower3D(container3d, analyzer);
-        flower3d.init();
+        if (pulse3d) pulse3d.destroy();
+        pulse3d = new Pulse3D(container3d, analyzer);
+        pulse3d.init();
     }
 
     // ── Tabs ──────────────────────────────────────────────────────────────
@@ -145,22 +145,22 @@
 
     function switchTab(tabName) {
         // Pause/resume pulse animation on tab changes
-        if (currentTab === 'flower2d' && tabName !== 'flower2d' && flower2d) {
-            flower2d.stop();
+        if (currentTab === 'pulse2d' && tabName !== 'pulse2d' && pulse2d) {
+            pulse2d.stop();
         }
-        if (tabName === 'flower2d' && flower2d) {
-            flower2d.start();
+        if (tabName === 'pulse2d' && pulse2d) {
+            pulse2d.start();
         }
 
         currentTab = tabName;
         tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
         panels.forEach(p => p.classList.toggle('active', p.id === `panel-${tabName}`));
 
-        if (tabName === 'flower3d' && analyzer && !flower3d) {
-            setTimeout(() => init3DFlower(), 100);
+        if (tabName === 'pulse3d' && analyzer && !pulse3d) {
+            setTimeout(() => init3DPulse(), 100);
         }
-        if (tabName === 'flower3d' && flower3d) {
-            flower3d._onResize();
+        if (tabName === 'pulse3d' && pulse3d) {
+            pulse3d._onResize();
         }
     }
 
@@ -199,10 +199,10 @@
                 </div>
             </div>
 
-            <!-- Flower Interpretation -->
-            <div class="analysis-card flower-meaning-card">
+            <!-- Pulse Interpretation -->
+            <div class="analysis-card pulse-meaning-card">
                 <h3>🌋 Lectura de tu Pulso</h3>
-                <div class="flower-meaning-text">
+                <div class="pulse-meaning-text">
                     ${report.interpretation}
                 </div>
             </div>
@@ -249,13 +249,13 @@
     // ── Export ─────────────────────────────────────────────────────────────
     if (btnExport2d) {
         btnExport2d.addEventListener('click', () => {
-            if (flower2d) flower2d.exportPNG('pulso_lava_eeg.png');
+            if (pulse2d) pulse2d.exportPNG('pulso_lava_eeg.png');
         });
     }
     if (btnExport3d) {
         btnExport3d.addEventListener('click', async () => {
-            // Guard: flower must be ready
-            if (!flower3d) {
+            // Guard: pulse must be ready
+            if (!pulse3d) {
                 showExportStatus('⚠️ Primero carga un archivo EEG y abre la pestaña 3D.', 'warn');
                 return;
             }
@@ -269,9 +269,9 @@
             showExportStatus('⏳ Generando modelo y enviando a Python local…', 'info');
 
             try {
-                const geometry = flower3d.exportGeometryJSON(selectedSize);
+                const geometry = pulse3d.exportGeometryJSON(selectedSize);
 
-                const response = await fetch('/api/convert-flower', {
+                const response = await fetch('/api/convert-pulse', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -293,7 +293,7 @@
                 }
 
                 const blob = await response.blob();
-                const filename = `flor_neurofuncional_${selectedSize}mm_${format.replace('+', '_')}.zip`;
+                const filename = `pulso_neurofuncional_${selectedSize}mm_${format.replace('+', '_')}.zip`;
                 downloadBlob(blob, filename);
 
                 const instrEl = document.getElementById('export-instructions');
@@ -305,12 +305,12 @@
 
                 // Fallback instructions if local API is not running
                 const cmdEl = document.getElementById('export-cmd');
-                if (cmdEl) cmdEl.textContent = 'python flower_local_server.py';
+                if (cmdEl) cmdEl.textContent = 'python pulse_local_server.py';
                 const instrEl = document.getElementById('export-instructions');
                 if (instrEl) instrEl.style.display = 'flex';
 
                 showExportStatus(
-                    '❌ No se pudo conectar al convertidor Python local. Inicia: python flower_local_server.py',
+                    '❌ No se pudo conectar al convertidor Python local. Inicia: python pulse_local_server.py',
                     'error'
                 );
             } finally {
@@ -345,12 +345,12 @@
     const btnBack = document.getElementById('btn-back');
     if (btnBack) {
         btnBack.addEventListener('click', () => {
-            if (flower3d) { flower3d.destroy(); flower3d = null; }
-            if (flower2d) { flower2d.stop(); flower2d = null; }
+            if (pulse3d) { pulse3d.destroy(); pulse3d = null; }
+            if (pulse2d) { pulse2d.stop(); pulse2d = null; }
             analyzer = null;
             mainContent.style.display = 'none';
             uploadSection.style.display = 'flex';
-            btnDemo.innerHTML = '<span>🌸</span> Usar datos de ejemplo';
+            btnDemo.innerHTML = '<span>💫</span> Usar datos de ejemplo';
         });
     }
 

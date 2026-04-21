@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Servidor local para Flor Neurofuncional.
+Servidor local para Pulso Neurofuncional.
 
-- Sirve la app web en http://127.0.0.1:8000/flower/
-- Endpoint POST /api/convert-flower:
+- Sirve la app web en http://127.0.0.1:8000/pulse/
+- Endpoint POST /api/convert-pulse:
     recibe geometría JSON desde el navegador,
     ejecuta la conversión Python 3D,
     devuelve un ZIP con GLB/3MF/STL.
@@ -21,7 +21,7 @@ import zipfile
 from pathlib import Path
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
-from flower_to_3d_print import convert
+from pulse_to_3d_print import convert
 
 
 def map_formats(format_value: str) -> list[str]:
@@ -35,7 +35,7 @@ def map_formats(format_value: str) -> list[str]:
     return mapping.get(format_value, ['glb', '3mf'])
 
 
-class FlowerHandler(SimpleHTTPRequestHandler):
+class PulseHandler(SimpleHTTPRequestHandler):
     """HTTP handler: static files + conversion API."""
 
     def _send_json(self, status: int, payload: dict):
@@ -47,7 +47,7 @@ class FlowerHandler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
-        if self.path != '/api/convert-flower':
+        if self.path != '/api/convert-pulse':
             self._send_json(404, {'error': 'Endpoint no encontrado'})
             return
 
@@ -64,15 +64,15 @@ class FlowerHandler(SimpleHTTPRequestHandler):
             format_value = payload.get('format', 'glb+3mf')
             target_height = payload.get('targetHeightMm', 120)
 
-            if not geometry or geometry.get('format') != 'flower-geometry-v1':
+            if not geometry or geometry.get('format') != 'pulse-geometry-v1':
                 self._send_json(400, {'error': 'Geometría inválida o faltante'})
                 return
 
             formats = map_formats(str(format_value))
 
-            with tempfile.TemporaryDirectory(prefix='flower_convert_') as tmpdir:
+            with tempfile.TemporaryDirectory(prefix='pulse_convert_') as tmpdir:
                 tmp_path = Path(tmpdir)
-                json_file = tmp_path / f'flor_neurofuncional_{target_height}mm.json'
+                json_file = tmp_path / f'pulso_neurofuncional_{target_height}mm.json'
                 json_file.write_text(json.dumps(geometry, ensure_ascii=False), encoding='utf-8')
 
                 convert(str(json_file), formats=formats, output_dir=str(tmp_path))
@@ -84,7 +84,7 @@ class FlowerHandler(SimpleHTTPRequestHandler):
                             zf.write(out_file, arcname=out_file.relative_to(tmp_path))
 
                 zip_bytes = zip_buffer.getvalue()
-                filename = f"flor_neurofuncional_{target_height}mm_{str(format_value).replace('+', '_')}.zip"
+                filename = f"pulso_neurofuncional_{target_height}mm_{str(format_value).replace('+', '_')}.zip"
 
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/zip')
@@ -99,7 +99,7 @@ class FlowerHandler(SimpleHTTPRequestHandler):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Servidor local con conversión Python para Flor 3D')
+    parser = argparse.ArgumentParser(description='Servidor local con conversión Python para Pulso 3D')
     parser.add_argument('--host', default='127.0.0.1', help='Host (default: 127.0.0.1)')
     parser.add_argument('--port', type=int, default=8000, help='Puerto (default: 8000)')
     args = parser.parse_args()
@@ -107,11 +107,11 @@ def main():
     workspace = Path(__file__).resolve().parent
     os.chdir(workspace)
 
-    server = ThreadingHTTPServer((args.host, args.port), FlowerHandler)
+    server = ThreadingHTTPServer((args.host, args.port), PulseHandler)
     print('=' * 70)
-    print('🌸 Flower Local Server iniciado')
-    print(f'Web app:   http://{args.host}:{args.port}/flower/')
-    print(f'API:       http://{args.host}:{args.port}/api/convert-flower')
+    print('💫 Pulse Local Server iniciado')
+    print(f'Web app:   http://{args.host}:{args.port}/pulse/')
+    print(f'API:       http://{args.host}:{args.port}/api/convert-pulse')
     print('Botón 3D:  convierte con Python y descarga ZIP automáticamente')
     print('=' * 70)
 

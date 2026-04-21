@@ -2,16 +2,16 @@
  * NAD — Unified App Controller
  *
  * Manages two views:
- *   1. Captura EEG — setup → live capture → results (download JSON / MIDI / send to flower)
- *   2. Flor Neurofuncional — upload → 2D / 3D / Analysis
+ *   1. Captura EEG — setup → live capture → results (download JSON / MIDI / send to pulse)
+ *   2. Pulso Neurofuncional — upload → 2D / 3D / Analysis
  *
- * Uses Flower's vibrant palette for EEG wave rendering.
+ * Uses Pulse's vibrant palette for EEG wave rendering.
  */
 
 (function () {
     'use strict';
 
-    // ── Channel colors (Flower vibrant palette) ──
+    // ── Channel colors (Pulse vibrant palette) ──
     const CH_COLORS = ['#8B5CF6', '#22C55E', '#EC4899', '#F97316'];
     const CH_NAMES = ['TP9', 'AF7', 'AF8', 'TP10'];
     const GARDEN_PLAYBACK_MAX_NOTES_PER_TRACK = 300;
@@ -195,9 +195,9 @@
             globalTabs.forEach(t => t.classList.toggle('active', t.dataset.view === viewName));
             views.forEach(v => v.classList.toggle('active', v.id === `view-${viewName}`));
 
-            // Trigger resize for flower 3D if switching to it
-            if (viewName === 'flower' && flower3d) {
-                setTimeout(() => flower3d._onResize(), 100);
+            // Trigger resize for pulse 3D if switching to it
+            if (viewName === 'pulse' && pulse3d) {
+                setTimeout(() => pulse3d._onResize(), 100);
             }
 
             // Re-show capture tour whenever user navigates to the capture tab
@@ -239,7 +239,7 @@
 
     const resultsSummary = document.getElementById('results-summary');
     const btnDownloadMidi = document.getElementById('btn-download-midi');
-    const btnSendToFlower = document.getElementById('btn-send-to-flower');
+    const btnSendToPulse = document.getElementById('btn-send-to-pulse');
     const btnNewCapture = document.getElementById('btn-new-capture');
     const resultsWavesCanvas = document.getElementById('results-waves-canvas');
     const resultsWavesCtx = resultsWavesCanvas.getContext('2d');
@@ -504,7 +504,6 @@
             await fetch('/api/capture/stop', { method: 'POST' });
         } catch (_) { }
         stopPolling();
-        stopMindfulness();
         showResults();
         btnStop.disabled = false;
     });
@@ -524,7 +523,6 @@
 
         pollOnce(); // immediate first poll
         capturePollingId = setInterval(pollOnce, 150);
-        startMindfulness();
     }
 
     function stopPolling() {
@@ -582,7 +580,6 @@
             // Auto-stop if finished
             if (data.finished) {
                 stopPolling();
-                stopMindfulness();
                 showResults();
             }
 
@@ -797,8 +794,8 @@
         }
     });
 
-    // ── Send to Flower ──
-    btnSendToFlower.addEventListener('click', async () => {
+    // ── Send to Pulse ──
+    btnSendToPulse.addEventListener('click', async () => {
         try {
             const resp = await fetch('/api/capture/status');
             const captureJson = await resp.json();
@@ -808,11 +805,11 @@
                 return;
             }
 
-            // Switch to flower view and process data
-            globalTabs.forEach(t => t.classList.toggle('active', t.dataset.view === 'flower'));
-            views.forEach(v => v.classList.toggle('active', v.id === 'view-flower'));
+            // Switch to pulse view and process data
+            globalTabs.forEach(t => t.classList.toggle('active', t.dataset.view === 'pulse'));
+            views.forEach(v => v.classList.toggle('active', v.id === 'view-pulse'));
 
-            processFlowerData(captureJson);
+            processPulseData(captureJson);
 
         } catch (err) {
             alert('Error: ' + err.message);
@@ -827,87 +824,6 @@
         captureWaveBuffer = { 0: [], 1: [], 2: [], 3: [] };
         setTimeout(() => startTour(captureSetupTourSteps), 300);
     });
-
-    // ══════════════════════════════════════════════════════════════════════
-    // MINDFULNESS SLIDER (during capture)
-    // ══════════════════════════════════════════════════════════════════════
-
-    const mindfulnessMessages = [
-        { icon: '🧘', text: 'Relájate y respira profundo... inhala por la nariz, exhala por la boca.' },
-        { icon: '🌿', text: 'Siéntate cómodamente y deja que tus hombros se relajen.' },
-        { icon: '🌊', text: 'Imagina olas suaves llegando a la orilla... calma y serenidad.' },
-        { icon: '✨', text: 'Cierra los ojos suavemente y enfócate en tu respiración.' },
-        { icon: '🦋', text: 'Deja ir cualquier pensamiento... solo observa sin juzgar.' },
-        { icon: '🌸', text: 'Cada respiración te acerca más a tu centro interior.' },
-        { icon: '🍃', text: 'Siente cómo tu cuerpo se vuelve más ligero con cada exhalación.' },
-        { icon: '🌙', text: 'Permite que tu mente descanse... no hay prisa, solo presencia.' },
-        { icon: '💫', text: 'Tu cerebro está creando patrones únicos en este momento.' },
-        { icon: '🎵', text: 'Escucha el silencio entre tus pensamientos... ahí está la calma.' },
-        { icon: '🌺', text: 'Cada onda cerebral es un pétalo de tu flor neurofuncional.' },
-        { icon: '☁️', text: 'Deja que tus pensamientos pasen como nubes en el cielo.' },
-        { icon: '🕊️', text: 'Estás haciendo un gran trabajo. Mantén esta calma.' },
-        { icon: '🌈', text: 'Tu mente está pintando un jardín de frecuencias únicas.' },
-        { icon: '💎', text: 'Cada segundo de calma revela más sobre tu mundo interior.' },
-    ];
-
-    let mindfulnessIntervalId = null;
-    let mindfulnessIndex = 0;
-    let mindfulnessCaptureStart = null;
-
-    function startMindfulness() {
-        mindfulnessIndex = 0;
-        mindfulnessCaptureStart = Date.now();
-        updateMindfulnessMessage();
-        mindfulnessIntervalId = setInterval(() => {
-            mindfulnessIndex = (mindfulnessIndex + 1) % mindfulnessMessages.length;
-            updateMindfulnessMessage();
-        }, 6000); // Change message every 6 seconds
-        updateMindfulnessProgress();
-    }
-
-    function stopMindfulness() {
-        if (mindfulnessIntervalId) {
-            clearInterval(mindfulnessIntervalId);
-            mindfulnessIntervalId = null;
-        }
-    }
-
-    function updateMindfulnessMessage() {
-        const msg = mindfulnessMessages[mindfulnessIndex];
-        const iconEl = document.getElementById('mindfulness-icon');
-        const textEl = document.getElementById('mindfulness-text');
-        if (iconEl) iconEl.textContent = msg.icon;
-        if (textEl) {
-            textEl.style.animation = 'none';
-            // Force reflow
-            void textEl.offsetWidth;
-            textEl.style.animation = 'mindfulness-text-fade 0.5s ease';
-            textEl.textContent = msg.text;
-        }
-    }
-
-    function updateMindfulnessProgress() {
-        const progressBar = document.getElementById('mindfulness-progress-bar');
-        if (!progressBar) return;
-
-        function tick() {
-            if (!mindfulnessCaptureStart || !mindfulnessIntervalId) return;
-            const elapsed = (Date.now() - mindfulnessCaptureStart) / 1000;
-            const duration = inputDuration.value ? parseFloat(inputDuration.value) : 0;
-
-            if (duration > 0) {
-                const pct = Math.min(100, (elapsed / duration) * 100);
-                progressBar.style.width = pct + '%';
-            } else {
-                // Manual mode: oscillate
-                const cycle = (elapsed % 10) / 10;
-                const pct = Math.sin(cycle * Math.PI) * 100;
-                progressBar.style.width = Math.abs(pct) + '%';
-            }
-            requestAnimationFrame(tick);
-        }
-        tick();
-    }
 
     // ══════════════════════════════════════════════════════════════════════
     // INTERACTIVE TOUR
@@ -932,15 +848,15 @@
     // Setup tour steps (shown when entering capture view)
     const captureSetupTourSteps = [
         {
-            icon: '🌸',
+            icon: '💫',
             title: '¡Bienvenido a NAD!',
-            desc: 'Esta herramienta captura tus ondas cerebrales con una diadema Muse 2 y las transforma en una flor neurofuncional única. Te guiaremos paso a paso.',
+            desc: 'Esta herramienta captura tus ondas cerebrales con una diadema Muse 2 y las transforma en una pulso neurofuncional única. Te guiaremos paso a paso.',
             target: null, // centered, no spotlight
         },
         {
             icon: '👤',
             title: 'Nombre del participante',
-            desc: 'Escribe el nombre de quien realizará la captura. Esto ayuda a identificar cada sesión en el jardín de flores.',
+            desc: 'Escribe el nombre de quien realizará la captura. Esto ayuda a identificar cada sesión en el jardín de pulsos.',
             target: '#input-name',
         },
         {
@@ -966,10 +882,10 @@
             target: null,
         },
         {
-            icon: '🌸',
-            title: 'Visualiza tu Flor',
-            desc: 'Presiona "Ver Flor" para transformar tus ondas cerebrales en una flor neurofuncional única. ¡Cada persona genera una flor diferente!',
-            target: '#btn-send-to-flower',
+            icon: '💫',
+            title: 'Visualiza tu Pulso',
+            desc: 'Presiona "Ver Pulso" para transformar tus ondas cerebrales en una pulso neurofuncional única. ¡Cada persona genera una pulso diferente!',
+            target: '#btn-send-to-pulse',
         },
     ];
 
@@ -1118,25 +1034,24 @@
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // FLOWER VIEW
+    // PULSE VIEW
     // ══════════════════════════════════════════════════════════════════════
 
-    let flowerAnalyzer = null;
-    let flower2d = null;
-    let flower3d = null;
-    let currentFlowerTab = 'flower2d';
+    let pulseAnalyzer = null;
+    let pulse2d = null;
+    let pulse3d = null;
+    let currentPulseTab = 'pulse2d';
 
-    const flowerUploadSection = document.getElementById('flower-upload-section');
-    const flowerMainContent = document.getElementById('flower-main-content');
-    const flowerFileInput = document.getElementById('flower-file-input');
-    const flowerBtnUpload = document.getElementById('flower-btn-upload');
-    const flowerUploadArea = document.getElementById('flower-upload-area');
-    const flowerBtnBack = document.getElementById('flower-btn-back');
+    const pulseUploadSection = document.getElementById('pulse-upload-section');
+    const pulseMainContent = document.getElementById('pulse-main-content');
+    const pulseFileInput = document.getElementById('pulse-file-input');
+    const pulseBtnUpload = document.getElementById('pulse-btn-upload');
+    const pulseUploadArea = document.getElementById('pulse-upload-area');
 
-    const flowerTabs = document.querySelectorAll('#flower-tabs .tab');
-    const flowerPanels = document.querySelectorAll('.tab-panel');
-    const canvas2d = document.getElementById('flower-2d-canvas');
-    const container3d = document.getElementById('flower-3d-container');
+    const pulseTabs = document.querySelectorAll('#pulse-tabs .tab');
+    const pulsePanels = document.querySelectorAll('.tab-panel');
+    const canvas2d = document.getElementById('pulse-2d-canvas');
+    const container3d = document.getElementById('pulse-3d-container');
     const analysisContent = document.getElementById('analysis-content');
     const bandBar = document.getElementById('band-bar');
 
@@ -1146,26 +1061,26 @@
     const printExportFormat = document.getElementById('print-export-format');
 
     // ── File upload ──
-    flowerBtnUpload.addEventListener('click', () => flowerFileInput.click());
-    flowerFileInput.addEventListener('change', (e) => {
-        if (e.target.files.length) loadFlowerFile(e.target.files[0]);
+    pulseBtnUpload.addEventListener('click', () => pulseFileInput.click());
+    pulseFileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) loadPulseFile(e.target.files[0]);
     });
 
     // Drag & Drop
-    flowerUploadArea.addEventListener('dragover', (e) => {
+    pulseUploadArea.addEventListener('dragover', (e) => {
         e.preventDefault();
-        flowerUploadArea.classList.add('drag-over');
+        pulseUploadArea.classList.add('drag-over');
     });
-    flowerUploadArea.addEventListener('dragleave', () => {
-        flowerUploadArea.classList.remove('drag-over');
+    pulseUploadArea.addEventListener('dragleave', () => {
+        pulseUploadArea.classList.remove('drag-over');
     });
-    flowerUploadArea.addEventListener('drop', (e) => {
+    pulseUploadArea.addEventListener('drop', (e) => {
         e.preventDefault();
-        flowerUploadArea.classList.remove('drag-over');
-        if (e.dataTransfer.files.length) loadFlowerFile(e.dataTransfer.files[0]);
+        pulseUploadArea.classList.remove('drag-over');
+        if (e.dataTransfer.files.length) loadPulseFile(e.dataTransfer.files[0]);
     });
 
-    function loadFlowerFile(file) {
+    function loadPulseFile(file) {
         if (!file.name.endsWith('.json')) {
             alert('Por favor selecciona un archivo .json');
             return;
@@ -1174,7 +1089,7 @@
         reader.onload = (e) => {
             try {
                 const data = JSON.parse(e.target.result);
-                processFlowerData(data);
+                processPulseData(data);
             } catch (err) {
                 alert('Error leyendo el JSON: ' + err.message);
             }
@@ -1182,71 +1097,71 @@
         reader.readAsText(file);
     }
 
-    // ── Process Flower Data ──
-    function processFlowerData(jsonData) {
+    // ── Process Pulse Data ──
+    function processPulseData(jsonData) {
         if (!jsonData.eeg_channels || !jsonData.metadata) {
             alert('El archivo JSON no tiene el formato esperado (requiere eeg_channels y metadata).');
             return;
         }
 
-        // Use the Flower's analyzer (loaded from /flower/eeg_band_analyzer.js)
-        flowerAnalyzer = new EEGBandAnalyzer(jsonData);
-        const report = flowerAnalyzer.getReport();
+        // Use the Pulse's analyzer (loaded from /pulse/eeg_band_analyzer.js)
+        pulseAnalyzer = new EEGBandAnalyzer(jsonData);
+        const report = pulseAnalyzer.getReport();
 
         // Show main content
-        flowerUploadSection.style.display = 'none';
-        flowerMainContent.style.display = 'flex';
+        pulseUploadSection.style.display = 'none';
+        pulseMainContent.style.display = 'flex';
 
         renderBandBar(report.bands);
         renderAnalysis(report);
-        drawFlower2D();
-        switchFlowerTab('flower2d');
+        drawPulse2D();
+        switchPulseTab('pulse2d');
     }
 
     // ── Draw 2D (LavaPulse) ──
-    function drawFlower2D() {
-        if (!flowerAnalyzer) return;
-        if (flower2d) flower2d.stop();
+    function drawPulse2D() {
+        if (!pulseAnalyzer) return;
+        if (pulse2d) pulse2d.stop();
         const containerW = canvas2d.parentElement.clientWidth;
         const size = Math.min(1200, Math.max(600, containerW));
         canvas2d.width = size;
         canvas2d.height = size;
         canvas2d.style.width = '100%';
         canvas2d.style.height = 'auto';
-        flower2d = new LavaPulse(canvas2d, flowerAnalyzer);
-        flower2d.start();
+        pulse2d = new LavaPulse(canvas2d, pulseAnalyzer);
+        pulse2d.start();
     }
 
-    // ── Init 3D Flower ──
-    function initFlower3D() {
-        if (!flowerAnalyzer) return;
-        if (flower3d) flower3d.destroy();
-        flower3d = new Flower3D(container3d, flowerAnalyzer);
-        flower3d.init();
+    // ── Init 3D Pulse ──
+    function initPulse3D() {
+        if (!pulseAnalyzer) return;
+        if (pulse3d) pulse3d.destroy();
+        pulse3d = new Pulse3D(container3d, pulseAnalyzer);
+        pulse3d.init();
     }
 
-    // ── Flower Tabs ──
-    flowerTabs.forEach(tab => {
-        tab.addEventListener('click', () => switchFlowerTab(tab.dataset.tab));
+    // ── Pulse Tabs ──
+    pulseTabs.forEach(tab => {
+        tab.addEventListener('click', () => switchPulseTab(tab.dataset.tab));
     });
 
-    function switchFlowerTab(tabName) {
+    function switchPulseTab(tabName) {
         // Pause/resume LavaPulse on tab changes
-        if (currentFlowerTab === 'flower2d' && tabName !== 'flower2d' && flower2d) {
-            flower2d.stop();
+        if (currentPulseTab === 'pulse2d' && tabName !== 'pulse2d' && pulse2d) {
+            pulse2d.stop();
         }
-        if (tabName === 'flower2d' && flower2d) {
-            flower2d.start();
+        if (tabName === 'pulse2d' && pulse2d) {
+            pulse2d.start();
         }
-        currentFlowerTab = tabName;
-        flowerTabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
-        flowerPanels.forEach(p => p.classList.toggle('active', p.id === `panel-${tabName}`));
+        currentPulseTab = tabName;
+        pulseTabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+        pulsePanels.forEach(p => p.classList.toggle('active', p.id === `panel-${tabName}`));
 
-        if (tabName === 'flower3d' && flowerAnalyzer && !flower3d) {
-            setTimeout(() => initFlower3D(), 100);
+        if (tabName === 'pulse3d' && pulseAnalyzer && !pulse3d) {
+            setTimeout(() => initPulse3D(), 100);
         }
-        if (tabName === 'flower3d' && flower3d) {
-            flower3d._onResize();
+        if (tabName === 'pulse3d' && pulse3d) {
+            pulse3d._onResize();
         }
     }
 
@@ -1271,7 +1186,7 @@
         const bands = report.bands;
         const html = `
             <div class="analysis-card">
-                <h3>🌸 Anatomía de tu Flor</h3>
+                <h3>💫 Anatomía de tu Pulso</h3>
                 <p style="font-size:0.85rem;color:var(--text-dim);margin-bottom:1rem;line-height:1.6">
                     Cada capa de pétalos representa una banda de frecuencia cerebral.
                     El tamaño de los pétalos es proporcional a la potencia relativa de cada banda.
@@ -1280,9 +1195,9 @@
                     ${bands.map(band => renderBandCard(band)).join('')}
                 </div>
             </div>
-            <div class="analysis-card flower-meaning-card">
-                <h3>🌺 Lectura de tu Flor</h3>
-                <div class="flower-meaning-text">
+            <div class="analysis-card pulse-meaning-card">
+                <h3>🌺 Lectura de tu Pulso</h3>
+                <div class="pulse-meaning-text">
                     ${report.interpretation || 'Carga un archivo EEG para ver la interpretación.'}
                 </div>
             </div>
@@ -1353,14 +1268,14 @@
     // ── Export 2D ──
     if (btnExport2d) {
         btnExport2d.addEventListener('click', () => {
-            if (flower2d) flower2d.exportPNG('flor_neurofuncional_2d.png');
+            if (pulse2d) pulse2d.exportPNG('pulso_neurofuncional_2d.png');
         });
     }
 
     // ── Export 3D ──
     if (btnExport3d) {
         btnExport3d.addEventListener('click', async () => {
-            if (!flower3d) {
+            if (!pulse3d) {
                 showExportStatus('⚠️ Primero carga un archivo EEG y abre la pestaña 3D.', 'warn');
                 return;
             }
@@ -1373,9 +1288,9 @@
             showExportStatus('⏳ Generando modelo y enviando a Python local…', 'info');
 
             try {
-                const geometry = flower3d.exportGeometryJSON(selectedSize);
+                const geometry = pulse3d.exportGeometryJSON(selectedSize);
 
-                const response = await fetch('/api/convert-flower', {
+                const response = await fetch('/api/convert-pulse', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1395,7 +1310,7 @@
                 }
 
                 const blob = await response.blob();
-                const filename = `flor_neurofuncional_${selectedSize}mm_${format.replace('+', '_')}.zip`;
+                const filename = `pulso_neurofuncional_${selectedSize}mm_${format.replace('+', '_')}.zip`;
                 downloadBlob(blob, filename);
 
                 const instrEl = document.getElementById('export-instructions');
@@ -1438,14 +1353,20 @@
         }
     }
 
-    // ── Back Button ──
-    if (flowerBtnBack) {
-        flowerBtnBack.addEventListener('click', () => {
-            if (flower3d) { flower3d.destroy(); flower3d = null; }
-            if (flower2d) { flower2d.stop(); flower2d = null; }
-            flowerAnalyzer = null;
-            flowerMainContent.style.display = 'none';
-            flowerUploadSection.style.display = 'flex';
+    // ── Back Button (now New Capture in pulse detail) ──
+    const pulseNewCaptureBtn = document.getElementById('pulse-btn-new-capture');
+    if (pulseNewCaptureBtn) {
+        pulseNewCaptureBtn.addEventListener('click', () => {
+            if (pulse3d) { pulse3d.destroy(); pulse3d = null; }
+            if (pulse2d) { pulse2d.stop(); pulse2d = null; }
+            pulseAnalyzer = null;
+            pulseMainContent.style.display = 'none';
+            pulseUploadSection.style.display = 'none';
+            resultsSection.style.display = 'none';
+            setupSection.style.display = 'flex';
+            lastCaptureData = null;
+            captureWaveBuffer = { 0: [], 1: [], 2: [], 3: [] };
+            setTimeout(() => startTour(captureSetupTourSteps), 300);
         });
     }
 
@@ -1465,8 +1386,8 @@
     const gardenBtnRefresh = document.getElementById('btn-garden-refresh');
 
     let gardenLoaded = false;
-    let gardenFlower2d = null;
-    let gardenFlowerModal3d = null;
+    let gardenPulse2d = null;
+    let gardenPulseModal3d = null;
     let gardenAnalyzer = null;
     let gardenCurrentFile = null;
     let gardenCurrentJson = null;
@@ -1512,20 +1433,20 @@
     }
 
     async function loadGarden() {
-        showGardenStatus('🌱', 'Analizando capturas para tu jardín...');
+        showGardenStatus('🌌', 'Analizando capturas para tu jardín...');
 
         try {
             const resp = await fetch('/api/garden/list');
             const data = await resp.json();
 
             if (!data.ok || !data.captures || data.captures.length === 0) {
-                showGardenStatus('🌱', 'Tu jardín está vacío.<br><br>Realiza tu primera captura EEG para plantar la primera flor.');
+                showGardenStatus('🌌', 'Tu jardín está vacío.<br><br>Realiza tu primera captura EEG para plantar la primera pulso.');
                 return;
             }
 
             hideGardenStatus();
 
-            // Render beautiful 2D flowers
+            // Render beautiful 2D pulsos
             await renderGarden2D(data.captures);
 
             gardenLoaded = true;
@@ -1556,7 +1477,7 @@
                 const item = document.createElement('div');
                 item.className = 'garden-2d-item';
 
-                // Canvas for 2D flower
+                // Canvas for 2D pulse
                 const canvasWrapper = document.createElement('div');
                 canvasWrapper.className = 'garden-2d-canvas-wrap';
                 const canvas = document.createElement('canvas');
@@ -1603,7 +1524,7 @@
 
         const userName = captureData.metadata?.user_name || 'Anónimo';
 
-        gardenModalTitle.textContent = `Flor de ${userName}`;
+        gardenModalTitle.textContent = `Pulso de ${userName}`;
 
         const dur = captureData.metadata?.duration_seconds ? formatTime(captureData.metadata.duration_seconds) : '—';
         gardenModalMeta.textContent = dur !== '—' ? `Sesión de ${dur}` : 'Sesión EEG';
@@ -1612,21 +1533,21 @@
         gardenAnalyzer = new EEGBandAnalyzer(captureData);
 
         // 1. Draw 2D (LavaPulse animated)
-        const canvas2dGarden = document.getElementById('garden-flower-2d-canvas');
-        if (gardenFlower2d) { gardenFlower2d.stop(); gardenFlower2d = null; }
+        const canvas2dGarden = document.getElementById('garden-pulse-2d-canvas');
+        if (gardenPulse2d) { gardenPulse2d.stop(); gardenPulse2d = null; }
         const containerW = canvas2dGarden.parentElement.clientWidth;
         const size = Math.min(1200, Math.max(600, containerW));
         canvas2dGarden.width = size;
         canvas2dGarden.height = size;
         canvas2dGarden.style.width = '100%';
         canvas2dGarden.style.height = 'auto';
-        gardenFlower2d = new LavaPulse(canvas2dGarden, gardenAnalyzer);
-        gardenFlower2d.start();
+        gardenPulse2d = new LavaPulse(canvas2dGarden, gardenAnalyzer);
+        gardenPulse2d.start();
 
         // 2. Prepare 3D (will init on tab click to avoid layout issues)
-        if (gardenFlowerModal3d) {
-            gardenFlowerModal3d.destroy();
-            gardenFlowerModal3d = null;
+        if (gardenPulseModal3d) {
+            gardenPulseModal3d.destroy();
+            gardenPulseModal3d = null;
         }
 
         // 3. Render Analysis Report
@@ -1944,7 +1865,7 @@
         const bands = report.bands;
         return `
         <div class="analysis-card">
-            <h3>🌸 Anatomía de tu Flor</h3>
+            <h3>💫 Anatomía de tu Pulso</h3>
             <p style="font-size:0.85rem;color:var(--text-dim);margin-bottom:1rem;line-height:1.6">
                 Cada capa de pétalos representa una banda de frecuencia cerebral calculada con precisión desde tu captura.
             </p>
@@ -1952,9 +1873,9 @@
                 ${bands.map(band => renderBandCard(band)).join('')}
             </div>
         </div>
-        <div class="analysis-card flower-meaning-card">
-            <h3>🌺 Lectura de tu Flor</h3>
-            <div class="flower-meaning-text">
+        <div class="analysis-card pulse-meaning-card">
+            <h3>🌺 Lectura de tu Pulso</h3>
+            <div class="pulse-meaning-text">
                 ${report.interpretation || 'Sin interpretación disponible.'}
             </div>
         </div>
@@ -1972,10 +1893,10 @@
     function closeGardenModal() {
         stopGardenMidiPlayback();
         gardenModal.style.display = 'none';
-        if (gardenFlower2d) { gardenFlower2d.stop(); gardenFlower2d = null; }
-        if (gardenFlowerModal3d) {
-            gardenFlowerModal3d.destroy();
-            gardenFlowerModal3d = null;
+        if (gardenPulse2d) { gardenPulse2d.stop(); gardenPulse2d = null; }
+        if (gardenPulseModal3d) {
+            gardenPulseModal3d.destroy();
+            gardenPulseModal3d = null;
         }
     }
 
@@ -1987,15 +1908,15 @@
             gardenPanels.forEach(p => p.classList.toggle('active', p.id === `gpanel-${tabName}`));
 
             // Init 3D on first switch
-            if (tabName === 'garden-3d' && gardenAnalyzer && !gardenFlowerModal3d) {
-                const container = document.getElementById('garden-flower-3d-container');
+            if (tabName === 'garden-3d' && gardenAnalyzer && !gardenPulseModal3d) {
+                const container = document.getElementById('garden-pulse-3d-container');
                 setTimeout(() => {
-                    gardenFlowerModal3d = new Flower3D(container, gardenAnalyzer);
-                    gardenFlowerModal3d.init();
+                    gardenPulseModal3d = new Pulse3D(container, gardenAnalyzer);
+                    gardenPulseModal3d.init();
                 }, 100);
             }
-            if (tabName === 'garden-3d' && gardenFlowerModal3d) {
-                gardenFlowerModal3d._onResize();
+            if (tabName === 'garden-3d' && gardenPulseModal3d) {
+                gardenPulseModal3d._onResize();
             }
         });
     });
@@ -2031,7 +1952,7 @@
         });
     }
 
-    // ── Garden: Rename flower ──
+    // ── Garden: Rename pulse ──
     const gardenBtnRename = document.getElementById('garden-btn-rename');
     const renameModal = document.getElementById('rename-modal');
     const renameInput = document.getElementById('rename-input');
@@ -2085,7 +2006,7 @@
 
                 // Update in-memory data and UI
                 if (gardenCurrentJson?.metadata) gardenCurrentJson.metadata.user_name = newName;
-                gardenModalTitle.textContent = `Flor de ${newName}`;
+                gardenModalTitle.textContent = `Pulso de ${newName}`;
                 renameModal.style.display = 'none';
 
                 // Refresh garden to show updated name
@@ -2100,7 +2021,7 @@
         });
     }
 
-    // ── Garden: Delete flower ──
+    // ── Garden: Delete pulse ──
     const gardenBtnDelete = document.getElementById('garden-btn-delete');
     const deleteModal = document.getElementById('delete-modal');
     const deleteModalName = document.getElementById('delete-modal-name');
@@ -2110,7 +2031,7 @@
     if (gardenBtnDelete) {
         gardenBtnDelete.addEventListener('click', () => {
             if (!gardenCurrentJson) return;
-            const name = gardenCurrentJson.metadata?.user_name || gardenCurrentFile || 'esta flor';
+            const name = gardenCurrentJson.metadata?.user_name || gardenCurrentFile || 'esta pulso';
             if (deleteModalName) deleteModalName.textContent = name;
             deleteModal.style.display = 'flex';
         });

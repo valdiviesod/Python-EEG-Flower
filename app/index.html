@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NAD — Neuroarmonía Divergente</title>
     <meta name="description"
-        content="Captura ondas cerebrales EEG en tiempo real con Muse 2 y genera tu flor neurofuncional única. Descarga JSON y MIDI.">
+        content="Captura ondas cerebrales EEG en tiempo real con Muse 2 y genera tu pulso neurofuncional única. Descarga JSON y MIDI.">
 
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>🧠</text></svg>" type="image/svg+xml">
     <link rel="stylesheet" href="style.css?v=5">
@@ -32,7 +32,7 @@
                         <span class="tab-label">Captura EEG</span>
                     </button>
                     <button class="global-tab" data-view="garden" id="tab-garden">
-                        <span class="tab-emoji">🌿</span>
+                        <span class="tab-emoji">🌌</span>
                         <span class="tab-label">Jardín</span>
                     </button>
                 </nav>
@@ -55,10 +55,9 @@
             <!-- Setup Panel (before capture starts) -->
             <section class="capture-setup" id="capture-setup">
                 <div class="setup-card">
-                    <h2>Nueva Captura EEG</h2>
+                    <h2>Captura tu Neuroarmonía Divergente</h2>
                     <p class="setup-desc">
-                        Conecta tu diadema Muse 2 y configura la captura para registrar
-                        tus ondas cerebrales en tiempo real.
+                        Texto introductorio
                     </p>
 
                     <div class="form-group">
@@ -78,26 +77,11 @@
                     <button class="btn-primary btn-start" id="btn-start-capture">
                         <span>▶</span> Iniciar Captura
                     </button>
-
-                    <div class="setup-hint">
-                        Asegúrate de que tu diadema Muse esté encendida y conectada antes de iniciar.
-                    </div>
                 </div>
             </section>
 
             <!-- Live Capture Panel (during capture) -->
             <section class="capture-live" id="capture-live" style="display:none">
-                <!-- Mindfulness Slider -->
-                <div class="mindfulness-slider" id="mindfulness-slider">
-                    <div class="mindfulness-icon" id="mindfulness-icon">🧘</div>
-                    <div class="mindfulness-content">
-                        <div class="mindfulness-text" id="mindfulness-text">Relájate y respira profundo...</div>
-                        <div class="mindfulness-progress">
-                            <div class="mindfulness-progress-bar" id="mindfulness-progress-bar"></div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Status Bar -->
                 <div class="live-status-bar">
                     <div class="live-info">
@@ -166,8 +150,8 @@
                         <button class="btn-secondary" id="btn-download-midi">
                             <span>🎵</span> Descargar MIDI
                         </button>
-                        <button class="btn-secondary" id="btn-send-to-flower">
-                            <span>🌸</span> Ver Flor
+                        <button class="btn-secondary" id="btn-send-to-pulse">
+                            <span>💫</span> Ver Pulso
                         </button>
                         <button class="btn-ghost" id="btn-new-capture">
                             ← Nueva captura
@@ -183,15 +167,15 @@
         </div>
 
         <!-- ══════════════════════════════════════════════════════════════ -->
-        <!-- VIEW: Flor Neurofuncional                                    -->
+        <!-- VIEW: Pulso Neurofuncional                                    -->
         <!-- ══════════════════════════════════════════════════════════════ -->
-        <div class="view" id="view-flower">
+        <div class="view" id="view-pulse">
 
             <!-- Upload Section (when no data loaded) -->
-            <section class="upload-section" id="flower-upload-section">
-                <div class="upload-card" id="flower-upload-area">
+            <section class="upload-section" id="pulse-upload-section">
+                <div class="upload-card" id="pulse-upload-area">
                     <div class="upload-visual">
-                        <div class="upload-flower-icon">
+                        <div class="upload-pulse-icon">
                             <svg viewBox="0 0 140 140" width="140" height="140">
                                 <defs>
                                     <radialGradient id="plGlow" cx="50%" cy="50%" r="50%">
@@ -222,42 +206,44 @@
                         <h2>Carga tu lectura EEG</h2>
                         <p>Arrastra un archivo <strong>.json</strong> de la diadema Muse o haz clic para seleccionar</p>
                     </div>
-                    <input type="file" id="flower-file-input" accept=".json" hidden>
+                    <input type="file" id="pulse-file-input" accept=".json" hidden>
                     <div class="upload-actions">
-                        <button class="btn-primary" id="flower-btn-upload">
+                        <button class="btn-primary" id="pulse-btn-upload">
                             <span>📂</span> Seleccionar Archivo
                         </button>
                     </div>
                     <p class="upload-hint">
                         Cada banda de frecuencia cerebral se transforma en un pétalo.<br>
-                        Cada persona genera una flor única e irrepetible.
+                        Cada persona genera una pulso única e irrepetible.
                     </p>
                 </div>
             </section>
 
-            <!-- Flower Main Content (after data loaded) -->
-            <div class="main-content" id="flower-main-content" style="display:none">
-                <button class="btn-ghost" id="flower-btn-back" style="margin:0.5rem 0">← Nuevo archivo</button>
+            <!-- Pulse Main Content (after data loaded) -->
+            <div class="main-content" id="pulse-main-content" style="display:none">
+                <div style="display: flex; justify-content: center; margin: 0.5rem 0;">
+                    <button class="btn-primary" id="pulse-btn-new-capture" style="max-width: 200px;">✨ Nueva Captura</button>
+                </div>
 
-                <!-- Flower Sub-Tabs -->
-                <nav class="tabs" id="flower-tabs">
-                    <button class="tab active" data-tab="flower2d">🌸 Flor 2D</button>
-                    <button class="tab" data-tab="flower3d" style="display:none">🌺 Flor 3D</button>
+                <!-- Pulse Sub-Tabs -->
+                <nav class="tabs" id="pulse-tabs">
+                    <button class="tab active" data-tab="pulse2d">💫 Pulso 2D</button>
+                    <button class="tab" data-tab="pulse3d" style="display:none">🌺 Pulso 3D</button>
                     <button class="tab" data-tab="analysis">🔬 Análisis de Bandas</button>
                 </nav>
 
                 <div class="tab-content">
-                    <!-- 2D Flower -->
-                    <div class="tab-panel active" id="panel-flower2d">
+                    <!-- 2D Pulse -->
+                    <div class="tab-panel active" id="panel-pulse2d">
                         <div class="canvas-wrapper">
-                            <canvas id="flower-2d-canvas"></canvas>
+                            <canvas id="pulse-2d-canvas"></canvas>
                         </div>
-                        <button class="btn-export" id="btn-export-2d">📥 Descargar Flor 2D (PNG)</button>
+                        <button class="btn-export" id="btn-export-2d">📥 Descargar Pulso 2D (PNG)</button>
                     </div>
 
-                    <!-- 3D Flower -->
-                    <div class="tab-panel" id="panel-flower3d">
-                        <div id="flower-3d-container"></div>
+                    <!-- 3D Pulse -->
+                    <div class="tab-panel" id="panel-pulse3d">
+                        <div id="pulse-3d-container"></div>
 
                         <div class="export-card">
                             <div class="export-card-header">
@@ -334,8 +320,8 @@
             <div class="garden-3d-wrap" id="garden-3d-wrap">
                 <!-- Header UI -->
                 <div class="garden-overlay-header" id="garden-overlay-header">
-                    <h2>🌿 Jardín Neurofuncional</h2>
-                    <p>Cada flor crece desde una sesión EEG única · Haz clic en una flor</p>
+                    <h2>🌌 Jardín Neurofuncional</h2>
+                    <p>Cada pulso crece desde una sesión EEG única · Haz clic en una pulso</p>
                     <button class="btn-garden-refresh" id="btn-garden-refresh">
                         <span>🔄</span> Actualizar
                     </button>
@@ -345,7 +331,7 @@
 
                 <div class="garden-status-overlay" id="garden-status" style="display:none">
                     <div class="garden-status-content" id="garden-status-content">
-                        <div class="garden-loading-icon">🌱</div>
+                        <div class="garden-loading-icon">🌌</div>
                         <p>Cargando jardín...</p>
                     </div>
                 </div>
@@ -367,22 +353,22 @@
                             <span>✏️</span> Renombrar
                         </button>
                         <button class="btn-danger" id="garden-btn-delete">
-                            <span>🗑️</span> Eliminar Flor
+                            <span>🗑️</span> Eliminar Pulso
                         </button>
                     </div>
                     <nav class="tabs garden-modal-tabs" id="garden-modal-tabs">
-                        <button class="tab active" data-gtab="garden-2d">🌸 Flor 2D</button>
-                        <button class="tab" data-gtab="garden-3d" style="display:none">🌺 Flor 3D</button>
+                        <button class="tab active" data-gtab="garden-2d">💫 Pulso 2D</button>
+                        <button class="tab" data-gtab="garden-3d" style="display:none">🌺 Pulso 3D</button>
                         <button class="tab" data-gtab="garden-analysis">🔬 Análisis</button>
                     </nav>
                     <div class="garden-modal-body">
                         <div class="garden-modal-panel active" id="gpanel-garden-2d">
                             <div class="canvas-wrapper">
-                                <canvas id="garden-flower-2d-canvas"></canvas>
+                                <canvas id="garden-pulse-2d-canvas"></canvas>
                             </div>
                         </div>
                         <div class="garden-modal-panel" id="gpanel-garden-3d">
-                            <div id="garden-flower-3d-container"></div>
+                            <div id="garden-pulse-3d-container"></div>
                         </div>
                         <div class="garden-modal-panel" id="gpanel-garden-analysis">
                             <div class="analysis-grid" id="garden-analysis-content"></div>
@@ -394,10 +380,10 @@
 
     </div>
 
-    <!-- ───── Modal: Renombrar Flor ───── -->
+    <!-- ───── Modal: Renombrar Pulso ───── -->
     <div class="rename-modal-overlay" id="rename-modal" style="display:none">
         <div class="rename-modal">
-            <h3>✏️ Renombrar Flor</h3>
+            <h3>✏️ Renombrar Pulso</h3>
             <p>Introduce el nuevo nombre para esta sesión:</p>
             <input type="text" id="rename-input" placeholder="Ej: María García" maxlength="60" autocomplete="off">
             <div class="rename-modal-actions">
@@ -411,8 +397,8 @@
     <div class="delete-modal-overlay" id="delete-modal" style="display:none">
         <div class="delete-modal">
             <div class="delete-modal-icon">🗑️</div>
-            <h3>Eliminar esta flor</h3>
-            <p>¿Estás segura/o? Esta acción no se puede deshacer.<br>La flor <strong id="delete-modal-name"></strong> será eliminada permanentemente.</p>
+            <h3>Eliminar esta pulso</h3>
+            <p>¿Estás segura/o? Esta acción no se puede deshacer.<br>La pulso <strong id="delete-modal-name"></strong> será eliminada permanentemente.</p>
             <div class="delete-modal-actions">
                 <button class="btn-ghost" id="delete-btn-cancel">Cancelar</button>
                 <button class="btn-danger" id="delete-btn-confirm">Sí, eliminar</button>
@@ -444,14 +430,14 @@
     <!-- ───── Scripts ───── -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <!-- Flower scripts (served from /flower/) -->
-    <script src="/flower/eeg_band_analyzer.js"></script>
-    <script src="/flower/flower_2d.js"></script>
-    <script src="/flower/flower_3d.js"></script>
-    <script src="/flower/garden.js?v=3"></script>
+    <!-- Pulse scripts (served from /pulse/) -->
+    <script src="/pulse/eeg_band_analyzer.js"></script>
+    <script src="/pulse/pulse_2d.js"></script>
+    <script src="/pulse/pulse_3d.js"></script>
+    <script src="/pulse/garden.js?v=3"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.28/build/Midi.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
-    <script src="/flower/lava_pulse.js"></script>
+    <script src="/pulse/lava_pulse.js"></script>
     <script src="scalp_map.js?v=2"></script>
     <!-- Main App -->
     <script src="app.js?v=4"></script>

@@ -1,16 +1,16 @@
 # NAD — Neuroarmonía Divergente
 
-> **Captura tus ondas cerebrales. Conviértelas en arte, música y flores únicas.**
+> **Captura tus ondas cerebrales. Conviértelas en arte, música y pulsos únicas.**
 
-NAD es una aplicación web de código abierto que conecta la diadema **Muse 2** con un servidor Python local, convierte señales EEG en tiempo real en visualizaciones botánicas generativas, archivos MIDI descargables y mandalas personalizados. Cada sesión produce una obra irrepetible — una flor que crece desde las frecuencias de tu cerebro.
+NAD es una aplicación web de código abierto que conecta la diadema **Muse 2** con un servidor Python local, convierte señales EEG en tiempo real en visualizaciones botánicas generativas, archivos MIDI descargables y mandalas personalizados. Cada sesión produce una obra irrepetible — una pulso que crece desde las frecuencias de tu cerebro.
 
 ---
 
 ## Vista rápida
 
-| Captura EEG en vivo | Flor Neurofuncional | Jardín de sesiones |
+| Captura EEG en vivo | Pulso Neurofuncional | Jardín de sesiones |
 |---|---|---|
-| Gráfica butterfly multicanal sobre fondo negro, con trazos dinámicos y diferenciados por canal | Flor 2D/3D generada desde 5 bandas de frecuencia cerebral | Galería interactiva de todas tus capturas anteriores |
+| Gráfica butterfly multicanal sobre fondo negro, con trazos dinámicos y diferenciados por canal | Pulso 2D/3D generada desde 5 bandas de frecuencia cerebral | Galería interactiva de todas tus capturas anteriores |
 
 ---
 
@@ -29,18 +29,18 @@ NAD es una aplicación web de código abierto que conecta la diadema **Muse 2** 
 - Captura con duración fija o manual (detención libre)
 - Auto-guardado en `captures/` al terminar
 
-### Flor Neurofuncional
-La captura se transforma en una **flor generativa única** analizando 5 bandas de frecuencia cerebral mediante FFT:
+### Pulso Neurofuncional
+La captura se transforma en una **pulso generativa única** analizando 5 bandas de frecuencia cerebral mediante FFT:
 
 | Banda | Frecuencia | Color | Significado |
 |---|---|---|---|
 | 🌙 **Base** (Delta) | 0.5 – 4 Hz | Lavanda `#8B5CF6` | Inmersión profunda, inconsciente |
-| 🌿 **Flujo** (Theta) | 4 – 8 Hz | Salvia `#22C55E` | Movimiento interno, creatividad |
-| 🌸 **Pulso** (Alpha) | 8 – 13 Hz | Rosa `#EC4899` | Atención relajada, presencia |
+| 🌌 **Flujo** (Theta) | 4 – 8 Hz | Salvia `#22C55E` | Movimiento interno, creatividad |
+| 💫 **Pulso** (Alpha) | 8 – 13 Hz | Rosa `#EC4899` | Atención relajada, presencia |
 | ☀️ **Trazo** (Beta) | 13 – 30 Hz | Durazno `#F97316` | Acción, dirección, pensamiento activo |
 | ⚡ **Destello** (Gamma) | 30 – 44 Hz | Limón `#EAB308` | Intensidad, claridad suprema |
 
-Cada banda determina el **tamaño, forma y color de cada capa de pétalos**. La flor resultante es matemáticamente única para cada persona y cada momento.
+Cada banda determina el **tamaño, forma y color de cada capa de pétalos**. La pulso resultante es matemáticamente única para cada persona y cada momento.
 
 **Visualización disponible en:**
 - **2D** — Canvas HTML con curvas Bézier y gradientes botánicos, exportable como PNG
@@ -48,16 +48,16 @@ Cada banda determina el **tamaño, forma y color de cada capa de pétalos**. La 
 
 ### Jardín Neurofuncional
 - Vista de galería 3D interactiva (Three.js) con todas las capturas guardadas
-- Cada flor crece en el jardín con su propio color y forma desde los datos EEG reales
-- Clic en cualquier flor para abrir su ficha completa: flor 2D, flor 3D y análisis de bandas
-- **Reproducción MIDI musical**: cada flor suena con guitarra nylon real (`soundfont-player` + MusyngKite), notas cuantizadas a la escala pentatónica de Do mayor, con reverb de sala (ConvolverNode 2.2s) y mezcla estéreo por canal
-- Opciones por flor: descargar MIDI, descargar mandala, renombrar, eliminar
+- Cada pulso crece en el jardín con su propio color y forma desde los datos EEG reales
+- Clic en cualquier pulso para abrir su ficha completa: pulso 2D, pulso 3D y análisis de bandas
+- **Reproducción MIDI musical**: cada pulso suena con guitarra nylon real (`soundfont-player` + MusyngKite), notas cuantizadas a la escala pentatónica de Do mayor, con reverb de sala (ConvolverNode 2.2s) y mezcla estéreo por canal
+- Opciones por pulso: descargar MIDI, descargar mandala, renombrar, eliminar
 
 ### Exportaciones
 - 📊 **JSON** — datos EEG crudos con metadatos (nombre, edad, duración, frecuencia de muestreo)
 - 🎵 **MIDI** — conversión directa de señal EEG a notas MIDI (4 pistas, una por canal), descargable desde la captura o desde el jardín
 - ☸️ **Mandala SVG** — mandala generativo derivado de la actividad cerebral, listo para imprimir
-- 🌸 **Flor PNG** — exportación directa desde canvas
+- 💫 **Pulso PNG** — exportación directa desde canvas
 - 🖨️ **Modelos 3D** (GLB / 3MF / STL) — para impresión 3D con colores por banda
 
 ### Tour interactivo
@@ -71,22 +71,22 @@ Al abrir la app o iniciar una nueva captura, un tour guiado paso a paso introduc
 NAD/
 ├── app_server.py          # Servidor HTTP unificado (Python stdlib, puerto 8000)
 ├── muse_capture.py        # Receptor OSC + conversor EEG→MIDI (python-osc, midiutil)
-├── flower_to_3d_print.py  # Pipeline de exportación 3D (trimesh, numpy)
+├── pulse_to_3d_print.py  # Pipeline de exportación 3D (trimesh, numpy)
 ├── safe_json_storage.py   # Escritura atómica de capturas JSON
 ├── requirements.txt
 │
 ├── app/                   # SPA principal (vanilla JS + HTML + CSS)
-│   ├── index.html         # Shell de la app, 3 vistas: Captura / Flor / Jardín
+│   ├── index.html         # Shell de la app, 3 vistas: Captura / Pulso / Jardín
 │   ├── app.js             # Lógica principal: captura, tour, MIDI, jardín
 │   ├── scalp_map.js       # Render butterfly EEG en tiempo real (Canvas 2D)
 │   ├── mandala_generator.js
 │   ├── brain.svg          # Recurso legado de la visualización cerebral anterior
 │   └── style.css
 │
-├── flower/                # Motor de flores (compartido con app)
+├── pulse/                # Motor de pulsos (compartido con app)
 │   ├── eeg_band_analyzer.js  # FFT + extracción de bandas + perfiles emocionales
-│   ├── flower_2d.js          # Renderizado 2D (Canvas, curvas Bézier)
-│   ├── flower_3d.js          # Escultura 3D (Three.js r128)
+│   ├── pulse_2d.js          # Renderizado 2D (Canvas, curvas Bézier)
+│   ├── pulse_3d.js          # Escultura 3D (Three.js r128)
 │   └── garden.js             # Jardín 3D interactivo (Three.js + OrbitControls)
 │
 └── captures/              # Capturas guardadas (.json, auto-generado)
@@ -105,7 +105,7 @@ NAD/
 | `GET` | `/api/garden/list` | Lista todas las capturas guardadas |
 | `GET` | `/api/garden/file?name=…` | Descarga una captura específica |
 | `POST` | `/api/json-to-midi` | Convierte JSON de captura a archivo MIDI binario |
-| `POST` | `/api/convert-flower` | Genera modelo 3D imprimible desde parámetros de flor |
+| `POST` | `/api/convert-pulse` | Genera modelo 3D imprimible desde parámetros de pulso |
 
 ### Pipeline de audio (jardín)
 
@@ -152,8 +152,8 @@ Cualquier navegador moderno (Chrome, Firefox, Edge, Safari) con soporte para Web
 
 ```bash
 # 1. Clona el repositorio
-git clone https://github.com/valdiviesod/Python-EEG-Flower.git
-cd "Python-EEG-Flower"
+git clone https://github.com/valdiviesod/Python-EEG-Pulse.git
+cd "Python-EEG-Pulse"
 
 # 2. Instala dependencias Python
 pip install -r requirements.txt

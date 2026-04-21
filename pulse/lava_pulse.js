@@ -96,13 +96,13 @@ class LavaPulse {
                 hue:   265,
             },
             theta: {
-                // Flujo 🌿 verde — #22C55E
+                // Flujo 🌌 verde — #22C55E
                 bg:    '#010D04',
                 c: ['#052E16', '#14532D', '#15803D', '#22C55E', '#86EFAC', '#FFFFFF', '#BBF7D0', '#166534'],
                 hue:   145,
             },
             alpha: {
-                // Pulso 🌸 rosa — #EC4899
+                // Pulso 💫 rosa — #EC4899
                 bg:    '#0D0106',
                 c: ['#2D0018', '#7F1D4F', '#BE185D', '#EC4899', '#F9A8D4', '#FFFFFF', '#FBCFE8', '#9D174D'],
                 hue:   330,
