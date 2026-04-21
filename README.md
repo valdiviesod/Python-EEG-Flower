@@ -8,7 +8,7 @@ NAD es una aplicación web de código abierto que conecta la diadema **Muse 2** 
 
 ## Vista rápida
 
-| Captura EEG en vivo | Pulso Neurofuncional | Jardín de sesiones |
+| Captura EEG en vivo | Pulso Neurofuncional | Campo resonante de sesiones |
 |---|---|---|
 | Gráfica butterfly multicanal sobre fondo negro, con trazos dinámicos y diferenciados por canal | Pulso 2D/3D generada desde 5 bandas de frecuencia cerebral | Galería interactiva de todas tus capturas anteriores |
 
@@ -46,16 +46,16 @@ Cada banda determina el **tamaño, forma y color de cada capa de pétalos**. La 
 - **2D** — Canvas HTML con curvas Bézier y gradientes botánicos, exportable como PNG
 - **3D** — Escultura Three.js con materiales translúcidos, sombras PCF, partículas de polen y rotación suave. Exportable para **impresión 3D** en formatos GLB, 3MF y STL con colores integrados
 
-### Jardín Neurofuncional
+### Campo resonante Neurofuncional
 - Vista de galería 3D interactiva (Three.js) con todas las capturas guardadas
-- Cada pulso crece en el jardín con su propio color y forma desde los datos EEG reales
+- Cada pulso crece en el campo resonante con su propio color y forma desde los datos EEG reales
 - Clic en cualquier pulso para abrir su ficha completa: pulso 2D, pulso 3D y análisis de bandas
 - **Reproducción MIDI musical**: cada pulso suena con guitarra nylon real (`soundfont-player` + MusyngKite), notas cuantizadas a la escala pentatónica de Do mayor, con reverb de sala (ConvolverNode 2.2s) y mezcla estéreo por canal
 - Opciones por pulso: descargar MIDI, descargar mandala, renombrar, eliminar
 
 ### Exportaciones
 - 📊 **JSON** — datos EEG crudos con metadatos (nombre, edad, duración, frecuencia de muestreo)
-- 🎵 **MIDI** — conversión directa de señal EEG a notas MIDI (4 pistas, una por canal), descargable desde la captura o desde el jardín
+- 🎵 **MIDI** — conversión directa de señal EEG a notas MIDI (4 pistas, una por canal), descargable desde la captura o desde el campo resonante
 - ☸️ **Mandala SVG** — mandala generativo derivado de la actividad cerebral, listo para imprimir
 - 💫 **Pulso PNG** — exportación directa desde canvas
 - 🖨️ **Modelos 3D** (GLB / 3MF / STL) — para impresión 3D con colores por banda
@@ -76,8 +76,8 @@ NAD/
 ├── requirements.txt
 │
 ├── app/                   # SPA principal (vanilla JS + HTML + CSS)
-│   ├── index.html         # Shell de la app, 3 vistas: Captura / Pulso / Jardín
-│   ├── app.js             # Lógica principal: captura, tour, MIDI, jardín
+│   ├── index.html         # Shell de la app, 3 vistas: Captura / Pulso / Campo resonante
+│   ├── app.js             # Lógica principal: captura, tour, MIDI, campo resonante
 │   ├── scalp_map.js       # Render butterfly EEG en tiempo real (Canvas 2D)
 │   ├── mandala_generator.js
 │   ├── brain.svg          # Recurso legado de la visualización cerebral anterior
@@ -87,7 +87,7 @@ NAD/
 │   ├── eeg_band_analyzer.js  # FFT + extracción de bandas + perfiles emocionales
 │   ├── pulse_2d.js          # Renderizado 2D (Canvas, curvas Bézier)
 │   ├── pulse_3d.js          # Escultura 3D (Three.js r128)
-│   └── garden.js             # Jardín 3D interactivo (Three.js + OrbitControls)
+│   └── garden.js             # Campo resonante 3D interactivo (Three.js + OrbitControls)
 │
 └── captures/              # Capturas guardadas (.json, auto-generado)
 ```
@@ -107,7 +107,7 @@ NAD/
 | `POST` | `/api/json-to-midi` | Convierte JSON de captura a archivo MIDI binario |
 | `POST` | `/api/convert-pulse` | Genera modelo 3D imprimible desde parámetros de pulso |
 
-### Pipeline de audio (jardín)
+### Pipeline de audio (campo resonante)
 
 ```
 EEG JSON → /api/json-to-midi → @tonejs/midi parser

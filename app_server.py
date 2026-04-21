@@ -77,7 +77,7 @@ class WebCaptureController:
         self.end_time: float | None = None
         self.target_duration: float | None = None
         self.user_name: str = ''
-        self.user_age: int | None = None
+        self.user_state: str = ''
 
     def _close_converter_resources(self, converter: MuseOSCToMidi | None):
         if not converter:
@@ -121,7 +121,7 @@ class WebCaptureController:
         return handler
 
     def start_capture(self, duration_seconds: float | None = None,
-                      user_name: str = '', user_age: int | None = None):
+                      user_name: str = '', user_state: str = ''):
         with self.lock:
             already_running = self.running
             previous_converter = self.converter
@@ -173,7 +173,7 @@ class WebCaptureController:
                 self.end_time = None
                 self.target_duration = duration_seconds if duration_seconds and duration_seconds > 0 else None
                 self.user_name = user_name
-                self.user_age = user_age
+                self.user_state = user_state
             return
 
         if last_error:
@@ -210,7 +210,7 @@ class WebCaptureController:
                     'duration_seconds': 0.0, 'total_samples': 0,
                     'sample_rate_hz': 0.0, 'channels': 4,
                     'capture_timestamp': '', 'start_time': None, 'end_time': None,
-                    'user_name': self.user_name, 'user_age': self.user_age,
+                    'user_name': self.user_name, 'user_state': self.user_state,
                 },
                 'eeg_channels': {f'channel_{i}': [] for i in range(1, 5)},
                 'timestamps': [], 'statistics': {},
@@ -256,7 +256,7 @@ class WebCaptureController:
                 'target_duration_seconds': self.target_duration,
                 'running': self.running,
                 'user_name': self.user_name,
-                'user_age': self.user_age,
+                'user_state': self.user_state,
             },
             'eeg_channels': eeg_channels,
             'timestamps': timestamps,
@@ -275,11 +275,11 @@ class WebCaptureController:
             captures_dir = get_captures_dir()
 
             name = payload['metadata'].get('user_name', '') or 'captura'
-            age = payload['metadata'].get('user_age', '')
+            state = payload['metadata'].get('user_state', '')
             safe_name = ''.join(c if c.isalnum() or c in '-_ ' else '' for c in name).strip().replace(' ', '_')
-            age_str = f"_{age}anos" if age not in (None, '', 0) else ''
+            state_str = f"_{state}" if state not in (None, '', 0) else ''
             timestamp_str = time.strftime('%Y%m%d_%H%M%S')
-            filename = f"eeg_{safe_name}{age_str}_{timestamp_str}.json"
+            filename = f"eeg_{safe_name}{state_str}_{timestamp_str}.json"
 
             filepath = write_json_with_fallback(
                 payload,
@@ -367,13 +367,12 @@ class AppHandler(SimpleHTTPRequestHandler):
                 duration = body.get('durationSeconds')
                 duration_value = float(duration) if duration not in (None, '', 0) else None
                 user_name = body.get('userName', '')
-                user_age_raw = body.get('userAge')
-                user_age = int(user_age_raw) if user_age_raw not in (None, '', 0) else None
-                CAPTURE.start_capture(duration_value, user_name=user_name, user_age=user_age)
+                user_state = body.get('userState', '')
+                CAPTURE.start_capture(duration_value, user_name=user_name, user_state=user_state)
                 self._send_json(200, {
                     'ok': True, 'message': 'Captura iniciada',
                     'durationSeconds': duration_value,
-                    'userName': user_name, 'userAge': user_age,
+                    'userName': user_name, 'userState': user_state,
                 })
             except Exception as exc:
                 traceback.print_exc()
@@ -599,7 +598,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                 captures.append({
                     'filename': f.name,
                     'user_name': meta.get('user_name', ''),
-                    'user_age': meta.get('user_age'),
+                    'user_state': meta.get('user_state', ''),
                     'duration_seconds': meta.get('duration_seconds', 0),
                     'total_samples': meta.get('total_samples', 0),
                     'capture_timestamp': meta.get('capture_timestamp', ''),

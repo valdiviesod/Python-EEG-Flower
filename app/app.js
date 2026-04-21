@@ -31,84 +31,176 @@
         'acoustic_guitar_nylon',    // ch 3
     ];
 
+    // ── Plasma WebGL2 (React Bits Plasma — pulse color palette) ──
+    const _PLASMA_VERT = `#version 300 es
+        precision highp float;
+        in vec2 position;
+        in vec2 uv;
+        out vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = vec4(position, 0.0, 1.0);
+        }
+    `;
+
+    const _PLASMA_FRAG = `#version 300 es
+        precision highp float;
+        uniform vec2 iResolution;
+        uniform float iTime;
+        uniform float uSpeed;
+        uniform float uDirection;
+        uniform float uScale;
+        uniform float uOpacity;
+        uniform vec2 uMouse;
+        uniform float uMouseInteractive;
+        out vec4 fragColor;
+
+        void mainImage(out vec4 o, vec2 C) {
+            vec2 center = iResolution.xy * 0.5;
+            C = (C - center) / uScale + center;
+            vec2 mouseOffset = (uMouse - center) * 0.0002;
+            C += mouseOffset * length(C - center) * step(0.5, uMouseInteractive);
+            float i, d, z, T = iTime * uSpeed * uDirection;
+            vec3 O, p, S;
+            for (vec2 r = iResolution.xy, Q; ++i < 60.; O += o.w / d * o.xyz) {
+                p = z * normalize(vec3(C - .5 * r, r.y));
+                p.z -= 4.;
+                S = p;
+                d = p.y - T;
+                p.x += .4 * (1. + p.y) * sin(d + p.x * 0.1) * cos(.34 * d + p.x * 0.05);
+                Q = p.xz *= mat2(cos(p.y + vec4(0, 11, 33, 0) - T));
+                z += d = abs(sqrt(length(Q * Q)) - .25 * (5. + S.y)) / 3. + 8e-4;
+                o = 1. + sin(S.y + p.z * .5 + S.z - length(S - p) + vec4(2, 1, 0, 8));
+            }
+            o.xyz = tanh(O / 1e4);
+        }
+
+        bool finite1(float x) { return !(isnan(x) || isinf(x)); }
+        vec3 sanitize(vec3 c) {
+            return vec3(
+                finite1(c.r) ? c.r : 0.0,
+                finite1(c.g) ? c.g : 0.0,
+                finite1(c.b) ? c.b : 0.0
+            );
+        }
+
+        void main() {
+            vec4 o = vec4(0.0);
+            mainImage(o, gl_FragCoord.xy);
+            vec3 rgb = sanitize(o.rgb);
+            float alpha = length(rgb) * uOpacity;
+            fragColor = vec4(rgb, alpha);
+        }
+    `;
+
     class JellyGalaxy {
         constructor(canvas) {
             this.canvas = canvas;
-            this.ctx = canvas ? canvas.getContext('2d') : null;
-            this.particles = [];
             this.running = false;
             this.rafId = null;
-            this.lastTs = 0;
-            this.w = 0;
-            this.h = 0;
-            this.dpr = window.devicePixelRatio || 1;
-            this.maxParticles = 220;
+            this._t0 = null;
+            this._mouse = { x: 0, y: 0 };
 
-            if (!this.canvas || !this.ctx) return;
+            if (!canvas) return;
+            this.gl = canvas.getContext('webgl2', { alpha: true, antialias: false,
+                premultipliedAlpha: false });
+            if (!this.gl) return;
 
+            this._initGL();
+            this._bindMouse();
+            this._ro = new ResizeObserver(() => this.resize());
+            this._ro.observe(canvas.parentElement || canvas);
             this.resize();
-            this._seed();
             this.start();
         }
 
-        _seed() {
-            this.particles.length = 0;
-            for (let i = 0; i < this.maxParticles; i++) {
-                this.particles.push(this._createParticle(true));
-            }
+        _initGL() {
+            const gl = this.gl;
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            gl.clearColor(0, 0, 0, 0);
+
+            const compile = (type, src) => {
+                const sh = gl.createShader(type);
+                gl.shaderSource(sh, src);
+                gl.compileShader(sh);
+                if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+                    console.error('Plasma shader error:', gl.getShaderInfoLog(sh));
+                }
+                return sh;
+            };
+            const prog = gl.createProgram();
+            gl.attachShader(prog, compile(gl.VERTEX_SHADER, _PLASMA_VERT));
+            gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, _PLASMA_FRAG));
+            gl.linkProgram(prog);
+            this._prog = prog;
+            gl.useProgram(prog);
+
+            // Full-screen triangle
+            const pos = new Float32Array([-1, -1, 3, -1, -1, 3]);
+            const uvs = new Float32Array([0, 0, 2, 0, 0, 2]);
+
+            const pbuf = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, pbuf);
+            gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
+            const aPos = gl.getAttribLocation(prog, 'position');
+            gl.enableVertexAttribArray(aPos);
+            gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+            const ubuf = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, ubuf);
+            gl.bufferData(gl.ARRAY_BUFFER, uvs, gl.STATIC_DRAW);
+            const aUv = gl.getAttribLocation(prog, 'uv');
+            gl.enableVertexAttribArray(aUv);
+            gl.vertexAttribPointer(aUv, 2, gl.FLOAT, false, 0, 0);
+
+            this._u = {};
+            ['iResolution','iTime','uSpeed','uDirection','uScale',
+             'uOpacity','uMouse','uMouseInteractive'
+            ].forEach(n => { this._u[n] = gl.getUniformLocation(prog, n); });
+
+            // Pulse palette defaults: natural plasma colors, slow speed
+            gl.uniform1f(this._u.uSpeed, 0.4);
+            gl.uniform1f(this._u.uDirection, 1.0);
+            gl.uniform1f(this._u.uScale, 1.0);
+            gl.uniform1f(this._u.uOpacity, 0.92);
+            gl.uniform1f(this._u.uMouseInteractive, 1.0);
+            gl.uniform2f(this._u.uMouse, 0, 0);
         }
 
-        _createParticle(seedRandomY = false) {
-            const depth = Math.random();
-            const speedBase = 8 + depth * 24;
-            const radius = 2.4 + depth * 13.2;
-            const palette = [
-                [236, 209, 255],
-                [198, 133, 255],
-                [160, 104, 255],
-                [228, 96, 220],
-                [139, 125, 255],
-            ];
-            const tone = palette[Math.floor(Math.random() * palette.length)];
-            return {
-                x: Math.random() * this.w,
-                y: seedRandomY ? Math.random() * this.h : this.h + Math.random() * 30,
-                vx: (Math.random() - 0.5) * (4 + depth * 16),
-                vy: -(speedBase + Math.random() * 24),
-                r: radius,
-                alpha: 0.35 + depth * 0.47,
-                wobble: Math.random() * Math.PI * 2,
-                wobbleSpeed: 0.4 + Math.random() * 1.6,
-                life: 10 + Math.random() * 14,
-                age: Math.random() * 10,
-                color: tone,
-            };
+        _bindMouse() {
+            const parent = this.canvas.closest('.view') || document.body;
+            parent.addEventListener('mousemove', e => {
+                const r = parent.getBoundingClientRect();
+                this._mouse.x = e.clientX - r.left;
+                this._mouse.y = e.clientY - r.top;
+            });
         }
 
         resize() {
-            if (!this.canvas || !this.ctx) return;
-            const rect = this.canvas.getBoundingClientRect();
-            const w = rect.width || this.canvas.parentElement?.clientWidth || 0;
-            const h = rect.height || this.canvas.parentElement?.clientHeight || 0;
-            if (w < 1 || h < 1) return;
-            if (w === this.w && h === this.h) return;
-            const needReseed = this.w < 10 && w > 10;
-            this.w = w;
-            this.h = h;
-            this.dpr = window.devicePixelRatio || 1;
-            this.canvas.width = Math.round(w * this.dpr);
-            this.canvas.height = Math.round(h * this.dpr);
-            this.canvas.style.width = `${w}px`;
-            this.canvas.style.height = `${h}px`;
-            this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-            if (needReseed) this._seed();
+            if (!this.gl) return;
+            const canvas = this.canvas;
+            const p = canvas.parentElement;
+            const w = Math.max(1, Math.floor(p ? p.clientWidth : canvas.clientWidth));
+            const h = Math.max(1, Math.floor(p ? p.clientHeight : canvas.clientHeight));
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            canvas.width = Math.round(w * dpr);
+            canvas.height = Math.round(h * dpr);
+            canvas.style.width = `${w}px`;
+            canvas.style.height = `${h}px`;
+            this.gl.viewport(0, 0, canvas.width, canvas.height);
         }
 
         start() {
-            if (!this.ctx || this.running) return;
+            if (!this.gl || this.running) return;
             this.running = true;
-            this.lastTs = performance.now();
-            this._loop(this.lastTs);
+            this._t0 = this._t0 ?? performance.now();
+            const loop = ts => {
+                if (!this.running) return;
+                this._render(ts);
+                this.rafId = requestAnimationFrame(loop);
+            };
+            this.rafId = requestAnimationFrame(loop);
         }
 
         stop() {
@@ -117,56 +209,15 @@
             this.rafId = null;
         }
 
-        _loop(ts) {
-            if (!this.running) return;
-            if (this.w < 10 || this.h < 10) {
-                this.resize();
-                this.rafId = requestAnimationFrame(this._loop.bind(this));
-                return;
-            }
-            const dt = Math.min(0.05, Math.max(0.001, (ts - this.lastTs) / 1000));
-            this.lastTs = ts;
-            this.resize();
-            this._render(dt);
-            this.rafId = requestAnimationFrame(this._loop.bind(this));
-        }
-
-        _render(dt) {
-            const ctx = this.ctx;
-            ctx.clearRect(0, 0, this.w, this.h);
-            ctx.globalCompositeOperation = 'lighter';
-
-            for (let i = 0; i < this.particles.length; i++) {
-                const p = this.particles[i];
-                p.age += dt;
-                p.wobble += p.wobbleSpeed * dt;
-                p.x += p.vx * dt + Math.cos(p.wobble) * 6 * dt;
-                p.y += p.vy * dt;
-
-                const lifeT = p.age / p.life;
-                if (p.y < -p.r * 4 || p.x < -80 || p.x > this.w + 80 || lifeT > 1.1) {
-                    this.particles[i] = this._createParticle(false);
-                    continue;
-                }
-
-                const fadeIn = Math.min(1, lifeT / 0.18);
-                const fadeOut = Math.max(0, 1 - Math.max(0, lifeT - 0.72) / 0.38);
-                const a = p.alpha * fadeIn * fadeOut;
-                const rr = p.r * (0.9 + Math.sin(p.wobble * 0.9) * 0.12);
-                const [r, g, b] = p.color;
-
-                const grad = ctx.createRadialGradient(p.x, p.y, rr * 0.1, p.x, p.y, rr * 2.3);
-                grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${Math.min(0.96, a + 0.24)})`);
-                grad.addColorStop(0.42, `rgba(${r}, ${g}, ${b}, ${Math.min(0.88, a * 0.74)})`);
-                grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
-
-                ctx.fillStyle = grad;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, rr * 2.3, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            ctx.globalCompositeOperation = 'source-over';
+        _render(ts) {
+            const gl = this.gl;
+            const u = this._u;
+            const t = (ts - this._t0) * 0.001;
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.uniform2f(u.iResolution, gl.drawingBufferWidth, gl.drawingBufferHeight);
+            gl.uniform1f(u.iTime, t);
+            gl.uniform2f(u.uMouse, this._mouse.x, this._mouse.y);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
         }
     }
 
@@ -174,19 +225,75 @@
     // Global Tab Switching
     // ══════════════════════════════════════════════════════════════════════
 
+    // ── GSAP micro-animations: stepper + select ──
+    (function initFormAnimations() {
+        const dec = document.querySelector('.stepper-dec');
+        const inc = document.querySelector('.stepper-inc');
+        const durInput = document.getElementById('input-duration');
+        const stepper  = document.querySelector('.num-stepper');
+
+        function stepperClick(btn, delta) {
+            if (!durInput) return;
+            const cur  = parseInt(durInput.value, 10) || 30;
+            const next = Math.max(1, Math.min(3600, cur + delta));
+            durInput.value = next;
+            durInput.dispatchEvent(new Event('input', { bubbles: true }));
+            if (typeof gsap !== 'undefined') {
+                gsap.fromTo(btn, { scale: 0.72 }, { scale: 1, duration: 0.35, ease: 'back.out(3)' });
+                gsap.fromTo(durInput, { color: delta > 0 ? '#e945f5' : '#8B5CF6' }, { color: '#E8DFFF', duration: 0.5, ease: 'power2.out' });
+            }
+        }
+
+        if (dec) dec.addEventListener('click', () => stepperClick(dec, -10));
+        if (inc) inc.addEventListener('click', () => stepperClick(inc, +10));
+
+        if (durInput && stepper && typeof gsap !== 'undefined') {
+            durInput.addEventListener('focus', () => {
+                gsap.fromTo(stepper, { boxShadow: '0 0 0 0px rgba(139,92,246,0)' },
+                    { boxShadow: '0 0 0 5px rgba(139,92,246,0.22)', duration: 0.3, ease: 'power2.out' });
+            });
+            durInput.addEventListener('blur', () => {
+                gsap.to(stepper, { boxShadow: '0 0 0 0px rgba(139,92,246,0)', duration: 0.4 });
+            });
+        }
+
+        const selectEl   = document.getElementById('input-state');
+        const chevron    = document.querySelector('.select-chevron');
+        const selectWrap = document.querySelector('.select-wrapper');
+        if (selectEl && chevron && selectWrap && typeof gsap !== 'undefined') {
+            selectEl.addEventListener('focus', () => {
+                gsap.fromTo(selectWrap, { boxShadow: '0 0 0 0px rgba(139,92,246,0)' },
+                    { boxShadow: '0 0 0 5px rgba(139,92,246,0.22)', duration: 0.3, ease: 'power2.out' });
+                gsap.to(chevron, { rotation: 180, duration: 0.35, ease: 'back.out(2)' });
+            });
+            selectEl.addEventListener('blur', () => {
+                gsap.to(selectWrap, { boxShadow: '0 0 0 0px rgba(139,92,246,0)', duration: 0.4 });
+                gsap.to(chevron, { rotation: 0, duration: 0.3, ease: 'power2.in' });
+            });
+        }
+    })();
+
     const globalTabs = document.querySelectorAll('.global-tab');
     const views = document.querySelectorAll('.view');
-    const jellyGalaxyCanvas = document.getElementById('jelly-galaxy-canvas');
-    const jellyGalaxy = new JellyGalaxy(jellyGalaxyCanvas);
-
-    window.addEventListener('resize', () => {
-        if (jellyGalaxy) jellyGalaxy.resize();
+    const floatingLinesBg = document.getElementById('floating-lines-bg');
+    const floatingLines = new FloatingLines(floatingLinesBg, {
+        enabledWaves:       ['top', 'middle', 'bottom'],
+        lineCount:          8,
+        lineDistance:       8,
+        bendRadius:         8.0,
+        bendStrength:       -2.0,
+        mouseDamping:       0.05,
+        interactive:        true,
+        parallax:           true,
+        parallaxStrength:   0.3,
+        animationSpeed:     1.0,
+        mixBlendMode:       'screen',
+        linesGradient:      ['#e945f5', '#8B5CF6', '#2F4BA2', '#6f6f6f'],
     });
 
     document.addEventListener('visibilitychange', () => {
-        if (!jellyGalaxy) return;
-        if (document.hidden) jellyGalaxy.stop();
-        else jellyGalaxy.start();
+        if (document.hidden) floatingLines.stop();
+        else floatingLines.start();
     });
 
     globalTabs.forEach(tab => {
@@ -227,7 +334,7 @@
     const resultsSection = document.getElementById('capture-results');
 
     const inputName = document.getElementById('input-name');
-    const inputAge = document.getElementById('input-age');
+    const inputState = document.getElementById('input-state');
     const inputDuration = document.getElementById('input-duration');
     const btnStart = document.getElementById('btn-start-capture');
     const btnStop = document.getElementById('btn-stop-capture');
@@ -450,8 +557,13 @@
     // ── Start Capture ──
     btnStart.addEventListener('click', async () => {
         const name = inputName.value.trim();
-        const age = inputAge.value ? parseInt(inputAge.value) : null;
+        const state = inputState.value;
         const duration = inputDuration.value ? parseFloat(inputDuration.value) : null;
+
+        if (!state) {
+            alert('Por favor selecciona tu estado emocional.');
+            return;
+        }
 
         btnStart.disabled = true;
         btnStart.textContent = 'Conectando...';
@@ -462,7 +574,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     userName: name,
-                    userAge: age,
+                    userState: state,
                     durationSeconds: duration,
                 }),
             });
@@ -730,10 +842,10 @@
             const meta = lastCaptureData.metadata;
             const dur = meta.duration_seconds || 0;
             const name = meta.user_name || '';
-            const age = meta.user_age;
+            const state = meta.user_state;
 
             let text = `Sesión completada · ${formatTime(dur)}`;
-            if (name) text = `${name}${age ? ' (' + age + ')' : ''} — ` + text;
+            if (name) text = `${name}${state ? ' (' + state + ')' : ''} — ` + text;
             resultsSummary.textContent = text;
         }
 
@@ -856,7 +968,7 @@
         {
             icon: '👤',
             title: 'Nombre del participante',
-            desc: 'Escribe el nombre de quien realizará la captura. Esto ayuda a identificar cada sesión en el jardín de pulsos.',
+            desc: 'Escribe el nombre de quien realizará la captura. Esto ayuda a identificar cada sesión en el campo resonante de pulsos.',
             target: '#input-name',
         },
         {
@@ -878,7 +990,7 @@
         {
             icon: '🎉',
             title: '¡Captura completada!',
-            desc: 'Tus ondas cerebrales han sido registradas exitosamente. La captura se guardó automáticamente en tu jardín.',
+            desc: 'Tus ondas cerebrales han sido registradas exitosamente. La captura se guardó automáticamente en tu campo resonante.',
             target: null,
         },
         {
@@ -1433,14 +1545,14 @@
     }
 
     async function loadGarden() {
-        showGardenStatus('🌌', 'Analizando capturas para tu jardín...');
+        showGardenStatus('🌌', 'Analizando capturas para tu campo resonante...');
 
         try {
             const resp = await fetch('/api/garden/list');
             const data = await resp.json();
 
             if (!data.ok || !data.captures || data.captures.length === 0) {
-                showGardenStatus('🌌', 'Tu jardín está vacío.<br><br>Realiza tu primera captura EEG para plantar la primera pulso.');
+                showGardenStatus('🌌', 'Tu campo resonante está vacío.<br><br>Realiza tu primera captura EEG para plantar la primera pulso.');
                 return;
             }
 
@@ -1452,7 +1564,7 @@
             gardenLoaded = true;
         } catch (err) {
             console.error('Error loading garden:', err);
-            showGardenStatus('⚠️', 'Error al cargar el jardín. Intenta actualizar.');
+            showGardenStatus('⚠️', 'Error al cargar el campo resonante. Intenta actualizar.');
         }
     }
 
@@ -1857,7 +1969,7 @@
             const playbackId = gardenMidiLoopId;
             scheduleGardenMidiLoop(ctx, playbackPlan, playbackId);
         } catch (err) {
-            console.error('Error reproduciendo MIDI del jardín:', err);
+            console.error('Error reproduciendo MIDI del campo resonante:', err);
         }
     }
 
