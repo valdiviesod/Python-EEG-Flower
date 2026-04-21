@@ -25,13 +25,13 @@ class ScalpMap {
         ];
         this.names = ['TP9', 'AF7', 'AF8', 'TP10'];
         this.histories = Array.from({ length: 4 }, () => []);
-        this.trailCount = 7;
-        this.maxPoints = 320;
+        this.trailCount = 10;
+        this.maxPoints = 600;
         this.phase = 0;
         this.running = false;
         this.animId = null;
         this.smooth = [0, 0, 0, 0];
-        this.alpha = 0.18;
+        this.alpha = 0.12; // slower smoothing = longer visible wave crests
         this.lastValues = [0, 0, 0, 0];
         this.min = Infinity;
         this.max = -Infinity;
@@ -84,8 +84,12 @@ class ScalpMap {
             for (let i = 0; i < this.maxPoints; i++) {
                 const t = i / this.maxPoints;
                 history.push(
-                    Math.sin(t * Math.PI * (2.4 + ch * 0.28)) * (18 + ch * 4) +
-                    Math.cos(t * Math.PI * (6.5 + ch)) * (6 + ch * 2)
+                    // slow primary swell — very long wavelength
+                    Math.sin(t * Math.PI * (1.2 + ch * 0.22)) * (34 + ch * 7) +
+                    // medium undulation
+                    Math.cos(t * Math.PI * (3.1 + ch * 0.41)) * (18 + ch * 4) +
+                    // subtle high-freq ripple
+                    Math.sin(t * Math.PI * (7.8 + ch * 0.9)) * (5 + ch * 1.2)
                 );
             }
         }
@@ -125,7 +129,7 @@ class ScalpMap {
             if (!this.running) return;
             const dt = Math.min(0.05, Math.max(0.001, (ts - last) / 1000));
             last = ts;
-            this.phase += dt * 1.35;
+            this.phase += dt * 1.1; // slightly slower for more majestic flow
             this._resize();
             this._draw(dt);
             this.animId = requestAnimationFrame(tick);
@@ -210,11 +214,16 @@ class ScalpMap {
     _drawButterfly(ctx, W, H) {
         const midY = H * 0.5;
         const range = Math.max(1, this.max - this.min);
-        const bandHeight = H * 0.34;
-        const channelOffsets = [-0.16, -0.05, 0.06, 0.17].map(v => v * H);
+        // tall band — waves span most of the canvas height
+        const bandHeight = H * 0.46;
+        // channels spread across full height for maximum visual separation
+        const channelOffsets = [-0.24, -0.08, 0.08, 0.24].map(v => v * H);
 
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
+
+        // global slow swell shared by all channels — gives cohesive "breathing" feel
+        const globalSwell = Math.sin(this.phase * 0.38) * H * 0.035;
 
         for (let ch = 0; ch < 4; ch++) {
             const history = this.histories[ch];
@@ -222,52 +231,76 @@ class ScalpMap {
 
             const { line, glow } = this.colors[ch];
             const channelEnergy = this._channelEnergy(history);
-            const amplitude = bandHeight * (0.22 + channelEnergy * 0.52);
-            const baseY = midY + channelOffsets[ch] * (0.45 + channelEnergy * 0.4);
+            // amplitude scales generously with energy for dramatic peaks
+            const amplitude = bandHeight * (0.38 + channelEnergy * 0.62);
+            const baseY = midY + channelOffsets[ch] * (0.55 + channelEnergy * 0.35) + globalSwell;
 
+            // build y-coordinate array once — reuse for both trails and main line
+            const pts = new Float32Array(history.length);
+            const N = history.length - 1;
+            for (let i = 0; i <= N; i++) {
+                const t = i / N;
+                const normalized = ((history[i] - this.min) / range) - 0.5;
+                // two-layer undulation envelope — long swell + subtle ripple
+                const swellA = 0.72 + 0.28 * Math.sin(t * Math.PI * (1.8 + ch * 0.25) + this.phase * 0.55);
+                const ripple = Math.sin(t * Math.PI * 5.5 + this.phase * (1.15 + ch * 0.14)) * (3 + channelEnergy * 7);
+                pts[i] = baseY - normalized * amplitude * swellA + ripple;
+            }
+
+            // ── Ghost trails — wide glow ribbons ──────────────────────────────
             for (let trail = this.trailCount - 1; trail >= 0; trail--) {
-                const trailMix = trail / Math.max(1, this.trailCount - 1);
-                const offsetY = (trailMix - 0.5) * (16 + channelEnergy * 34) * (1 + ch * 0.07);
-                const drift = Math.sin(this.phase * (1.15 + ch * 0.12) + trail * 0.55 + this.noiseSeed[ch]) * (8 + 12 * trailMix);
+                const trailMix = trail / (this.trailCount - 1);
+                // drift each trail vertically with a slow sine so they fan out
+                const driftAmt = (16 + channelEnergy * 48) * (trailMix - 0.5) * (1 + ch * 0.08);
+                const driftX = Math.sin(this.phase * (0.72 + ch * 0.09) + trail * 0.62 + this.noiseSeed[ch]) * (10 + 18 * trailMix);
 
-                ctx.beginPath();
-                for (let i = 0; i < history.length; i++) {
-                    const x = (i / (history.length - 1)) * W;
-                    const normalized = ((history[i] - this.min) / range) - 0.5;
-                    const envelope = 0.8 + 0.2 * Math.sin((i / history.length) * Math.PI * (2.2 + ch * 0.35) + this.phase * 0.8);
-                    const y = baseY
-                        - normalized * amplitude * envelope
-                        + offsetY
-                        + Math.sin((i / history.length) * Math.PI * 8 + this.phase * (1.3 + ch * 0.18) + trail * 0.4) * (3 + channelEnergy * 8)
-                        + drift;
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
+                this._strokeSmooth(ctx, history.length, W, (i) => {
+                    const t = i / N;
+                    const slowWave = Math.sin(t * Math.PI * 2.6 + this.phase * (0.9 + ch * 0.11) + trail * 0.38) * (6 + channelEnergy * 14);
+                    return pts[i] + driftAmt + slowWave + driftX;
+                });
 
-                ctx.strokeStyle = `rgba(${glow}, ${0.06 + trailMix * 0.1})`;
-                ctx.lineWidth = 10 - trailMix * 4;
-                ctx.shadowBlur = 16 + trailMix * 14;
-                ctx.shadowColor = `rgba(${glow}, ${0.18 + trailMix * 0.16})`;
+                ctx.strokeStyle = `rgba(${glow}, ${0.04 + trailMix * 0.09})`;
+                ctx.lineWidth = 14 - trailMix * 6;
+                ctx.shadowBlur = 20 + trailMix * 20;
+                ctx.shadowColor = `rgba(${glow}, ${0.14 + trailMix * 0.14})`;
                 ctx.stroke();
             }
 
-            ctx.beginPath();
-            for (let i = 0; i < history.length; i++) {
-                const x = (i / (history.length - 1)) * W;
-                const normalized = ((history[i] - this.min) / range) - 0.5;
-                const y = baseY
-                    - normalized * amplitude
-                    + Math.sin((i / history.length) * Math.PI * 7 + this.phase * (1.6 + ch * 0.2)) * (2 + channelEnergy * 5);
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            }
+            // ── Main crisp line — bezier smoothed ────────────────────────────
+            this._strokeSmooth(ctx, history.length, W, (i) => pts[i]);
             ctx.strokeStyle = line;
-            ctx.lineWidth = 2.2 + channelEnergy * 1.4;
-            ctx.shadowBlur = 18;
-            ctx.shadowColor = `rgba(${glow}, 0.42)`;
+            ctx.lineWidth = 2.5 + channelEnergy * 1.8;
+            ctx.shadowBlur = 22;
+            ctx.shadowColor = `rgba(${glow}, 0.55)`;
             ctx.stroke();
             ctx.shadowBlur = 0;
         }
+    }
+
+    /**
+     * Build a smooth bezier path through all sample points.
+     * Uses midpoint quadratic technique for continuous curvature.
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {number} len  — number of samples
+     * @param {number} W    — canvas width
+     * @param {function(number): number} yFn — maps sample index → y
+     */
+    _strokeSmooth(ctx, len, W, yFn) {
+        const N = len - 1;
+        ctx.beginPath();
+        let x0 = 0, y0 = yFn(0);
+        ctx.moveTo(x0, y0);
+        for (let i = 1; i <= N; i++) {
+            const x1 = (i / N) * W;
+            const y1 = yFn(i);
+            // midpoint between previous and current becomes the bezier anchor
+            const mx = (x0 + x1) * 0.5;
+            const my = (y0 + y1) * 0.5;
+            ctx.quadraticCurveTo(x0, y0, mx, my);
+            x0 = x1; y0 = y1;
+        }
+        ctx.lineTo(x0, y0);
     }
 
     _drawLegend(ctx, W, H) {
