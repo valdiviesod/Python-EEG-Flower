@@ -87,31 +87,37 @@ class LavaPulse {
         this.dominant = dominant;
 
         // Extended palettes: [space, rimFar, rim, mid, inner, core, spark, halo]
+        // Colors aligned with botanical EEG band palette (eeg_band_analyzer.js)
         const PALETTES = {
             delta: {
-                bg:    '#03000D',
-                c: ['#0D0020', '#3A0060', '#8800DD', '#CC33FF', '#FFAAFF', '#FFFFFF', '#FF88FF', '#6600AA'],
-                hue:   280,
+                // Base 🌙 lavanda — #8B5CF6
+                bg:    '#04010D',
+                c: ['#0D0020', '#2A0060', '#5B21B6', '#8B5CF6', '#C4B5FD', '#FFFFFF', '#DDD6FE', '#6D28D9'],
+                hue:   265,
             },
             theta: {
-                bg:    '#000D05',
-                c: ['#001508', '#003318', '#008844', '#00EE77', '#AAFFDD', '#FFFFFF', '#44FFAA', '#005522'],
+                // Flujo 🌿 verde — #22C55E
+                bg:    '#010D04',
+                c: ['#052E16', '#14532D', '#15803D', '#22C55E', '#86EFAC', '#FFFFFF', '#BBF7D0', '#166534'],
                 hue:   145,
             },
             alpha: {
-                bg:    '#0D0300',
-                c: ['#160300', '#550800', '#CC2200', '#FF6600', '#FFCC00', '#FFFAE8', '#FFAA00', '#882200'],
-                hue:   20,
+                // Pulso 🌸 rosa — #EC4899
+                bg:    '#0D0106',
+                c: ['#2D0018', '#7F1D4F', '#BE185D', '#EC4899', '#F9A8D4', '#FFFFFF', '#FBCFE8', '#9D174D'],
+                hue:   330,
             },
             beta: {
-                bg:    '#0D0500',
-                c: ['#1A0800', '#660D00', '#DD2200', '#FF6600', '#FFDD00', '#FFFFFF', '#FFAA11', '#990000'],
-                hue:   30,
+                // Trazo ☀️ durazno — #F97316
+                bg:    '#0D0400',
+                c: ['#431407', '#9A3412', '#C2410C', '#F97316', '#FDBA74', '#FFFFFF', '#FED7AA', '#EA580C'],
+                hue:   25,
             },
             gamma: {
-                bg:    '#00050F',
-                c: ['#000818', '#000F44', '#0033BB', '#0077FF', '#44CCFF', '#FFFFFF', '#88DDFF', '#0022AA'],
-                hue:   210,
+                // Destello ✨ limón — #EAB308
+                bg:    '#0A0900',
+                c: ['#422006', '#713F12', '#A16207', '#EAB308', '#FDE047', '#FFFFFF', '#FEF08A', '#CA8A04'],
+                hue:   50,
             },
         };
         this.pal = PALETTES[dominant];

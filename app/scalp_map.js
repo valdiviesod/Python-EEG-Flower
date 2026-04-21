@@ -17,11 +17,12 @@ class ScalpMap {
         this.ctx = canvas.getContext('2d');
         if (!this.ctx) throw new Error('ScalpMap: could not get 2D context');
 
+        // Colors aligned with EEG band botanical palette (eeg_band_analyzer.js)
         this.colors = [
-            { line: '#8BF0FF', glow: '139,240,255' }, // TP9
-            { line: '#C7F284', glow: '199,242,132' }, // AF7
-            { line: '#FFD36E', glow: '255,211,110' }, // AF8
-            { line: '#FF8A5B', glow: '255,138,91' },  // TP10
+            { line: '#8B5CF6', glow: '139,92,246'  }, // TP9  → Base    🌙 lavanda
+            { line: '#22C55E', glow: '34,197,94'   }, // AF7  → Flujo   🌿 verde
+            { line: '#EC4899', glow: '236,72,153'  }, // AF8  → Pulso   🌸 rosa
+            { line: '#F97316', glow: '249,115,22'  }, // TP10 → Trazo   ☀️ durazno
         ];
         this.names = ['TP9', 'AF7', 'AF8', 'TP10'];
         this.histories = Array.from({ length: 4 }, () => []);
