@@ -255,8 +255,10 @@
             this._clock = new THREE.Clock();
 
             this._setSize = () => {
-                const w = con.clientWidth  || 1;
-                const h = con.clientHeight || 1;
+                const w = con.clientWidth;
+                const h = con.clientHeight;
+                // Skip when container hidden (display:none → 0×0)
+                if (!w || !h) return;
                 this._renderer.setSize(w, h, false);
                 this._uniforms.iResolution.value.set(
                     this._renderer.domElement.width,
@@ -296,6 +298,7 @@
         start() {
             if (this._active) return;
             this._active = true;
+            this._setSize(); // re-sync dimensions after possible display:none period
             this._clock.start();
             const tick = () => {
                 if (!this._active) return;

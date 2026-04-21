@@ -276,22 +276,39 @@
     const globalTabs = document.querySelectorAll('.global-tab');
     const views = document.querySelectorAll('.view');
     const floatingLinesBg = document.getElementById('floating-lines-bg');
-    const floatingLines = new FloatingLines(floatingLinesBg, {
-        enabledWaves:       ['top', 'middle', 'bottom'],
-        lineCount:          8,
-        lineDistance:       8,
-        bendRadius:         8.0,
-        bendStrength:       -2.0,
-        mouseDamping:       0.05,
-        interactive:        true,
-        parallax:           true,
-        parallaxStrength:   0.3,
-        animationSpeed:     1.0,
-        mixBlendMode:       'screen',
-        linesGradient:      ['#e945f5', '#8B5CF6', '#2F4BA2', '#6f6f6f'],
-    });
+
+    const FL_OPTS = {
+        enabledWaves:    ['top', 'middle', 'bottom'],
+        lineCount:       8,
+        lineDistance:    8,
+        bendRadius:      8.0,
+        bendStrength:    -2.0,
+        mouseDamping:    0.05,
+        interactive:     true,
+        parallax:        true,
+        parallaxStrength: 0.3,
+        animationSpeed:  1.0,
+        mixBlendMode:    'screen',
+        linesGradient:   ['#e945f5', '#8B5CF6', '#2F4BA2', '#6f6f6f'],
+    };
+
+    let floatingLines = null;
+
+    function spawnFloatingLines() {
+        if (floatingLines) {
+            try { floatingLines.destroy(); } catch (e) {}
+            floatingLines = null;
+        }
+        // Clear any leftover canvas children
+        floatingLinesBg.innerHTML = '';
+        floatingLines = new FloatingLines(floatingLinesBg, FL_OPTS);
+    }
+
+    // Initial spawn
+    spawnFloatingLines();
 
     document.addEventListener('visibilitychange', () => {
+        if (!floatingLines) return;
         if (document.hidden) floatingLines.stop();
         else floatingLines.start();
     });
@@ -305,6 +322,13 @@
             // Trigger resize for pulse 3D if switching to it
             if (viewName === 'pulse' && pulse3d) {
                 setTimeout(() => pulse3d._onResize(), 100);
+            }
+
+            // FloatingLines: destroy+recreate when returning to capture
+            if (viewName === 'capture') {
+                setTimeout(() => spawnFloatingLines(), 60);
+            } else {
+                if (floatingLines) floatingLines.stop();
             }
 
             // Re-show capture tour whenever user navigates to the capture tab
@@ -934,7 +958,10 @@
         setupSection.style.display = 'flex';
         lastCaptureData = null;
         captureWaveBuffer = { 0: [], 1: [], 2: [], 3: [] };
-        setTimeout(() => startTour(captureSetupTourSteps), 300);
+        setTimeout(() => {
+            spawnFloatingLines();
+            startTour(captureSetupTourSteps);
+        }, 60);
     });
 
     // ══════════════════════════════════════════════════════════════════════
@@ -1478,7 +1505,13 @@
             setupSection.style.display = 'flex';
             lastCaptureData = null;
             captureWaveBuffer = { 0: [], 1: [], 2: [], 3: [] };
-            setTimeout(() => startTour(captureSetupTourSteps), 300);
+            // Switch view to capture + respawn animation
+            globalTabs.forEach(t => t.classList.toggle('active', t.dataset.view === 'capture'));
+            views.forEach(v => v.classList.toggle('active', v.id === 'view-capture'));
+            setTimeout(() => {
+                spawnFloatingLines();
+                startTour(captureSetupTourSteps);
+            }, 60);
         });
     }
 
