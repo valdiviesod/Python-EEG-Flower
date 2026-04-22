@@ -547,13 +547,14 @@ class MuseOSCToMidi:
             eeg_channels = data.get('eeg_channels', {})
             metadata = data.get('metadata', {})
             
-            # Verificar que tenemos datos
-            total_samples = metadata.get('total_samples', 0)
-            duration_seconds = metadata.get('duration_seconds', 10.0)
+            # Use actual channel data length as source of truth — metadata.total_samples
+            # may be 0 or missing in some captures.
+            max_samples = max(len(eeg_channels.get(f"channel_{i}", [])) for i in range(1, 5))
+            if max_samples == 0:
+                raise ValueError("No hay datos EEG en el archivo JSON")
             
-            if total_samples == 0:
-                print("❌ No hay datos EEG en el archivo JSON")
-                return
+            duration_seconds = metadata.get('duration_seconds') or 10.0
+            total_samples = metadata.get('total_samples') or max_samples
             
             print(f"📊 Datos encontrados: {total_samples} muestras, {duration_seconds:.1f}s")
             
@@ -578,14 +579,7 @@ class MuseOSCToMidi:
                 mid.addTempo(track, 0, 120)
                 mid.addProgramChange(track, track, 0, instruments[track])
             
-            # Calcular duración por nota basada en la duración real
-            # Encontrar el canal con más datos para calcular duración precisa
-            max_samples = max(len(eeg_channels.get(f"channel_{i}", [])) for i in range(1, 5))
-            
-            if max_samples > 0:
-                note_duration = duration_seconds / max_samples
-            else:
-                note_duration = 0.1
+            note_duration = duration_seconds / max_samples
             
             print(f"⏱️  Duración real: {duration_seconds:.2f} segundos")
             print(f"🎼 Duración por nota: {note_duration:.4f} segundos")
@@ -621,7 +615,7 @@ class MuseOSCToMidi:
             print(f"⏱️  Duración del MIDI: {duration_seconds:.2f} segundos")
             print(f"📊 Conversión directa EEG → MIDI sin procesamiento musical")
             
-            # Generar gráfica de ondas cerebrales desde JSON
+            # Generar gráfica de ondas cerebrales desde JSON (solo si no es llamada de API)
             import os
             base_name = os.path.splitext(output_midi)[0]
             output_image = f"{base_name}_waves.png"
@@ -648,6 +642,7 @@ class MuseOSCToMidi:
             print(f"❌ Error procesando JSON a MIDI: {e}")
             import traceback
             traceback.print_exc()
+            raise
     
     def run_with_midi_options(self):
         """Ejecuta el sistema con opciones de captura y conversión MIDI"""

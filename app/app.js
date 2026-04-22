@@ -18,17 +18,22 @@
     const GARDEN_PLAYBACK_MIN_NOTE_DURATION = 0.15;
     const GARDEN_PLAYBACK_MAX_NOTE_DURATION = 2.0;
     const GARDEN_PLAYBACK_MIN_SPACING = 0.08;       // minimum seconds between notes
+    const GARDEN_PLAYBACK_SPEED = 1.5;            
     const GARDEN_CHANNEL_PAN = [-0.55, -0.18, 0.18, 0.55];
 
     // Pentatonic major scale intervals from C (in semitones): C D E G A
     const GARDEN_PENTATONIC = [0, 2, 4, 7, 9];
 
-    // GM instrument names for soundfont-player (one per channel for variety)
+    // GM instrument names for soundfont-player (MusyngKite CDN naming) — one per EEG channel
+    // ch0 TP9  left-temporal  → Warm Pad      (GM #90) subconscious depth
+    // ch1 AF7  left-frontal   → Choir Aahs    (GM #53) inner voice / consciousness
+    // ch2 AF8  right-frontal  → Music Box     (GM #11) crystalline clarity / intuition
+    // ch3 TP10 right-temporal → Halo Pad      (GM #95) ethereal spatial memory
     const GARDEN_INSTRUMENTS = [
-        'acoustic_guitar_nylon',    // ch 0 — warm nylon guitar
-        'acoustic_guitar_nylon',    // ch 1 — same guitar for coherence
-        'acoustic_guitar_nylon',    // ch 2
-        'acoustic_guitar_nylon',    // ch 3
+        'pad_2_warm',   // ch 0 — TP9  left temporal
+        'choir_aahs',   // ch 1 — AF7  left frontal
+        'music_box',    // ch 2 — AF8  right frontal
+        'pad_7_halo',   // ch 3 — TP10 right temporal
     ];
 
     // ── Plasma WebGL2 (React Bits Plasma — pulse color palette) ──
@@ -615,7 +620,7 @@
             resultsSection.style.display = 'none';
 
             liveUserLabel.textContent = name
-                ? `${name}${age ? ' (' + age + ' años)' : ''}`
+                ? `${name}${state ? ' — ' + state : ''}`
                 : 'Captura EEG';
 
             // Reset wave buffer
@@ -1404,10 +1409,82 @@
         `;
     }
 
-    // ── Export 2D ──
+    // ── Shared GIF export helper ──
+    async function exportPulseGif(analyzer, btn) {
+        const origLabel = btn.innerHTML;
+        btn.disabled = true;
+
+        const GIF_W         = 480;
+        const GIF_H         = 854;
+        const PULSE_SIZE    = 480;
+        const PULSE_Y       = (GIF_H - PULSE_SIZE) / 2;
+        const FPS           = 20;
+        const TOTAL_FRAMES  = FPS * 4;
+        const DELAY_MS      = Math.round(1000 / FPS);
+        const WARMUP_FRAMES = 30;
+
+        const pulseCanvas = document.createElement('canvas');
+        pulseCanvas.width  = PULSE_SIZE;
+        pulseCanvas.height = PULSE_SIZE;
+
+        const portraitCanvas = document.createElement('canvas');
+        portraitCanvas.width  = GIF_W;
+        portraitCanvas.height = GIF_H;
+        const pCtx = portraitCanvas.getContext('2d');
+
+        const capturePulse = new LavaPulse(pulseCanvas, analyzer);
+        for (let i = 0; i < WARMUP_FRAMES; i++) {
+            capturePulse.t  += 1;
+            capturePulse.ft += 1 / 60;
+            capturePulse._draw();
+        }
+
+        const { GIFEncoder, quantize, applyPalette } =
+            await import('https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js');
+        const gif     = GIFEncoder();
+        const step    = Math.round(60 / FPS);
+
+        for (let f = 0; f < TOTAL_FRAMES; f++) {
+            capturePulse.t  += step;
+            capturePulse.ft += 1 / FPS;
+            capturePulse._draw();
+
+            pCtx.fillStyle = capturePulse.pal.bg; // bg cycles with palette
+            pCtx.fillRect(0, 0, GIF_W, GIF_H);
+            pCtx.drawImage(pulseCanvas, 0, PULSE_Y, PULSE_SIZE, PULSE_SIZE);
+
+            const imageData = pCtx.getImageData(0, 0, GIF_W, GIF_H);
+            const palette   = quantize(imageData.data, 256);
+            const index     = applyPalette(imageData.data, palette);
+            gif.writeFrame(index, GIF_W, GIF_H, { palette, delay: DELAY_MS });
+
+            btn.textContent = `⏳ ${Math.round((f + 1) / TOTAL_FRAMES * 100)}%`;
+            if (f % 4 === 3) await new Promise(r => setTimeout(r, 0));
+        }
+
+        gif.finish();
+        const blob = new Blob([gif.bytesView()], { type: 'image/gif' });
+        const name = analyzer?.metadata?.user_name || 'pulso';
+        downloadBlob(blob, `pulso_${name}.gif`);
+
+        btn.disabled = false;
+        btn.innerHTML = origLabel;
+    }
+
+    // ── Export 2D → animated GIF (portrait 9:16) ──
     if (btnExport2d) {
-        btnExport2d.addEventListener('click', () => {
-            if (pulse2d) pulse2d.exportPNG('pulso_neurofuncional_2d.png');
+        btnExport2d.addEventListener('click', async () => {
+            if (!pulse2d || !pulseAnalyzer) return;
+            await exportPulseGif(pulseAnalyzer, btnExport2d);
+        });
+    }
+
+    // ── Garden export GIF ──
+    const gardenBtnExportGif = document.getElementById('garden-btn-export-gif');
+    if (gardenBtnExportGif) {
+        gardenBtnExportGif.addEventListener('click', async () => {
+            if (!gardenPulse2d || !gardenAnalyzer) return;
+            await exportPulseGif(gardenAnalyzer, gardenBtnExportGif);
         });
     }
 
@@ -1813,7 +1890,11 @@
 
         const fallbackDuration = notes.reduce((mx, n) => Math.max(mx, n.time + n.duration), 0);
         const totalDuration = Math.max(Number(midi?.duration) || 0, fallbackDuration, 0.5);
-        return { notes, totalDuration };
+
+        // Apply speed factor: compress note times and total duration
+        const speedFactor = GARDEN_PLAYBACK_SPEED;
+        const speedNotes = notes.map(n => ({ ...n, time: n.time / speedFactor }));
+        return { notes: speedNotes, totalDuration: totalDuration / speedFactor };
     }
 
     function scheduleGardenMidiLoop(ctx, playbackPlan, playbackId) {
@@ -1825,12 +1906,13 @@
         const baseTime = ctx.currentTime + 0.05;
         gardenMidiTimeouts = [];
 
-        // Resolve the instrument name used for all channels (currently all the same)
-        const instrumentName = GARDEN_INSTRUMENTS[0] || 'acoustic_guitar_nylon';
-        const instrument = gardenInstruments[instrumentName];
+        // Resolve instrument per channel
+        const resolvedInstruments = GARDEN_INSTRUMENTS.map(
+            name => gardenInstruments[name] || gardenInstruments[GARDEN_INSTRUMENTS[0]]
+        );
 
-        // Fallback: if instruments failed to load, skip silently
-        if (!instrument) {
+        // Fallback: if no instruments loaded, skip silently
+        if (!resolvedInstruments[0]) {
             console.warn('Garden MIDI: instrument not loaded, skipping playback');
             return;
         }
@@ -1842,6 +1924,7 @@
                 if (playbackId !== gardenMidiLoopId) return;
 
                 const channelIdx = Math.max(0, note.channel % 4);
+                const instrument = resolvedInstruments[channelIdx];
                 const gain       = note.velocity || 0.12;      // already processed by buildGardenPlaybackPlan
                 const duration   = note.duration  || 0.5;      // already clamped/stretched
                 const midiValue  = note.midi || 60;
@@ -1972,6 +2055,9 @@
     async function playGardenMidi(captureData) {
         if (!captureData || typeof Midi === 'undefined') return;
 
+        // Snapshot the generation counter so we can detect cancellation during awaits
+        const startLoopId = gardenMidiLoopId;
+
         try {
             // Fetch MIDI binary from the server
             const resp = await fetch('/api/json-to-midi', {
@@ -1984,6 +2070,9 @@
                 throw new Error(err.error || 'No se pudo generar MIDI');
             }
 
+            // If modal was closed (or a newer playback started) while fetching, abort
+            if (startLoopId !== gardenMidiLoopId) return;
+
             const midi = new Midi(await resp.arrayBuffer());
             const playbackPlan = buildGardenPlaybackPlan(midi);
             if (!playbackPlan) return;
@@ -1991,8 +2080,11 @@
             // Init audio context, reverb bus, and load soundfont instruments
             const ctx = await getGardenAudioContext();
 
+            // Check again after the async context init
+            if (startLoopId !== gardenMidiLoopId) return;
+
             // Verify at least one instrument loaded
-            const instrumentName = GARDEN_INSTRUMENTS[0] || 'acoustic_guitar_nylon';
+            const instrumentName = GARDEN_INSTRUMENTS[0];
             if (!gardenInstruments[instrumentName]) {
                 console.warn('Garden MIDI: soundfont instruments not available. Playback skipped.');
                 return;
@@ -2037,6 +2129,10 @@
 
     function closeGardenModal() {
         stopGardenMidiPlayback();
+        // Suspend audio context immediately so any in-flight nodes go silent at once
+        if (gardenAudioContext && gardenAudioContext.state === 'running') {
+            gardenAudioContext.suspend().catch(() => {});
+        }
         gardenModal.style.display = 'none';
         if (gardenPulse2d) { gardenPulse2d.stop(); gardenPulse2d = null; }
         if (gardenPulseModal3d) {

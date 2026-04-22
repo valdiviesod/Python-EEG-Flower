@@ -123,6 +123,23 @@ class LavaPulse {
         this.pal = PALETTES[dominant];
         this.baseHue = this.pal.hue;
 
+        // ── Palette cycle: all 5 bands cycle through animation, order + speed = EEG-driven ──
+        const allBands = [
+            { v: d,  pal: PALETTES.delta },
+            { v: th, pal: PALETTES.theta },
+            { v: a,  pal: PALETTES.alpha },
+            { v: b,  pal: PALETTES.beta  },
+            { v: g,  pal: PALETTES.gamma },
+        ].sort((x, y) => y.v - x.v); // dominant band first
+        const MIN_W = 0.07;
+        const rawW  = allBands.map(x => Math.max(x.v, MIN_W));
+        const sumW  = rawW.reduce((s, w) => s + w, 0);
+        this.palSequence    = allBands.map((x, i) => ({ ...x.pal, _w: rawW[i] / sumW }));
+        let _cum = 0;
+        this.palBreakpoints = this.palSequence.map(x => { _cum += x._w; return _cum; });
+        // Cycle period: calmer EEG (delta/theta) = slower transitions; active = faster
+        this.palCyclePeriod = 8 + d * 6 + th * 4 - b * 2 - g * 1;
+
         // ── Ring base radius fraction ──
         this.baseRadiusFrac = 0.24 + d * 0.10 + th * 0.04;
 
@@ -352,6 +369,7 @@ class LavaPulse {
         const t = this.t;
 
         // Update reactive state
+        this._updateCyclePalette();
         this._updateBeat();
 
         // Spawn burst particles from beats
@@ -729,6 +747,48 @@ class LavaPulse {
             b = hue2rgb(p,q,h-1/3);
         }
         return [Math.round(r*255), Math.round(g*255), Math.round(b*255)];
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // PALETTE CYCLE — all colors flow through every pulse
+    // ══════════════════════════════════════════════════════════════════════
+
+    _updateCyclePalette() {
+        const period = Math.max(4, this.palCyclePeriod);
+        const phase  = (this.ft % period) / period; // 0..1
+        const n      = this.palSequence.length;
+        let seg = n - 1, prevBp = 0;
+        for (let i = 0; i < n; i++) {
+            if (phase <= this.palBreakpoints[i]) { seg = i; break; }
+            prevBp = this.palBreakpoints[i];
+        }
+        const segLen = this.palBreakpoints[seg] - prevBp;
+        const localT = segLen > 0 ? (phase - prevBp) / segLen : 0;
+        const t      = localT * localT * (3 - 2 * localT); // smoothstep
+        this.pal = this._lerpPalette(
+            this.palSequence[seg],
+            this.palSequence[(seg + 1) % n],
+            t
+        );
+    }
+
+    _lerpPalette(a, b, t) {
+        if (t <= 0) return a;
+        if (t >= 1) return b;
+        return {
+            bg:  this._lerpHex(a.bg, b.bg, t),
+            c:   a.c.map((ca, i) => this._lerpHex(ca, b.c[i] ?? ca, t)),
+            hue: a.hue + (b.hue - a.hue) * t,
+        };
+    }
+
+    _lerpHex(hexA, hexB, t) {
+        const ra = parseInt(hexA.slice(1,3),16), ga = parseInt(hexA.slice(3,5),16), ba = parseInt(hexA.slice(5,7),16);
+        const rb = parseInt(hexB.slice(1,3),16), gb = parseInt(hexB.slice(3,5),16), bb = parseInt(hexB.slice(5,7),16);
+        const r  = Math.round(ra + (rb - ra) * t);
+        const g  = Math.round(ga + (gb - ga) * t);
+        const bl = Math.round(ba + (bb - ba) * t);
+        return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${bl.toString(16).padStart(2,'0')}`;
     }
 
     // ══════════════════════════════════════════════════════════════════════
