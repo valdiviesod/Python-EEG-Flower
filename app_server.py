@@ -3,7 +3,7 @@
 Servidor unificado: Pulso Neurofuncional + Captura EEG
 
 Integra pulse_local_server.py en un solo proceso.
-- Sirve la SPA en http://127.0.0.1:8000/
+- Sirve la SPA en http://127.0.0.1:8090/
 - Pulse API:  POST /api/convert-pulse
 - Capture API: POST /api/capture/start | /api/capture/stop
                GET  /api/capture/status | /api/capture/stream | /api/capture/download-json
@@ -682,7 +682,7 @@ def main():
         description='💫🧠 Servidor unificado: Pulso Neurofuncional + Captura EEG'
     )
     parser.add_argument('--host', default='127.0.0.1', help='Host (default: 127.0.0.1)')
-    parser.add_argument('--port', type=int, default=8000, help='Puerto HTTP (default: 8000)')
+    parser.add_argument('--port', type=int, default=8090, help='Puerto HTTP (default: 8090)')
     parser.add_argument('--osc-ip', default='0.0.0.0', help='IP OSC para Muse (default: 0.0.0.0 para escuchar en toda la red local)')
     parser.add_argument('--osc-port', type=int, default=5000, help='Puerto OSC para Muse (default: 5000)')
     args = parser.parse_args()
