@@ -121,11 +121,14 @@
         if (!analyzer) return;
         if (pulse2d) pulse2d.stop();
         const containerW = canvas2d.parentElement.clientWidth;
-        const size = Math.min(1200, Math.max(600, containerW));
-        canvas2d.width = size;
-        canvas2d.height = size;
+        const cssSize = Math.min(1200, Math.max(600, containerW));
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas2d.width = cssSize * dpr;
+        canvas2d.height = cssSize * dpr;
         canvas2d.style.width = '100%';
         canvas2d.style.height = 'auto';
+        const ctx = canvas2d.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         pulse2d = new LavaPulse(canvas2d, analyzer);
         pulse2d.start();
     }

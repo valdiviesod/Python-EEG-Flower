@@ -467,13 +467,13 @@ class MuseOSCToMidi:
         # Crear archivo MIDI con 4 pistas (una por canal EEG)
         mid = MIDIFile(4, file_format=1)
         
-        # Configurar cada pista - instrumentos galaxy-themed
-        # ch0 TP9  left-temporal  → Crystal Arp (GM #98) shimmering arpeggios
-        # ch1 AF7  left-frontal   → Celesta        (GM #99) bell-like star twinkle
-        # ch2 AF8  right-frontal  → Glockenspiel    (GM #9) bright crystalline ping
-        # ch3 TP10 right-temporal → Music Box       (GM #11) soft nested melody
-        instruments = [98, 99, 9, 11]
-        track_names = ["TP9 Galaxy Left", "AF7 Consciousness", "AF8 Clarity Right", "TP10 Spatial"]
+        # Configurar cada pista - instrumentos hard + deep lineup
+        # ch0 TP9  left-temporal  → Church Organ      (GM #19) massive cathedral depth
+        # ch1 AF7  left-frontal   → Rock Organ        (GM #18) gritty punchy hard organ
+        # ch2 AF8  right-frontal  → Timpani           (GM #47) deep orchestral drum
+        # ch3 TP10 right-temporal → String Ensemble   (GM #48) massive orchestral body
+        instruments = [19, 18, 47, 48]
+        track_names = ["TP9 Church Organ", "AF7 Rock Organ", "AF8 Timpani", "TP10 String Ensemble"]
         tempo_bpm = 180  # 120 * GARDEN_PLAYBACK_SPEED (1.5) → browser plays same speed
 
         for track in range(4):
@@ -576,10 +576,10 @@ class MuseOSCToMidi:
             # Crear archivo MIDI
             mid = MIDIFile(4, file_format=1)
             
-# Configurar pistas - instrumentos galaxy-themed
-            # Crystal Arp, Celesta, Glockenspiel, Music Box — galaxy/musical/clustered
-            instruments = [98, 99, 9, 11]
-            track_names = ["TP9 Galaxy Left", "AF7 Consciousness", "AF8 Clarity Right", "TP10 Spatial"]
+            # Configurar pistas - instrumentos hard + deep lineup
+            # Church Organ, Rock Organ, Timpani, String Ensemble — massive, resonant, heavy
+            instruments = [19, 18, 47, 48]
+            track_names = ["TP9 Church Organ", "AF7 Rock Organ", "AF8 Timpani", "TP10 String Ensemble"]
             tempo_bpm = 180  # 120 * GARDEN_PLAYBACK_SPEED (1.5) → browser plays same speed
 
             for track in range(4):

@@ -18,22 +18,24 @@
     const GARDEN_PLAYBACK_MIN_NOTE_DURATION = 0.15;
     const GARDEN_PLAYBACK_MAX_NOTE_DURATION = 2.0;
     const GARDEN_PLAYBACK_MIN_SPACING = 0.08;       // minimum seconds between notes
-    const GARDEN_PLAYBACK_SPEED = 1.5;            
+    const GARDEN_PLAYBACK_SPEED = 1;            
     const GARDEN_CHANNEL_PAN = [-0.55, -0.18, 0.18, 0.55];
 
     // Pentatonic major scale intervals from C (in semitones): C D E G A
     const GARDEN_PENTATONIC = [0, 2, 4, 7, 9];
 
     // GM instrument names for soundfont-player (MusyngKite CDN naming) — one per EEG channel
-    // ch0 TP9  left-temporal  → Warm Pad      (GM #90) subconscious depth
-    // ch1 AF7  left-frontal   → Choir Aahs    (GM #53) inner voice / consciousness
-    // ch2 AF8  right-frontal  → Music Box     (GM #11) crystalline clarity / intuition
-    // ch3 TP10 right-temporal → Halo Pad      (GM #95) ethereal spatial memory
+    // Deep + hard brutal soundscape. No drums. No soft pads.
+    // Only resonant, profound, body-shaking timbres.
+    // ch0 TP9  left-temporal  → Tuba             deepest brass, sub frequencies
+    // ch1 AF7  left-frontal   → Slap Bass 1      aggressive hard attack bass
+    // ch2 AF8  right-frontal  → Distortion Lead  brutal distorted synth
+    // ch3 TP10 right-temporal → French Horn      deep powerful brass
     const GARDEN_INSTRUMENTS = [
-        'pad_2_warm',   // ch 0 — TP9  left temporal
-        'choir_aahs',   // ch 1 — AF7  left frontal
-        'music_box',    // ch 2 — AF8  right frontal
-        'pad_7_halo',   // ch 3 — TP10 right temporal
+        'tuba',              // ch 0 — TP9  left temporal
+        'slap_bass_1',       // ch 1 — AF7  left frontal
+        'distortion_lead',   // ch 2 — AF8  right frontal
+        'french_horn',       // ch 3 — TP10 right temporal
     ];
 
     // ── Plasma WebGL2 (React Bits Plasma — pulse color palette) ──
@@ -1277,11 +1279,14 @@
         if (!pulseAnalyzer) return;
         if (pulse2d) pulse2d.stop();
         const containerW = canvas2d.parentElement.clientWidth;
-        const size = Math.min(1200, Math.max(600, containerW));
-        canvas2d.width = size;
-        canvas2d.height = size;
+        const cssSize = Math.min(1200, Math.max(600, containerW));
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas2d.width = cssSize * dpr;
+        canvas2d.height = cssSize * dpr;
         canvas2d.style.width = '100%';
         canvas2d.style.height = 'auto';
+        const ctx = canvas2d.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         pulse2d = new LavaPulse(canvas2d, pulseAnalyzer);
         pulse2d.start();
     }
@@ -1715,12 +1720,15 @@
         // 1. Draw 2D (LavaPulse animated)
         const canvas2dGarden = document.getElementById('garden-pulse-2d-canvas');
         if (gardenPulse2d) { gardenPulse2d.stop(); gardenPulse2d = null; }
-        const containerW = canvas2dGarden.parentElement.clientWidth;
-        const size = Math.min(1200, Math.max(600, containerW));
-        canvas2dGarden.width = size;
-        canvas2dGarden.height = size;
+        const containerWG = canvas2dGarden.parentElement.clientWidth;
+        const cssSizeG = Math.min(1200, Math.max(600, containerWG));
+        const dprG = Math.min(window.devicePixelRatio || 1, 2);
+        canvas2dGarden.width = cssSizeG * dprG;
+        canvas2dGarden.height = cssSizeG * dprG;
         canvas2dGarden.style.width = '100%';
         canvas2dGarden.style.height = 'auto';
+        const ctxG = canvas2dGarden.getContext('2d');
+        ctxG.setTransform(dprG, 0, 0, dprG, 0, 0);
         gardenPulse2d = new LavaPulse(canvas2dGarden, gardenAnalyzer);
         gardenPulse2d.start();
 

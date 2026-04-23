@@ -1554,7 +1554,17 @@ body::before {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #030508;
+    background: #05030a;
+}
+
+/* Vignette overlay for cinematic depth */
+.garden-3d-wrap::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(5, 3, 10, 0.5) 100%);
 }
 
 #garden-2d-scene {
@@ -1673,37 +1683,44 @@ body::before {
 .galaxy-star-label {
     position: absolute;
     pointer-events: none;
-    transform: translate(-50%, 0);
+    transform: translate(-50%, 0) scale(0.96);
     opacity: 0;
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 20;
     text-align: center;
     white-space: nowrap;
 }
 
 .galaxy-star-label.visible {
-    opacity: 1;
+    opacity: 0.85;
+    transform: translate(-50%, 0) scale(1);
 }
 
 .galaxy-star-label.hovered {
     opacity: 1;
-    transform: translate(-50%, -4px);
+    transform: translate(-50%, -6px) scale(1.05);
 }
 
 .galaxy-star-name {
     display: block;
     font-weight: 700;
-    font-size: 0.82rem;
-    text-shadow: 0 1px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.6);
-    letter-spacing: 0.02em;
+    font-size: 0.85rem;
+    text-shadow:
+        0 0 8px rgba(0,0,0,0.9),
+        0 0 20px rgba(0,0,0,0.7),
+        0 2px 4px rgba(0,0,0,0.8);
+    letter-spacing: 0.03em;
+    line-height: 1.3;
 }
 
 .galaxy-star-state {
     display: block;
-    font-size: 0.7rem;
-    color: rgba(255,255,255,0.7);
-    margin-top: 1px;
-    text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.75);
+    margin-top: 2px;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.5);
+    letter-spacing: 0.01em;
 }
 
 /* ─── Status Overlay (Loading/Empty) ─────────────────────────────────────── */
@@ -1714,21 +1731,25 @@ body::before {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(250, 250, 248, 0.6);
-    backdrop-filter: blur(8px);
+    background: rgba(5, 3, 10, 0.4);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
     pointer-events: none;
 }
 
 .garden-status-content {
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid rgba(92, 107, 192, 0.24);
+    background: rgba(15, 10, 30, 0.72);
+    border: 1px solid rgba(139, 92, 246, 0.2);
     padding: 2.5rem 4rem;
     border-radius: var(--radius-lg);
     text-align: center;
-    box-shadow: 0 20px 40px rgba(92, 107, 192, 0.14);
+    box-shadow:
+        0 0 0 1px rgba(139, 92, 246, 0.1),
+        0 20px 60px rgba(0, 0, 0, 0.5),
+        0 0 40px rgba(139, 92, 246, 0.1);
     color: var(--text);
     pointer-events: auto;
-    animation: modal-fade-in 0.3s ease;
+    animation: modal-fade-in 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .garden-loading-icon {
@@ -1738,16 +1759,18 @@ body::before {
 }
 
 .garden-status-content p {
-    color: var(--text-dim);
+    color: rgba(255, 255, 255, 0.6);
     font-size: 1rem;
     margin-bottom: 1.5rem;
+    line-height: 1.6;
 }
 
 .garden-status-content h3 {
     font-family: var(--font-display);
     font-size: 1.4rem;
-    color: var(--text-accent);
+    color: #C4B5FD;
     margin-bottom: 0.5rem;
+    text-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
 }
 
 @keyframes garden-load-bounce {
@@ -1767,13 +1790,14 @@ body::before {
     position: fixed;
     inset: 0;
     z-index: 1000;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(8px);
+    background: rgba(5, 3, 10, 0.65);
+    backdrop-filter: blur(20px) saturate(1.1);
+    -webkit-backdrop-filter: blur(20px) saturate(1.1);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 1.5rem;
-    animation: modal-fade-in 0.25s ease;
+    animation: modal-fade-in 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @keyframes modal-fade-in {
@@ -1787,16 +1811,22 @@ body::before {
 }
 
 .garden-modal {
-    background: var(--bg-surface);
+    background: rgba(12, 8, 24, 0.82);
     border-radius: var(--radius-lg);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    box-shadow:
+        0 0 0 1px rgba(139, 92, 246, 0.08),
+        0 24px 80px rgba(0, 0, 0, 0.5),
+        0 0 60px rgba(139, 92, 246, 0.08);
     max-width: 750px;
     width: 100%;
     max-height: 90vh;
     overflow-y: auto;
     position: relative;
     padding: 2rem;
-    animation: modal-slide-up 0.3s ease;
+    animation: modal-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    backdrop-filter: blur(24px) saturate(1.2);
+    -webkit-backdrop-filter: blur(24px) saturate(1.2);
 }
 
 @keyframes modal-slide-up {
@@ -1815,25 +1845,26 @@ body::before {
     position: absolute;
     top: 1rem;
     right: 1rem;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    width: 32px;
-    height: 32px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.6);
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     cursor: pointer;
     font-size: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: var(--transition);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 10;
 }
 
 .garden-modal-close:hover {
-    background: #FEF2F2;
-    color: #DC2626;
-    border-color: #FECACA;
+    background: rgba(220, 38, 38, 0.15);
+    color: #FCA5A5;
+    border-color: rgba(220, 38, 38, 0.3);
+    transform: rotate(90deg) scale(1.05);
 }
 
 .garden-modal-header {
@@ -1845,11 +1876,12 @@ body::before {
     font-family: var(--font-display);
     font-size: 1.4rem;
     margin-bottom: 0.25rem;
-    color: var(--text);
+    color: #fff;
+    text-shadow: 0 0 16px rgba(139, 92, 246, 0.25);
 }
 
 .garden-modal-header p {
-    color: var(--text-dim);
+    color: rgba(255, 255, 255, 0.55);
     font-size: 0.82rem;
 }
 
@@ -1886,8 +1918,11 @@ body::before {
     aspect-ratio: 4/3;
     border-radius: var(--radius-lg);
     overflow: hidden;
-    background: linear-gradient(to bottom, #F5F0F8, #FAFAF8);
-    box-shadow: var(--shadow-medium);
+    background: linear-gradient(to bottom, #0a0614, #05030a);
+    box-shadow:
+        inset 0 0 40px rgba(139, 92, 246, 0.05),
+        0 8px 32px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(139, 92, 246, 0.1);
 }
 
 

@@ -1,10 +1,10 @@
 /**
- * Galaxy Garden — 3D Galaxy Visualization for EEG Captures
+ * Galaxy Garden — Modern Vibrant 3D Galaxy Visualization
  *
- * Each pulse is a living, breathing 3D star in the galaxy.
- * Background: 20,000+ white particles in spiral arms.
- * Pulse stars: shader-based animated spheres with lava-like surface,
- *   multi-layer pulsing halos, 3D vibration per EEG band.
+ * Each pulse is a luminous, living star in a vibrant cosmic garden.
+ * Background: multi-layer nebula + 25,000 particles in luminous spiral arms.
+ * Pulse stars: shader-based animated spheres with surface displacement,
+ *   multi-layer glowing halos, chromatic rim light, EEG-driven vibration.
  * Click star → opens existing garden modal.
  */
 
@@ -25,18 +25,24 @@ class GalaxyGarden {
 
         this.stars = [];           // pulse-star objects
         this.bgParticles = null;   // galaxy dust
-        this.farStars = null;      // distant white stars
+        this.farStars = null;      // distant colored stars
+        this.nebula = null;        // large soft nebula clouds
+        this.shootingStars = [];   // animated shooting stars
 
         this.hoveredStar = null;
 
-        // Band colours
+        // Band colours — same palette, more saturated
         this.bandColours = {
-            delta: new THREE.Color('#8B5CF6'),
-            theta: new THREE.Color('#22C55E'),
-            alpha: new THREE.Color('#EC4899'),
-            beta:  new THREE.Color('#F97316'),
-            gamma: new THREE.Color('#EAB308'),
+            delta: new THREE.Color('#A855F7'),
+            theta: new THREE.Color('#34D399'),
+            alpha: new THREE.Color('#F472B6'),
+            beta:  new THREE.Color('#FB923C'),
+            gamma: new THREE.Color('#FACC15'),
         };
+
+        this._lastFrameTime = 0;
+        this._elapsedOverride = 0;
+        this._wasHidden = false;
     }
 
     init() {
@@ -44,18 +50,21 @@ class GalaxyGarden {
         const h = this.container.clientHeight || 600;
 
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color('#030508');
-        this.scene.fog = new THREE.FogExp2(0x030508, 0.012);
+        // Richer deep space background with slight blue-purple tint
+        this.scene.background = new THREE.Color('#05030a');
+        // Lighter fog for more atmospheric depth
+        this.scene.fog = new THREE.FogExp2(0x05030a, 0.008);
 
-        this.camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 300);
-        this.camera.position.set(0, 6, 22);
+        this.camera = new THREE.PerspectiveCamera(55, w / h, 0.1, 400);
+        this.camera.position.set(0, 8, 26);
         this.camera.lookAt(0, 0, 0);
 
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
         this.renderer.setSize(w, h);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.3;
+        this.renderer.toneMappingExposure = 1.6;
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
 
         this.container.innerHTML = '';
         this.container.appendChild(this.renderer.domElement);
@@ -63,20 +72,17 @@ class GalaxyGarden {
         if (THREE.OrbitControls) {
             this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
             this.controls.enableDamping = true;
-            this.controls.dampingFactor = 0.05;
-            this.controls.minDistance = 4;
-            this.controls.maxDistance = 80;
+            this.controls.dampingFactor = 0.04;
+            this.controls.minDistance = 5;
+            this.controls.maxDistance = 100;
             this.controls.autoRotate = true;
-            this.controls.autoRotateSpeed = 0.2;
+            this.controls.autoRotateSpeed = 0.15;
             this.controls.target.set(0, 0, 0);
+            this.controls.enablePan = false;
         }
 
         this._buildBackground();
         this._setupInteraction();
-
-        this._lastFrameTime = 0;
-        this._elapsedOverride = 0;
-        this._wasHidden = false;
 
         window.addEventListener('resize', () => this._onResize());
         document.addEventListener('visibilitychange', () => this._onVisibilityChange());
@@ -84,49 +90,146 @@ class GalaxyGarden {
     }
 
     _onVisibilityChange() {
-        if (document.hidden) {
-            this._wasHidden = true;
-        }
+        if (document.hidden) this._wasHidden = true;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // BACKGROUND
+    // BACKGROUND — Multi-layer cosmic atmosphere
     // ═══════════════════════════════════════════════════════════════════════════
 
     _buildBackground() {
-        // ── Layer 1: Galaxy dust (coloured, spiral arms) ──
+        // Layer 1: Large soft nebula clouds
+        this._buildNebulaClouds();
+        // Layer 2: Galaxy dust (coloured, spiral arms)
         this._buildGalaxyDust();
-        // ── Layer 2: Far white stars (simple, many) ──
+        // Layer 3: Far colored stars
         this._buildFarStars();
+        // Layer 4: Shooting stars
+        this._buildShootingStars();
 
-        const ambient = new THREE.AmbientLight(0x202040, 0.4);
+        // Ambient + colored point lights for atmosphere
+        const ambient = new THREE.AmbientLight(0x302050, 0.5);
         this.scene.add(ambient);
 
-        const centreLight = new THREE.PointLight(0xffffff, 0.8, 60);
-        centreLight.position.set(0, 2, 0);
+        // Central warm glow
+        const centreLight = new THREE.PointLight(0x8B5CF6, 1.2, 80);
+        centreLight.position.set(0, 3, 0);
         this.scene.add(centreLight);
+
+        // Rim lights for depth
+        const rim1 = new THREE.PointLight(0xEC4899, 0.6, 60);
+        rim1.position.set(20, -10, 20);
+        this.scene.add(rim1);
+
+        const rim2 = new THREE.PointLight(0x22C55E, 0.4, 60);
+        rim2.position.set(-20, 5, -20);
+        this.scene.add(rim2);
+    }
+
+    _buildNebulaClouds() {
+        const COUNT = 800;
+        const positions = new Float32Array(COUNT * 3);
+        const colours = new Float32Array(COUNT * 3);
+        const sizes = new Float32Array(COUNT);
+        const opacities = new Float32Array(COUNT);
+
+        const colorPalette = [
+            new THREE.Color('#7C3AED'),
+            new THREE.Color('#EC4899'),
+            new THREE.Color('#3B82F6'),
+            new THREE.Color('#8B5CF6'),
+            new THREE.Color('#1E3A5F'),
+        ];
+
+        for (let i = 0; i < COUNT; i++) {
+            const i3 = i * 3;
+            const r = 5 + Math.random() * 35;
+            const branch = (i % 4) / 4 * Math.PI * 2;
+            const spin = r * 0.8;
+            const spread = Math.pow(Math.random(), 2) * 3;
+
+            positions[i3] = Math.cos(branch + spin) * r + (Math.random() - 0.5) * spread;
+            positions[i3 + 1] = (Math.random() - 0.5) * 6;
+            positions[i3 + 2] = Math.sin(branch + spin) * r + (Math.random() - 0.5) * spread;
+
+            const c = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+            colours[i3] = c.r; colours[i3 + 1] = c.g; colours[i3 + 2] = c.b;
+            sizes[i] = 3 + Math.random() * 8;
+            opacities[i] = 0.3 + Math.random() * 0.4;
+        }
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+        geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+        geo.setAttribute('aOpacity', new THREE.BufferAttribute(opacities, 1));
+
+        const mat = new THREE.ShaderMaterial({
+            uniforms: {
+                uSize: { value: 120 * this.renderer.getPixelRatio() },
+                uTime: { value: 0 }
+            },
+            vertexShader: `
+                uniform float uSize; uniform float uTime;
+                attribute float aSize; attribute vec3 color; attribute float aOpacity;
+                varying vec3 vColor; varying float vOpacity; varying float vDist;
+                void main() {
+                    vec4 mp = modelMatrix * vec4(position, 1.0);
+                    float dfc = length(mp.xz);
+                    float ang = atan(mp.x, mp.z);
+                    ang += (1.0 / max(dfc, 0.1)) * uTime * 0.015;
+                    mp.x = sin(ang) * dfc;
+                    mp.z = cos(ang) * dfc;
+                    // Slow vertical drift
+                    mp.y += sin(uTime * 0.2 + position.x * 0.1) * 0.3;
+                    vDist = dfc;
+                    vec4 vp = viewMatrix * mp;
+                    gl_Position = projectionMatrix * vp;
+                    gl_PointSize = uSize * aSize * (2.5 / -vp.z);
+                    vColor = color;
+                    vOpacity = aOpacity;
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vColor; varying float vOpacity; varying float vDist;
+                void main() {
+                    float d = length(gl_PointCoord - 0.5);
+                    // Soft gaussian falloff for nebula clouds
+                    float a = exp(-d * d * 4.0) * vOpacity * 0.35;
+                    // Add color variation based on distance from center
+                    vec3 col = vColor * (1.0 + 0.3 * sin(vDist * 0.5));
+                    gl_FragColor = vec4(col, a);
+                }
+            `,
+            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true
+        });
+
+        this.nebula = new THREE.Points(geo, mat);
+        this.scene.add(this.nebula);
     }
 
     _buildGalaxyDust() {
-        const COUNT = 12000;
-        const R = 25;
+        const COUNT = 20000;
+        const R = 30;
         const positions = new Float32Array(COUNT * 3);
         const colours = new Float32Array(COUNT * 3);
         const scales = new Float32Array(COUNT);
         const randoms = new Float32Array(COUNT * 3);
 
+        // Vibrant galaxy colors — warmer, more saturated
         const inside = new THREE.Color('#ffffff');
-        const outside = new THREE.Color('#3b5db5');
+        const mid = new THREE.Color('#A78BFA');
+        const outside = new THREE.Color('#4F46E5');
 
         for (let i = 0; i < COUNT; i++) {
             const i3 = i * 3;
             const r = Math.random() * R;
             const branch = (i % 5) / 5 * Math.PI * 2;
-            const spin = r * 1.2;
+            const spin = r * 1.3;
 
-            const rx = Math.pow(Math.random(), 3) * 0.6 * (Math.random() < 0.5 ? 1 : -1);
-            const ry = Math.pow(Math.random(), 3) * 0.3 * (Math.random() < 0.5 ? 1 : -1);
-            const rz = Math.pow(Math.random(), 3) * 0.6 * (Math.random() < 0.5 ? 1 : -1);
+            const rx = Math.pow(Math.random(), 3) * 0.8 * (Math.random() < 0.5 ? 1 : -1);
+            const ry = Math.pow(Math.random(), 3) * 0.4 * (Math.random() < 0.5 ? 1 : -1);
+            const rz = Math.pow(Math.random(), 3) * 0.8 * (Math.random() < 0.5 ? 1 : -1);
 
             positions[i3] = Math.cos(branch + spin) * r + rx;
             positions[i3 + 1] = ry;
@@ -136,9 +239,22 @@ class GalaxyGarden {
             randoms[i3 + 1] = ry;
             randoms[i3 + 2] = rz;
 
-            const c = inside.clone().lerp(outside, r / R);
+            // Color gradient: white → purple → deep blue
+            let c;
+            if (r < R * 0.3) {
+                c = inside.clone().lerp(mid, r / (R * 0.3));
+            } else {
+                c = mid.clone().lerp(outside, (r - R * 0.3) / (R * 0.7));
+            }
+            // Occasional colored stars from band palette
+            if (Math.random() < 0.08) {
+                const bandKeys = Object.keys(this.bandColours);
+                const band = bandKeys[Math.floor(Math.random() * bandKeys.length)];
+                c.lerp(this.bandColours[band], 0.6);
+            }
+
             colours[i3] = c.r; colours[i3 + 1] = c.g; colours[i3 + 2] = c.b;
-            scales[i] = Math.random();
+            scales[i] = 0.5 + Math.random() * 0.8;
         }
 
         const geo = new THREE.BufferGeometry();
@@ -149,7 +265,7 @@ class GalaxyGarden {
 
         const mat = new THREE.ShaderMaterial({
             uniforms: {
-                uSize: { value: 28 * this.renderer.getPixelRatio() },
+                uSize: { value: 32 * this.renderer.getPixelRatio() },
                 uTime: { value: 0 }
             },
             vertexShader: `
@@ -160,14 +276,17 @@ class GalaxyGarden {
                     vec4 mp = modelMatrix * vec4(position, 1.0);
                     float dfc = length(mp.xz);
                     float ang = atan(mp.x, mp.z);
-                    ang += (1.0 / max(dfc, 0.1)) * uTime * 0.04;
+                    // Faster, more fluid rotation
+                    ang += (1.0 / max(dfc, 0.1)) * uTime * 0.05;
                     mp.x = sin(ang) * dfc;
                     mp.z = cos(ang) * dfc;
                     mp.xyz += aRandomness - 0.5;
-                    float flicker = 0.8 + 0.3 * sin(uTime * 2.0 + aRandomness.x * 5.0);
+                    // Multi-frequency twinkle
+                    float flicker = 0.7 + 0.3 * sin(uTime * 3.0 + aRandomness.x * 7.0)
+                                        + 0.15 * sin(uTime * 7.0 + aRandomness.y * 13.0);
                     vec4 vp = viewMatrix * mp;
                     gl_Position = projectionMatrix * vp;
-                    gl_PointSize = uSize * aScale * (4.0 / -vp.z) * flicker;
+                    gl_PointSize = uSize * aScale * (5.0 / -vp.z) * flicker;
                     vColor = color;
                 }
             `,
@@ -175,9 +294,12 @@ class GalaxyGarden {
                 varying vec3 vColor;
                 void main() {
                     float d = length(gl_PointCoord - 0.5);
-                    float a = 0.05 / d - 0.15;
+                    // Sharper core, softer halo
+                    float a = 0.06 / d - 0.12;
                     if (a < 0.0) discard;
-                    gl_FragColor = vec4(vColor, a);
+                    // Boost brightness
+                    vec3 col = vColor * 1.4;
+                    gl_FragColor = vec4(col, a);
                 }
             `,
             transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true
@@ -188,14 +310,23 @@ class GalaxyGarden {
     }
 
     _buildFarStars() {
-        const COUNT = 15000;
+        const COUNT = 20000;
         const positions = new Float32Array(COUNT * 3);
         const scales = new Float32Array(COUNT);
         const twinkle = new Float32Array(COUNT);
+        const starColors = new Float32Array(COUNT * 3);
+
+        const tints = [
+            new THREE.Color('#ffffff'),
+            new THREE.Color('#E0E7FF'),
+            new THREE.Color('#FBCFE8'),
+            new THREE.Color('#DDD6FE'),
+            new THREE.Color('#C7D2FE'),
+        ];
 
         for (let i = 0; i < COUNT; i++) {
             const i3 = i * 3;
-            const r = 30 + Math.random() * 120;
+            const r = 35 + Math.random() * 150;
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos(2 * Math.random() - 1);
 
@@ -203,50 +334,137 @@ class GalaxyGarden {
             positions[i3 + 1] = r * Math.sin(phi) * Math.sin(theta);
             positions[i3 + 2] = r * Math.cos(phi);
 
-            scales[i] = 0.3 + Math.random() * 0.7;
+            scales[i] = 0.2 + Math.random() * 0.8;
             twinkle[i] = Math.random() * 100;
+
+            const tint = tints[Math.floor(Math.random() * tints.length)];
+            starColors[i3] = tint.r;
+            starColors[i3 + 1] = tint.g;
+            starColors[i3 + 2] = tint.b;
         }
 
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geo.setAttribute('aScale', new THREE.BufferAttribute(scales, 1));
         geo.setAttribute('aTwinkle', new THREE.BufferAttribute(twinkle, 1));
+        geo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
 
         const mat = new THREE.ShaderMaterial({
             uniforms: {
-                uSize: { value: 18 * this.renderer.getPixelRatio() },
+                uSize: { value: 20 * this.renderer.getPixelRatio() },
                 uTime: { value: 0 }
             },
             vertexShader: `
                 uniform float uSize; uniform float uTime;
                 attribute float aScale; attribute float aTwinkle;
-                varying float vAlpha;
+                varying float vAlpha; varying vec3 vColor;
                 void main() {
                     vec4 vp = viewMatrix * modelMatrix * vec4(position, 1.0);
                     gl_Position = projectionMatrix * vp;
-                    float t = sin(uTime * 1.5 + aTwinkle) * 0.5 + 0.5;
-                    vAlpha = 0.25 + t * 0.75;
-                    gl_PointSize = uSize * aScale * (3.0 / -vp.z);
+                    float t = sin(uTime * 2.0 + aTwinkle) * 0.5 + 0.5;
+                    vAlpha = 0.2 + t * 0.8;
+                    gl_PointSize = uSize * aScale * (3.5 / -vp.z);
+                    vColor = color;
                 }
             `,
             fragmentShader: `
-                varying float vAlpha;
+                varying float vAlpha; varying vec3 vColor;
                 void main() {
                     float d = length(gl_PointCoord - 0.5);
-                    float a = 0.06 / d - 0.12;
+                    float a = 0.07 / d - 0.14;
                     if (a < 0.0) discard;
-                    gl_FragColor = vec4(1.0, 1.0, 1.0, a * vAlpha);
+                    gl_FragColor = vec4(vColor, a * vAlpha);
                 }
             `,
-            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true
         });
 
         this.farStars = new THREE.Points(geo, mat);
         this.scene.add(this.farStars);
     }
 
+    _buildShootingStars() {
+        // Create a few shooting star streaks using lines
+        for (let i = 0; i < 3; i++) {
+            const points = [];
+            for (let j = 0; j < 20; j++) {
+                points.push(new THREE.Vector3(0, 0, 0));
+            }
+            const geo = new THREE.BufferGeometry().setFromPoints(points);
+            const mat = new THREE.LineBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0,
+                blending: THREE.AdditiveBlending,
+            });
+            const line = new THREE.Line(geo, mat);
+            this.scene.add(line);
+            this.shootingStars.push({
+                line, mat, geo,
+                active: false,
+                timer: Math.random() * 8,
+                speed: 15 + Math.random() * 10,
+                dir: new THREE.Vector3(
+                    Math.random() - 0.5,
+                    Math.random() * 0.3 - 0.1,
+                    Math.random() - 0.5
+                ).normalize(),
+                pos: new THREE.Vector3(),
+                length: 3 + Math.random() * 4,
+            });
+        }
+    }
+
+    _updateShootingStars(dt, elapsed) {
+        this.shootingStars.forEach(s => {
+            if (!s.active) {
+                s.timer -= dt;
+                if (s.timer <= 0) {
+                    s.active = true;
+                    s.timer = 4 + Math.random() * 10;
+                    // Start from somewhere in the sky
+                    const r = 40 + Math.random() * 40;
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.random() * Math.PI;
+                    s.pos.set(
+                        r * Math.sin(phi) * Math.cos(theta),
+                        r * Math.sin(phi) * Math.sin(theta) * 0.5,
+                        r * Math.cos(phi)
+                    );
+                    s.dir.set(
+                        Math.random() - 0.5,
+                        Math.random() * 0.2 - 0.1,
+                        Math.random() - 0.5
+                    ).normalize();
+                }
+                s.mat.opacity = Math.max(0, s.mat.opacity - dt * 3);
+                return;
+            }
+
+            s.pos.addScaledVector(s.dir, s.speed * dt);
+            const positions = s.geo.attributes.position.array;
+            for (let i = 0; i < 20; i++) {
+                const t = i / 19;
+                const trailPos = s.pos.clone().addScaledVector(s.dir, -s.length * t);
+                positions[i * 3] = trailPos.x;
+                positions[i * 3 + 1] = trailPos.y;
+                positions[i * 3 + 2] = trailPos.z;
+            }
+            s.geo.attributes.position.needsUpdate = true;
+
+            // Fade in then out based on lifetime
+            const dist = s.pos.length();
+            if (dist > 120 || s.pos.y < -30) {
+                s.active = false;
+                s.mat.opacity = 0;
+            } else {
+                s.mat.opacity = Math.min(0.9, s.mat.opacity + dt * 4);
+            }
+        });
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
-    // PULSE STARS
+    // PULSE STARS — Luminous, modern, vibrant
     // ═══════════════════════════════════════════════════════════════════════════
 
     clearPulses() {
@@ -277,20 +495,19 @@ class GalaxyGarden {
         }
 
         const placed = [];
-        const MAX_R = 12;      // keep inside visible galaxy
-        const MIN_D = 2.8;     // breathing room between stars
+        const MAX_R = 14;
+        const MIN_D = 3.0;
 
         for (let i = 0; i < items.length; i++) {
             let x, y, z, ok;
             let attempts = 0;
             do {
                 ok = true;
-                // uniform disc distribution for density
                 const r = Math.sqrt(Math.random()) * MAX_R;
                 const theta = Math.random() * Math.PI * 2;
                 x = Math.cos(theta) * r;
                 z = Math.sin(theta) * r;
-                y = (Math.random() - 0.5) * 4; // vertical spread
+                y = (Math.random() - 0.5) * 5;
 
                 for (const p of placed) {
                     const dx = x - p.x, dy = y - p.y, dz = z - p.z;
@@ -313,43 +530,101 @@ class GalaxyGarden {
             { key: 'beta',  v: b }, { key: 'gamma', v: g },
         ].reduce((best, x) => x.v > best.v ? x : best).key;
         const PALETTES = {
-            delta: ['#0D0020', '#2A0060', '#5B21B6', '#8B5CF6', '#C4B5FD', '#FFFFFF', '#DDD6FE', '#6D28D9'],
-            theta: ['#052E16', '#14532D', '#15803D', '#22C55E', '#86EFAC', '#FFFFFF', '#BBF7D0', '#166534'],
-            alpha: ['#2D0018', '#7F1D4F', '#BE185D', '#EC4899', '#F9A8D4', '#FFFFFF', '#FBCFE8', '#9D174D'],
-            beta:  ['#431407', '#9A3412', '#C2410C', '#F97316', '#FDBA74', '#FFFFFF', '#FED7AA', '#EA580C'],
-            gamma: ['#422006', '#713F12', '#A16207', '#EAB308', '#FDE047', '#FFFFFF', '#FEF08A', '#CA8A04'],
+            delta: ['#0D0020', '#2A0060', '#5B21B6', '#A855F7', '#C4B5FD', '#FFFFFF', '#DDD6FE', '#7C3AED'],
+            theta: ['#052E16', '#14532D', '#15803D', '#34D399', '#86EFAC', '#FFFFFF', '#BBF7D0', '#10B981'],
+            alpha: ['#2D0018', '#7F1D4F', '#BE185D', '#F472B6', '#F9A8D4', '#FFFFFF', '#FBCFE8', '#DB2777'],
+            beta:  ['#431407', '#9A3412', '#C2410C', '#FB923C', '#FDBA74', '#FFFFFF', '#FED7AA', '#EA580C'],
+            gamma: ['#422006', '#713F12', '#A16207', '#FACC15', '#FDE047', '#FFFFFF', '#FEF08A', '#EAB308'],
         };
         return { dominant, colors: PALETTES[dominant] };
+    }
+
+    /**
+     * Build a cycling palette sequence from all 5 bands, weighted by power.
+     * Similar to LavaPulse._buildParams() palSequence.
+     */
+    _buildPaletteCycle(report) {
+        const bands = report.bands;
+        const v = (key) => (bands.find(b => b.key === key) || {}).relativePower || 0;
+        const PALETTES = {
+            delta: { c: ['#0D0020', '#2A0060', '#5B21B6', '#A855F7', '#C4B5FD', '#FFFFFF', '#DDD6FE', '#7C3AED'] },
+            theta: { c: ['#052E16', '#14532D', '#15803D', '#34D399', '#86EFAC', '#FFFFFF', '#BBF7D0', '#10B981'] },
+            alpha: { c: ['#2D0018', '#7F1D4F', '#BE185D', '#F472B6', '#F9A8D4', '#FFFFFF', '#FBCFE8', '#DB2777'] },
+            beta:  { c: ['#431407', '#9A3412', '#C2410C', '#FB923C', '#FDBA74', '#FFFFFF', '#FED7AA', '#EA580C'] },
+            gamma: { c: ['#422006', '#713F12', '#A16207', '#FACC15', '#FDE047', '#FFFFFF', '#FEF08A', '#EAB308'] },
+        };
+        const allBands = [
+            { v: v('delta'), pal: PALETTES.delta },
+            { v: v('theta'), pal: PALETTES.theta },
+            { v: v('alpha'), pal: PALETTES.alpha },
+            { v: v('beta'),  pal: PALETTES.beta  },
+            { v: v('gamma'), pal: PALETTES.gamma },
+        ].sort((x, y) => y.v - x.v);
+        const MIN_W = 0.07;
+        const rawW = allBands.map(x => Math.max(x.v, MIN_W));
+        const sumW = rawW.reduce((s, w) => s + w, 0);
+        const seq = allBands.map((x, i) => ({ ...x.pal, _w: rawW[i] / sumW }));
+        let _cum = 0;
+        const breakpoints = seq.map(x => { _cum += x._w; return _cum; });
+        const cyclePeriod = 6 + v('delta') * 4 + v('theta') * 3 - v('beta') * 1.5;
+        return { seq, breakpoints, cyclePeriod: Math.max(3, cyclePeriod) };
+    }
+
+    _lerpHex(a, b, t) {
+        const ra = parseInt(a.slice(1, 3), 16), ga = parseInt(a.slice(3, 5), 16), ba = parseInt(a.slice(5, 7), 16);
+        const rb = parseInt(b.slice(1, 3), 16), gb = parseInt(b.slice(3, 5), 16), bb = parseInt(b.slice(5, 7), 16);
+        const r = Math.round(ra + (rb - ra) * t);
+        const g = Math.round(ga + (gb - ga) * t);
+        const bl = Math.round(ba + (bb - ba) * t);
+        return new THREE.Color(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${bl.toString(16).padStart(2, '0')}`);
+    }
+
+    _cyclePaletteColor(palCycle, elapsed) {
+        const period = palCycle.cyclePeriod;
+        const phase = ((elapsed + palCycle.timeOffset * 0.1) % period) / period;
+        const n = palCycle.seq.length;
+        let seg = n - 1, prevBp = 0;
+        for (let i = 0; i < n; i++) {
+            if (phase <= palCycle.breakpoints[i]) { seg = i; break; }
+            prevBp = palCycle.breakpoints[i];
+        }
+        const segLen = palCycle.breakpoints[seg] - prevBp;
+        const localT = segLen > 0 ? (phase - prevBp) / segLen : 0;
+        const t = localT * localT * (3 - 2 * localT); // smoothstep
+        const a = palCycle.seq[seg];
+        const b = palCycle.seq[(seg + 1) % n];
+        return {
+            main: this._lerpHex(a.c[3], b.c[3], t),
+            deep: this._lerpHex(a.c[2], b.c[2], t),
+            bright: this._lerpHex(a.c[4], b.c[4], t),
+        };
     }
 
     _createPulseStar(captureData, report, x, y, z, index) {
         const group = new THREE.Group();
         group.position.set(x, y, z);
 
-        const baseSize = 0.38; // all stars same size
+        const baseSize = 0.42;
 
-        // ── Colour from LavaPulse palette system ──
         const { dominant, colors } = this._getLavaPalette(report);
-        const mainHex = colors[3]; // index 3 = primary band colour
-        const deepHex = colors[2]; // index 2 = deeper shade
+        const mainHex = colors[3];
+        const deepHex = colors[2];
+        const brightHex = colors[4];
         const starColor = new THREE.Color(mainHex);
         const deepColor = new THREE.Color(deepHex);
+        const brightColor = new THREE.Color(brightHex);
 
-        // Unique per-capture random shift (small, so palette still recognizable)
+        // Slight randomization for variety
         const hsl = {};
         starColor.getHSL(hsl);
-        const hueShift = ((Math.random() - 0.5) * 0.06 + 1) % 1; // ±22°
-        const satShift = (Math.random() - 0.5) * 0.12;
-        const lightShift = (Math.random() - 0.5) * 0.08;
         starColor.setHSL(
-            (hsl.h + hueShift) % 1,
-            Math.max(0.4, Math.min(1, hsl.s + satShift)),
-            Math.max(0.4, Math.min(0.8, hsl.l + lightShift))
+            (hsl.h + (Math.random() - 0.5) * 0.04 + 1) % 1,
+            Math.max(0.5, Math.min(1, hsl.s + (Math.random() - 0.5) * 0.1)),
+            Math.max(0.45, Math.min(0.75, hsl.l + (Math.random() - 0.5) * 0.06))
         );
 
         const bands = report.bands;
 
-        // Vibration frequencies derived from each band — unique per capture
         const bandVibes = {};
         bands.forEach(b => {
             bandVibes[b.key] = {
@@ -359,31 +634,30 @@ class GalaxyGarden {
             };
         });
 
-        // Animation parameters driven by capture EEG — every star unique
         const betaPower = (bands.find(b => b.key === 'beta') || {}).percentage || 0;
         const gammaPower = (bands.find(b => b.key === 'gamma') || {}).percentage || 0;
         const alphaPower = (bands.find(b => b.key === 'alpha') || {}).percentage || 0;
         const thetaPower = (bands.find(b => b.key === 'theta') || {}).percentage || 0;
-        const animSpeed = 0.6 + (betaPower + gammaPower) / 100 * 1.2;
-        // Wave frequencies unique per capture (derived from band ratios)
-        const waveX = 3.0 + (betaPower / 40) * 3.0;
-        const waveY = 2.5 + (alphaPower / 40) * 3.5;
-        const waveZ = 2.0 + (gammaPower / 40) * 4.0;
-        const waveSurface = 5.0 + (thetaPower / 40) * 5.0;
+        const animSpeed = 0.8 + (betaPower + gammaPower) / 100 * 1.5;
+        const waveX = 3.5 + (betaPower / 40) * 3.5;
+        const waveY = 3.0 + (alphaPower / 40) * 4.0;
+        const waveZ = 2.5 + (gammaPower / 40) * 4.5;
+        const waveSurface = 5.5 + (thetaPower / 40) * 5.5;
 
-        // ── Animated core sphere — pulses at EEG rhythm ──
-        const coreGeo = new THREE.IcosahedronGeometry(baseSize, 32);
+        // ── Animated core sphere — full saturated color, no white highlights ──
+        const coreGeo = new THREE.IcosahedronGeometry(baseSize, 40);
         const coreMat = new THREE.ShaderMaterial({
             uniforms: {
                 uTime: { value: 0 },
                 uColor: { value: starColor },
-                uEmissive: { value: deepColor.clone().multiplyScalar(1.6) },
+                uColorB: { value: deepColor.clone().multiplyScalar(1.4) },
+                uColorC: { value: brightColor },
                 uSpeed: { value: animSpeed },
                 uWaveX: { value: waveX },
                 uWaveY: { value: waveY },
                 uWaveZ: { value: waveZ },
                 uWaveSurface: { value: waveSurface },
-                uPulseAmp: { value: 0.14 },
+                uPulseAmp: { value: 0.16 },
             },
             vertexShader: `
                 uniform float uTime; uniform float uSpeed;
@@ -394,8 +668,9 @@ class GalaxyGarden {
                     vNormal = normalize(normalMatrix * normal);
                     vec3 p = position;
                     float n = sin(p.x * uWaveX + uTime * uSpeed) * cos(p.y * uWaveY + uTime * uSpeed * 0.7)
-                            + sin(p.z * uWaveZ + uTime * uSpeed * 1.2) * 0.5;
-                    float disp = n * 0.12;
+                            + sin(p.z * uWaveZ + uTime * uSpeed * 1.2) * 0.5
+                            + sin((p.x + p.z) * 2.0 + uTime * uSpeed * 0.5) * 0.25;
+                    float disp = n * uPulseAmp;
                     p += normal * disp;
                     vDisp = disp;
                     vPos = p;
@@ -403,16 +678,18 @@ class GalaxyGarden {
                 }
             `,
             fragmentShader: `
-                uniform vec3 uColor; uniform vec3 uEmissive; uniform float uTime;
-                uniform float uSpeed; uniform float uWaveSurface; uniform float uPulseAmp;
+                uniform vec3 uColor; uniform vec3 uColorB; uniform vec3 uColorC; uniform float uTime;
+                uniform float uSpeed; uniform float uWaveSurface;
                 varying vec3 vNormal; varying vec3 vPos; varying float vDisp;
                 void main() {
-                    vec3 viewDir = normalize(cameraPosition - vPos);
-                    float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.0);
                     float wave = sin(vPos.y * uWaveSurface + uTime * uSpeed * 2.0) * 0.5 + 0.5;
-                    vec3 col = mix(uColor, uEmissive, wave * 0.6 + fresnel * 0.8);
-                    float rim = fresnel * 1.2;
-                    gl_FragColor = vec4(col + rim * uEmissive, 1.0);
+                    // Layered color mixing — only palette colors, no white
+                    vec3 col = mix(uColor, uColorB, wave * 0.6);
+                    col = mix(col, uColorC, wave * wave * 0.35);
+                    // Subtle edge darkening for shape definition (no white rim)
+                    float viewDot = abs(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)));
+                    col *= 0.85 + viewDot * 0.15;
+                    gl_FragColor = vec4(col, 1.0);
                 }
             `,
             side: THREE.DoubleSide,
@@ -420,64 +697,51 @@ class GalaxyGarden {
         const core = new THREE.Mesh(coreGeo, coreMat);
         group.add(core);
 
-        // ── Dynamic pulse ring (EEG-driven, replaces halo+sprite) ──
-        const ringGeo = new THREE.RingGeometry(baseSize * 1.1, baseSize * 1.7, 48);
-        const ringMat = new THREE.ShaderMaterial({
+        // ── Outer glow halo (sprite-based bloom approximation) ──
+        const glowGeo = new THREE.IcosahedronGeometry(baseSize * 1.8, 16);
+        const glowMat = new THREE.ShaderMaterial({
             uniforms: {
+                uColor: { value: starColor.clone().multiplyScalar(1.3) },
                 uTime: { value: 0 },
-                uColor: { value: starColor.clone().multiplyScalar(1.2) },
-                uEmissive: { value: deepColor.clone() },
-                uAnimSpeed: { value: animSpeed },
-                uWaveX: { value: waveX },
-                uWaveY: { value: waveY },
-                uWaveZ: { value: waveZ },
-                uPulseAmp: { value: 0.55 },
+                uSpeed: { value: animSpeed },
             },
             vertexShader: `
-                uniform float uTime; uniform float uAnimSpeed; uniform float uPulseAmp;
-                uniform float uWaveX; uniform float uWaveY; uniform float uWaveZ;
-                varying float vPulse; varying vec2 vUv;
+                varying vec3 vNormal;
                 void main() {
-                    vUv = uv;
-                    float pulse = sin(uTime * uAnimSpeed * 3.0) * uPulseAmp
-                               + sin(uTime * uAnimSpeed * 5.5) * uPulseAmp * 0.5
-                               + cos(uTime * uAnimSpeed * 1.8) * uPulseAmp * 0.3;
-                    vec3 pos = position;
-                    pos.xy *= (1.0 + pulse * 0.4);
-                    vPulse = pulse;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+                    vNormal = normalize(normalMatrix * normal);
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 }
             `,
             fragmentShader: `
-                uniform vec3 uColor; uniform vec3 uEmissive; uniform float uTime;
-                uniform float uAnimSpeed; uniform float uPulseAmp;
-                varying float vPulse; varying vec2 vUv;
+                uniform vec3 uColor; uniform float uTime; uniform float uSpeed;
+                varying vec3 vNormal;
                 void main() {
-                    float alpha = (0.35 + vPulse * 0.25) * (1.0 - abs(vUv.y - 0.5) * 2.0);
-                    vec3 col = mix(uColor, uEmissive, vPulse * 0.5 + 0.5);
-                    gl_FragColor = vec4(col, max(0.0, alpha));
+                    vec3 viewDir = vec3(0.0, 0.0, 1.0);
+                    float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.0);
+                    float pulse = 0.8 + 0.2 * sin(uTime * uSpeed * 2.0);
+                    gl_FragColor = vec4(uColor, fresnel * 0.35 * pulse);
                 }
             `,
-            transparent: true,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-            side: THREE.DoubleSide,
+            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+            side: THREE.BackSide,
         });
-        const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.lookAt(this.camera.position);
-        group.add(ring);
+        const glow = new THREE.Mesh(glowGeo, glowMat);
+        group.add(glow);
+
+        const palCycle = this._buildPaletteCycle(report);
+        palCycle.timeOffset = Math.random() * 100;
 
         const labelEl = this._createLabel(captureData, starColor);
 
-        // Raycast target = visible core mesh (no oversized invisible hitbox)
         core.userData.starObj = {
             data: captureData, group, core, coreMat,
-            ring, ringMat,
+            glow, glowMat,
             labelEl,
             basePos: new THREE.Vector3(x, y, z),
             starSize: baseSize, index,
             timeOffset: Math.random() * 100,
             bandVibes,
+            palCycle,
         };
 
         this.stars.push(core.userData.starObj);
@@ -561,13 +825,13 @@ class GalaxyGarden {
     _hoverStar(star) {
         if (!star) return;
         if (star.labelEl) star.labelEl.classList.add('hovered');
-        if (star.ringMat) star.ringMat.uniforms.uPulseAmp.value = 0.9;
+        if (star.glowMat) star.glowMat.uniforms.uColor.value.multiplyScalar(1.3);
     }
 
     _unhoverStar(star) {
         if (!star) return;
         if (star.labelEl) star.labelEl.classList.remove('hovered');
-        if (star.ringMat) star.ringMat.uniforms.uPulseAmp.value = 0.55;
+        if (star.glowMat) star.glowMat.uniforms.uColor.value.multiplyScalar(1 / 1.3);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -596,7 +860,7 @@ class GalaxyGarden {
             star.labelEl.style.top = `${y}px`;
 
             const dist = this.camera.position.distanceTo(star.basePos);
-            if (dist > 50 || x < -100 || x > wH * 2 + 100 || y < -100 || y > hH * 2 + 100) {
+            if (dist > 55 || x < -100 || x > wH * 2 + 100 || y < -100 || y > hH * 2 + 100) {
                 star.labelEl.classList.remove('visible');
             } else {
                 star.labelEl.classList.add('visible');
@@ -629,17 +893,24 @@ class GalaxyGarden {
         this._elapsedOverride += delta;
         const elapsed = this._elapsedOverride;
 
-        // Background dust rotation
+        // Nebula drift
+        if (this.nebula) {
+            this.nebula.material.uniforms.uTime.value = elapsed;
+            this.nebula.rotation.y = elapsed * 0.008;
+        }
+        // Galaxy dust rotation
         if (this.bgParticles) {
             this.bgParticles.material.uniforms.uTime.value = elapsed;
-            this.bgParticles.rotation.y = elapsed * 0.015;
+            this.bgParticles.rotation.y = elapsed * 0.018;
         }
-        // Far stars slow rotation
+        // Far stars
         if (this.farStars) {
             this.farStars.material.uniforms.uTime.value = elapsed;
-            this.farStars.rotation.y = elapsed * 0.005;
-            this.farStars.rotation.x = Math.sin(elapsed * 0.01) * 0.02;
+            this.farStars.rotation.y = elapsed * 0.006;
+            this.farStars.rotation.x = Math.sin(elapsed * 0.01) * 0.015;
         }
+        // Shooting stars
+        this._updateShootingStars(delta, elapsed);
 
         // Animate each pulse star
         this.stars.forEach(star => {
@@ -650,26 +921,46 @@ class GalaxyGarden {
             if (star.coreMat && star.coreMat.uniforms && star.coreMat.uniforms.uTime) {
                 star.coreMat.uniforms.uTime.value = t;
             }
+            if (star.glowMat && star.glowMat.uniforms && star.glowMat.uniforms.uTime) {
+                star.glowMat.uniforms.uTime.value = t;
+            }
+
+            // Cycle palette colors through all 5 bands like 2D pulse
+            if (star.palCycle) {
+                const c = this._cyclePaletteColor(star.palCycle, t);
+                if (star.coreMat) {
+                    star.coreMat.uniforms.uColor.value.copy(c.main);
+                    star.coreMat.uniforms.uColorB.value.copy(c.deep);
+                    star.coreMat.uniforms.uColorC.value.copy(c.bright);
+                }
+                if (star.glowMat) {
+                    star.glowMat.uniforms.uColor.value.copy(c.main).multiplyScalar(1.3);
+                }
+                if (star.labelEl) {
+                    const nameSpan = star.labelEl.querySelector('.galaxy-star-name');
+                    if (nameSpan) nameSpan.style.color = '#' + c.main.getHexString();
+                }
+            }
 
             // 3D vibration from EEG bands
             let vx = 0, vy = 0, vz = 0;
             if (star.bandVibes) {
                 Object.values(star.bandVibes).forEach(v => {
-                    vx += Math.sin(t * v.freq + v.phase) * v.amp * 0.08;
-                    vy += Math.cos(t * v.freq * 0.8 + v.phase) * v.amp * 0.08;
-                    vz += Math.sin(t * v.freq * 1.2 + v.phase + 1.0) * v.amp * 0.06;
+                    vx += Math.sin(t * v.freq + v.phase) * v.amp * 0.1;
+                    vy += Math.cos(t * v.freq * 0.8 + v.phase) * v.amp * 0.1;
+                    vz += Math.sin(t * v.freq * 1.2 + v.phase + 1.0) * v.amp * 0.08;
                 });
             }
             star.group.position.x = star.basePos.x + vx;
-            star.group.position.y = star.basePos.y + vy + Math.sin(t * 0.4 + off) * 0.12;
+            star.group.position.y = star.basePos.y + vy + Math.sin(t * 0.5 + off) * 0.15;
             star.group.position.z = star.basePos.z + vz;
 
-            star.core.rotation.y = t * 0.15 + off;
-            star.core.rotation.z = t * 0.08;
+            star.core.rotation.y = t * 0.2 + off;
+            star.core.rotation.z = t * 0.1;
 
-            if (star.ring && star.ringMat) {
-                star.ringMat.uniforms.uTime.value = t;
-                star.ring.lookAt(this.camera.position);
+            if (star.glow) {
+                star.glow.rotation.y = -t * 0.1;
+                star.glow.rotation.x = Math.sin(t * 0.3 + off) * 0.1;
             }
         });
 
@@ -696,13 +987,20 @@ class GalaxyGarden {
         if (this.animationId) cancelAnimationFrame(this.animationId);
         this.clearPulses();
 
-        [this.bgParticles, this.farStars].forEach(p => {
+        [this.bgParticles, this.farStars, this.nebula].forEach(p => {
             if (p) {
                 this.scene.remove(p);
                 p.geometry.dispose();
                 p.material.dispose();
             }
         });
+
+        this.shootingStars.forEach(s => {
+            this.scene.remove(s.line);
+            s.geo.dispose();
+            s.mat.dispose();
+        });
+        this.shootingStars = [];
 
         this.scene.traverse(obj => {
             if (obj.geometry) obj.geometry.dispose();

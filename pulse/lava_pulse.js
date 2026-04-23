@@ -143,27 +143,43 @@ class LavaPulse {
         // ── Ring base radius fraction ──
         this.baseRadiusFrac = 0.24 + d * 0.10 + th * 0.04;
 
+        // ══════════════════════════════════════════════════════════════════════
+        // SPEED CONFIG — tweak these 4 values to make the pulse faster/slower
+        // ══════════════════════════════════════════════════════════════════════
+        // 1) PALETTE_CYCLE_BASE: seconds for one full palette loop (lower = faster)
+        // 2) BPM_BASE: base tempo of beat flashes (higher = faster)
+        // 3) PULSE_FREQ_BASE: breathing oscillation speed (higher = faster)
+        // 4) PERTURB_SPEED_MULT: multiplier for all ring morph speeds
+        const PALETTE_CYCLE_BASE = 5.0;   // default 8 → now 5 (faster)
+        const BPM_BASE             = 70;   // default 55 → now 70 (faster)
+        const PULSE_FREQ_BASE      = 0.018;// default 0.012 → now 0.018 (faster)
+        const PERTURB_SPEED_MULT   = 1.5;  // 1.0 = normal, 1.5 = 50% faster
+        // ══════════════════════════════════════════════════════════════════════
+
+        // Cycle period: calmer EEG (delta/theta) = slower transitions; active = faster
+        this.palCyclePeriod = PALETTE_CYCLE_BASE + d * 4 + th * 3 - b * 1.5 - g * 0.8;
+
         // ── Perturbation layers — richer than v1 ──
         // { h, amp, speed, phase }  — phase shifts make them less symmetric
         this.perturbs = [
-            { h: 2  + Math.round(d  * 3), amp: 0.07 + d  * 0.22, speed: 0.0025 + d  * 0.003,  phase: 0.0 },
-            { h: 3  + Math.round(th * 4), amp: 0.05 + th * 0.15, speed: 0.0055 + th * 0.005,  phase: 1.1 },
-            { h: 4  + Math.round(a  * 5), amp: 0.04 + a  * 0.12, speed: 0.0090 + a  * 0.010,  phase: 2.3 },
-            { h: 6  + Math.round(b  * 8), amp: 0.03 + b  * 0.09, speed: 0.0180 + b  * 0.018,  phase: 0.7 },
-            { h: 10 + Math.round(g  * 10),amp: 0.01 + g  * 0.06, speed: 0.0400 + g  * 0.040,  phase: 3.7 },
+            { h: 2  + Math.round(d  * 3), amp: 0.07 + d  * 0.22, speed: (0.0025 + d  * 0.003)  * PERTURB_SPEED_MULT, phase: 0.0 },
+            { h: 3  + Math.round(th * 4), amp: 0.05 + th * 0.15, speed: (0.0055 + th * 0.005)  * PERTURB_SPEED_MULT, phase: 1.1 },
+            { h: 4  + Math.round(a  * 5), amp: 0.04 + a  * 0.12, speed: (0.0090 + a  * 0.010)  * PERTURB_SPEED_MULT, phase: 2.3 },
+            { h: 6  + Math.round(b  * 8), amp: 0.03 + b  * 0.09, speed: (0.0180 + b  * 0.018)  * PERTURB_SPEED_MULT, phase: 0.7 },
+            { h: 10 + Math.round(g  * 10),amp: 0.01 + g  * 0.06, speed: (0.0400 + g  * 0.040)  * PERTURB_SPEED_MULT, phase: 3.7 },
             // Extra high-freq micro-ripple for galactic texture
-            { h: 18 + Math.round(g  * 6), amp: 0.005 + g * 0.025, speed: 0.08 + g * 0.06,     phase: 1.8 },
+            { h: 18 + Math.round(g  * 6), amp: 0.005 + g * 0.025, speed: (0.08 + g * 0.06)     * PERTURB_SPEED_MULT, phase: 1.8 },
         ];
 
         // ── BPM / beat engine ──
         // Derive BPM from beta (active thinking = faster tempo) and alpha (calm = slower)
-        const rawBpm   = 55 + b * 60 + a * 20 + g * 30;
-        this.bpm       = Math.max(40, Math.min(160, rawBpm));
+        const rawBpm   = BPM_BASE + b * 80 + a * 25 + g * 40;
+        this.bpm       = Math.max(40, Math.min(180, rawBpm));
         this.beatPeriod = (60 / this.bpm) * 60; // frames per beat (at 60fps)
         this._lastBeatT = -this.beatPeriod;
 
         // ── Breathing pulse ──
-        this.pulseFreq = 0.012 + a * 0.020 + b * 0.006;
+        this.pulseFreq = PULSE_FREQ_BASE + a * 0.028 + b * 0.009;
         this.pulseAmp  = 0.055 + a * 0.130 + b * 0.040;
 
         // ── Ring stroke width ──
