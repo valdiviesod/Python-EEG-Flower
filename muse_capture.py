@@ -467,13 +467,19 @@ class MuseOSCToMidi:
         # Crear archivo MIDI con 4 pistas (una por canal EEG)
         mid = MIDIFile(4, file_format=1)
         
-        # Configurar cada pista - instrumentos simples para no alterar el sonido
-        instruments = [1, 1, 1, 1]  # Todos piano para sonido puro
-        track_names = ["EEG Canal 1", "EEG Canal 2", "EEG Canal 3", "EEG Canal 4"]
-        
+        # Configurar cada pista - instrumentos galaxy-themed
+        # ch0 TP9  left-temporal  → Crystal Arp (GM #98) shimmering arpeggios
+        # ch1 AF7  left-frontal   → Celesta        (GM #99) bell-like star twinkle
+        # ch2 AF8  right-frontal  → Glockenspiel    (GM #9) bright crystalline ping
+        # ch3 TP10 right-temporal → Music Box       (GM #11) soft nested melody
+        instruments = [98, 99, 9, 11]
+        track_names = ["TP9 Galaxy Left", "AF7 Consciousness", "AF8 Clarity Right", "TP10 Spatial"]
+        tempo_bpm = 180  # 120 * GARDEN_PLAYBACK_SPEED (1.5) → browser plays same speed
+
         for track in range(4):
             mid.addTrackName(track, 0, track_names[track])
-            mid.addTempo(track, 0, 120)  # 120 BPM
+            mid.addTempo(track, 0, tempo_bpm)
+            mid.addProgramChange(track, track, 0, instruments[track])
             mid.addProgramChange(track, track, 0, instruments[track])
         
         # Calcular duración real basada en timestamps
@@ -498,7 +504,7 @@ class MuseOSCToMidi:
         
         for sample_idx in range(min_samples):
             # Tiempo real basado en la posición en la secuencia
-            time_in_beats = (sample_idx / min_samples) * (total_duration / 0.5)  # 0.5 segundos por beat a 120 BPM
+            time_in_beats = (sample_idx / min_samples) * (total_duration / 0.3333)  # 0.5 / 1.5 = 0.3333 → browser speed sync
             
             for channel in range(4):
                 if sample_idx < len(self.eeg_data[channel]):
@@ -570,13 +576,15 @@ class MuseOSCToMidi:
             # Crear archivo MIDI
             mid = MIDIFile(4, file_format=1)
             
-            # Configurar pistas - instrumentos simples
-            instruments = [1, 1, 1, 1]  # Todos piano para sonido puro
-            track_names = ["EEG Canal 1", "EEG Canal 2", "EEG Canal 3", "EEG Canal 4"]
-            
+# Configurar pistas - instrumentos galaxy-themed
+            # Crystal Arp, Celesta, Glockenspiel, Music Box — galaxy/musical/clustered
+            instruments = [98, 99, 9, 11]
+            track_names = ["TP9 Galaxy Left", "AF7 Consciousness", "AF8 Clarity Right", "TP10 Spatial"]
+            tempo_bpm = 180  # 120 * GARDEN_PLAYBACK_SPEED (1.5) → browser plays same speed
+
             for track in range(4):
                 mid.addTrackName(track, 0, track_names[track])
-                mid.addTempo(track, 0, 120)
+                mid.addTempo(track, 0, tempo_bpm)
                 mid.addProgramChange(track, track, 0, instruments[track])
             
             note_duration = duration_seconds / max_samples
@@ -599,8 +607,8 @@ class MuseOSCToMidi:
                         if eeg_val is None or np.isnan(eeg_val) or eeg_val == 0:
                             continue
                         
-                        # Tiempo basado en posición real en la secuencia
-                        time_in_beats = (i / len(channel_data)) * (duration_seconds / 0.5)  # 0.5 seg por beat
+                        # Tiempo basado en posición real en la secuencia — sync con browser (speed 1.5)
+                        time_in_beats = (i / len(channel_data)) * (duration_seconds / 0.3333)
                         midi_note = self.map_eeg_to_midi_note(eeg_val, track_idx)
                         velocity = self.calculate_note_velocity(eeg_val)
                         

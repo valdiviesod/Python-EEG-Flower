@@ -336,8 +336,18 @@
                 if (floatingLines) floatingLines.stop();
             }
 
+            // Galaxy: destroy when leaving garden to free GPU memory
+            if (viewName === 'garden') {
+                if (!gardenLoaded) loadGarden();
+            } else {
+                if (galaxyGarden) {
+                    galaxyGarden.destroy();
+                    galaxyGarden = null;
+                    gardenLoaded = false;
+                }
+            }
+
             // Re-show capture tour whenever user navigates to the capture tab
-            // Only show if capture setup is visible (not mid-capture or results)
             if (viewName === 'capture') {
                 setTimeout(() => {
                     const setup = document.getElementById('capture-setup');
@@ -1414,61 +1424,66 @@
         const origLabel = btn.innerHTML;
         btn.disabled = true;
 
-        const GIF_W         = 480;
-        const GIF_H         = 854;
-        const PULSE_SIZE    = 480;
-        const PULSE_Y       = (GIF_H - PULSE_SIZE) / 2;
-        const FPS           = 20;
-        const TOTAL_FRAMES  = FPS * 4;
-        const DELAY_MS      = Math.round(1000 / FPS);
-        const WARMUP_FRAMES = 30;
+        try {
+            const GIF_W         = 480;
+            const GIF_H         = 854;
+            const PULSE_SIZE    = 480;
+            const PULSE_Y       = (GIF_H - PULSE_SIZE) / 2;
+            const FPS           = 20;
+            const TOTAL_FRAMES  = FPS * 4;
+            const DELAY_MS      = Math.round(1000 / FPS);
+            const WARMUP_FRAMES = 30;
 
-        const pulseCanvas = document.createElement('canvas');
-        pulseCanvas.width  = PULSE_SIZE;
-        pulseCanvas.height = PULSE_SIZE;
+            const pulseCanvas = document.createElement('canvas');
+            pulseCanvas.width  = PULSE_SIZE;
+            pulseCanvas.height = PULSE_SIZE;
 
-        const portraitCanvas = document.createElement('canvas');
-        portraitCanvas.width  = GIF_W;
-        portraitCanvas.height = GIF_H;
-        const pCtx = portraitCanvas.getContext('2d');
+            const portraitCanvas = document.createElement('canvas');
+            portraitCanvas.width  = GIF_W;
+            portraitCanvas.height = GIF_H;
+            const pCtx = portraitCanvas.getContext('2d');
 
-        const capturePulse = new LavaPulse(pulseCanvas, analyzer);
-        for (let i = 0; i < WARMUP_FRAMES; i++) {
-            capturePulse.t  += 1;
-            capturePulse.ft += 1 / 60;
-            capturePulse._draw();
+            const capturePulse = new LavaPulse(pulseCanvas, analyzer);
+            for (let i = 0; i < WARMUP_FRAMES; i++) {
+                capturePulse.t  += 1;
+                capturePulse.ft += 1 / 60;
+                capturePulse._draw();
+            }
+
+            const { GIFEncoder, quantize, applyPalette } =
+                await import('https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js');
+            const gif     = GIFEncoder();
+            const step    = Math.round(60 / FPS);
+
+            for (let f = 0; f < TOTAL_FRAMES; f++) {
+                capturePulse.t  += step;
+                capturePulse.ft += 1 / FPS;
+                capturePulse._draw();
+
+                pCtx.fillStyle = (capturePulse.pal && capturePulse.pal.bg) ? capturePulse.pal.bg : '#0a0a0f';
+                pCtx.fillRect(0, 0, GIF_W, GIF_H);
+                pCtx.drawImage(pulseCanvas, 0, PULSE_Y, PULSE_SIZE, PULSE_SIZE);
+
+                const imageData = pCtx.getImageData(0, 0, GIF_W, GIF_H);
+                const palette   = quantize(imageData.data, 256);
+                const index     = applyPalette(imageData.data, palette);
+                gif.writeFrame(index, GIF_W, GIF_H, { palette, delay: DELAY_MS });
+
+                btn.textContent = `⏳ ${Math.round((f + 1) / TOTAL_FRAMES * 100)}%`;
+                if (f % 3 === 2) await new Promise(r => setTimeout(r, 0));
+            }
+
+            gif.finish();
+            const blob = new Blob([gif.bytesView()], { type: 'image/gif' });
+            const name = analyzer?.metadata?.user_name || 'pulso';
+            downloadBlob(blob, `pulso_${name}.gif`);
+        } catch (err) {
+            console.error('GIF export error:', err);
+            alert('Error al generar GIF: ' + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = origLabel;
         }
-
-        const { GIFEncoder, quantize, applyPalette } =
-            await import('https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js');
-        const gif     = GIFEncoder();
-        const step    = Math.round(60 / FPS);
-
-        for (let f = 0; f < TOTAL_FRAMES; f++) {
-            capturePulse.t  += step;
-            capturePulse.ft += 1 / FPS;
-            capturePulse._draw();
-
-            pCtx.fillStyle = capturePulse.pal.bg; // bg cycles with palette
-            pCtx.fillRect(0, 0, GIF_W, GIF_H);
-            pCtx.drawImage(pulseCanvas, 0, PULSE_Y, PULSE_SIZE, PULSE_SIZE);
-
-            const imageData = pCtx.getImageData(0, 0, GIF_W, GIF_H);
-            const palette   = quantize(imageData.data, 256);
-            const index     = applyPalette(imageData.data, palette);
-            gif.writeFrame(index, GIF_W, GIF_H, { palette, delay: DELAY_MS });
-
-            btn.textContent = `⏳ ${Math.round((f + 1) / TOTAL_FRAMES * 100)}%`;
-            if (f % 4 === 3) await new Promise(r => setTimeout(r, 0));
-        }
-
-        gif.finish();
-        const blob = new Blob([gif.bytesView()], { type: 'image/gif' });
-        const name = analyzer?.metadata?.user_name || 'pulso';
-        downloadBlob(blob, `pulso_${name}.gif`);
-
-        btn.disabled = false;
-        btn.innerHTML = origLabel;
     }
 
     // ── Export 2D → animated GIF (portrait 9:16) ──
@@ -1484,7 +1499,11 @@
     if (gardenBtnExportGif) {
         gardenBtnExportGif.addEventListener('click', async () => {
             if (!gardenPulse2d || !gardenAnalyzer) return;
-            await exportPulseGif(gardenAnalyzer, gardenBtnExportGif);
+            try {
+                await exportPulseGif(gardenAnalyzer, gardenBtnExportGif);
+            } catch (err) {
+                console.error('Garden GIF export error:', err);
+            }
         });
     }
 
@@ -1605,9 +1624,8 @@
     const gardenBtnDownloadMidi = document.getElementById('garden-btn-download-midi');
     const gardenModalTabs = document.querySelectorAll('#garden-modal-tabs .tab');
     const gardenPanels = document.querySelectorAll('.garden-modal-panel');
-    const gardenBtnRefresh = document.getElementById('btn-garden-refresh');
-
     let gardenLoaded = false;
+    let galaxyGarden = null;
     let gardenPulse2d = null;
     let gardenPulseModal3d = null;
     let gardenAnalyzer = null;
@@ -1623,23 +1641,6 @@
     let gardenReverbGain     = null;    // reverb wet level
     let gardenDryGain        = null;    // dry level
     let gardenMasterGain     = null;    // master output
-
-    // The main garden environment
-    // Auto-load garden when switching to it
-    globalTabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            if (tab.dataset.view === 'garden') {
-                if (!gardenLoaded) loadGarden();
-            }
-        });
-    });
-
-    if (gardenBtnRefresh) {
-        gardenBtnRefresh.addEventListener('click', () => {
-            gardenLoaded = false;
-            loadGarden();
-        });
-    }
 
     // Helper to toggle overlay messages
     function showGardenStatus(icon, text) {
@@ -1668,69 +1669,26 @@
 
             hideGardenStatus();
 
-            // Render beautiful 2D pulsos
-            await renderGarden2D(data.captures);
+            // Clear old container
+            const container = document.getElementById('garden-2d-scene');
+            container.innerHTML = '';
+
+            // Destroy old galaxy if exists
+            if (galaxyGarden) { galaxyGarden.destroy(); galaxyGarden = null; }
+
+            // Init GalaxyGarden
+            galaxyGarden = new GalaxyGarden('garden-2d-scene', (captureData) => {
+                openGardenModalFromData(captureData);
+            });
+            galaxyGarden.init();
+
+            // Load captures as stars
+            await galaxyGarden.loadCaptures(data.captures);
 
             gardenLoaded = true;
         } catch (err) {
             console.error('Error loading garden:', err);
             showGardenStatus('⚠️', 'Error al cargar el campo resonante. Intenta actualizar.');
-        }
-    }
-
-    async function renderGarden2D(capturesList) {
-        const container = document.getElementById('garden-2d-scene');
-        container.innerHTML = '';
-
-        // Sort captures alphabetically
-        capturesList.sort((a, b) => a.filename.localeCompare(b.filename));
-
-        for (let i = 0; i < capturesList.length; i++) {
-            const captureMeta = capturesList[i];
-            try {
-                const resp = await fetch(`/api/garden/file?name=${encodeURIComponent(captureMeta.filename)}`);
-                if (!resp.ok) continue;
-                const fullCaptureData = await resp.json();
-
-                // Keep the original filename for downloading if needed
-                fullCaptureData.filename = captureMeta.filename;
-
-                // Create item wrapper
-                const item = document.createElement('div');
-                item.className = 'garden-2d-item';
-
-                // Canvas for 2D pulse
-                const canvasWrapper = document.createElement('div');
-                canvasWrapper.className = 'garden-2d-canvas-wrap';
-                const canvas = document.createElement('canvas');
-                canvasWrapper.appendChild(canvas);
-
-                // Label
-                const label = document.createElement('div');
-                label.className = 'garden-2d-label';
-                const userName = fullCaptureData.metadata?.user_name || 'Anónimo';
-                label.innerHTML = `<span class="garden-2d-label-name">${userName}</span>`;
-
-                item.appendChild(canvasWrapper);
-                item.appendChild(label);
-
-                container.appendChild(item);
-
-                // Draw LavaPulse thumbnail (static single frame)
-                const analyzer = new EEGBandAnalyzer(fullCaptureData);
-                canvas.width = 600;
-                canvas.height = 600;
-                const pulse = new LavaPulse(canvas, analyzer);
-                pulse._draw(); // single static frame — no animation loop
-
-                // Click handler
-                item.addEventListener('click', () => {
-                    openGardenModalFromData(fullCaptureData);
-                });
-
-            } catch (e) {
-                console.error("Error drawing garden 2D item:", e);
-            }
         }
     }
 
