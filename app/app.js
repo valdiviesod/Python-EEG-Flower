@@ -750,6 +750,9 @@
         if (liveSection.style.display !== 'none' && scalpMap) {
             scalpMap.resize();
         }
+        if (pulse2d && canvas2d) fitPulseCanvas(canvas2d);
+        const gCanvas = document.getElementById('garden-pulse-2d-canvas');
+        if (gardenPulse2d && gCanvas) fitPulseCanvas(gCanvas);
     });
 
     function drawWavesLoop() {
@@ -1211,7 +1214,6 @@
     const analysisContent = document.getElementById('analysis-content');
     const bandBar = document.getElementById('band-bar');
 
-    const btnExport2d = document.getElementById('btn-export-2d');
     const btnExport3d = document.getElementById('btn-export-3d');
     const printSizeSelect = document.getElementById('print-size-mm');
     const printExportFormat = document.getElementById('print-export-format');
@@ -1274,19 +1276,29 @@
         switchPulseTab('pulse2d');
     }
 
+    // ── Fit canvas to wrapper (responsive DPR) ──
+    function fitPulseCanvas(canvas) {
+        const wrap = canvas && canvas.parentElement;
+        if (!wrap) return;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const w = wrap.clientWidth;
+        const h = wrap.clientHeight;
+        const size = Math.min(w, h);
+        const nw = Math.round(size);
+        const nh = Math.round(size);
+        if (canvas.width !== nw * dpr || canvas.height !== nh * dpr) {
+            canvas.width = nw * dpr;
+            canvas.height = nh * dpr;
+            const ctx = canvas.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+    }
+
     // ── Draw 2D (LavaPulse) ──
     function drawPulse2D() {
         if (!pulseAnalyzer) return;
         if (pulse2d) pulse2d.stop();
-        const containerW = canvas2d.parentElement.clientWidth;
-        const cssSize = Math.min(1200, Math.max(600, containerW));
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        canvas2d.width = cssSize * dpr;
-        canvas2d.height = cssSize * dpr;
-        canvas2d.style.width = '100%';
-        canvas2d.style.height = 'auto';
-        const ctx = canvas2d.getContext('2d');
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        fitPulseCanvas(canvas2d);
         pulse2d = new LavaPulse(canvas2d, pulseAnalyzer);
         pulse2d.start();
     }
@@ -1424,93 +1436,7 @@
         `;
     }
 
-    // ── Shared GIF export helper ──
-    async function exportPulseGif(analyzer, btn) {
-        const origLabel = btn.innerHTML;
-        btn.disabled = true;
 
-        try {
-            const GIF_W         = 480;
-            const GIF_H         = 854;
-            const PULSE_SIZE    = 480;
-            const PULSE_Y       = (GIF_H - PULSE_SIZE) / 2;
-            const FPS           = 20;
-            const TOTAL_FRAMES  = FPS * 4;
-            const DELAY_MS      = Math.round(1000 / FPS);
-            const WARMUP_FRAMES = 30;
-
-            const pulseCanvas = document.createElement('canvas');
-            pulseCanvas.width  = PULSE_SIZE;
-            pulseCanvas.height = PULSE_SIZE;
-
-            const portraitCanvas = document.createElement('canvas');
-            portraitCanvas.width  = GIF_W;
-            portraitCanvas.height = GIF_H;
-            const pCtx = portraitCanvas.getContext('2d');
-
-            const capturePulse = new LavaPulse(pulseCanvas, analyzer);
-            for (let i = 0; i < WARMUP_FRAMES; i++) {
-                capturePulse.t  += 1;
-                capturePulse.ft += 1 / 60;
-                capturePulse._draw();
-            }
-
-            const { GIFEncoder, quantize, applyPalette } =
-                await import('https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js');
-            const gif     = GIFEncoder();
-            const step    = Math.round(60 / FPS);
-
-            for (let f = 0; f < TOTAL_FRAMES; f++) {
-                capturePulse.t  += step;
-                capturePulse.ft += 1 / FPS;
-                capturePulse._draw();
-
-                pCtx.fillStyle = (capturePulse.pal && capturePulse.pal.bg) ? capturePulse.pal.bg : '#0a0a0f';
-                pCtx.fillRect(0, 0, GIF_W, GIF_H);
-                pCtx.drawImage(pulseCanvas, 0, PULSE_Y, PULSE_SIZE, PULSE_SIZE);
-
-                const imageData = pCtx.getImageData(0, 0, GIF_W, GIF_H);
-                const palette   = quantize(imageData.data, 256);
-                const index     = applyPalette(imageData.data, palette);
-                gif.writeFrame(index, GIF_W, GIF_H, { palette, delay: DELAY_MS });
-
-                btn.textContent = `⏳ ${Math.round((f + 1) / TOTAL_FRAMES * 100)}%`;
-                if (f % 3 === 2) await new Promise(r => setTimeout(r, 0));
-            }
-
-            gif.finish();
-            const blob = new Blob([gif.bytesView()], { type: 'image/gif' });
-            const name = analyzer?.metadata?.user_name || 'pulso';
-            downloadBlob(blob, `pulso_${name}.gif`);
-        } catch (err) {
-            console.error('GIF export error:', err);
-            alert('Error al generar GIF: ' + err.message);
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = origLabel;
-        }
-    }
-
-    // ── Export 2D → animated GIF (portrait 9:16) ──
-    if (btnExport2d) {
-        btnExport2d.addEventListener('click', async () => {
-            if (!pulse2d || !pulseAnalyzer) return;
-            await exportPulseGif(pulseAnalyzer, btnExport2d);
-        });
-    }
-
-    // ── Garden export GIF ──
-    const gardenBtnExportGif = document.getElementById('garden-btn-export-gif');
-    if (gardenBtnExportGif) {
-        gardenBtnExportGif.addEventListener('click', async () => {
-            if (!gardenPulse2d || !gardenAnalyzer) return;
-            try {
-                await exportPulseGif(gardenAnalyzer, gardenBtnExportGif);
-            } catch (err) {
-                console.error('Garden GIF export error:', err);
-            }
-        });
-    }
 
     // ── Export 3D ──
     if (btnExport3d) {
@@ -1717,20 +1643,10 @@
         // Initialize Analyzer for Modal Views
         gardenAnalyzer = new EEGBandAnalyzer(captureData);
 
-        // 1. Draw 2D (LavaPulse animated)
+        // 1. Prepare 2D (LavaPulse animated)
         const canvas2dGarden = document.getElementById('garden-pulse-2d-canvas');
         if (gardenPulse2d) { gardenPulse2d.stop(); gardenPulse2d = null; }
-        const containerWG = canvas2dGarden.parentElement.clientWidth;
-        const cssSizeG = Math.min(1200, Math.max(600, containerWG));
-        const dprG = Math.min(window.devicePixelRatio || 1, 2);
-        canvas2dGarden.width = cssSizeG * dprG;
-        canvas2dGarden.height = cssSizeG * dprG;
-        canvas2dGarden.style.width = '100%';
-        canvas2dGarden.style.height = 'auto';
-        const ctxG = canvas2dGarden.getContext('2d');
-        ctxG.setTransform(dprG, 0, 0, dprG, 0, 0);
         gardenPulse2d = new LavaPulse(canvas2dGarden, gardenAnalyzer);
-        gardenPulse2d.start();
 
         // 2. Prepare 3D (will init on tab click to avoid layout issues)
         if (gardenPulseModal3d) {
@@ -1748,6 +1664,8 @@
         gardenPanels.forEach(p => p.classList.toggle('active', p.id === 'gpanel-garden-2d'));
 
         gardenModal.style.display = 'flex';
+        fitPulseCanvas(canvas2dGarden);
+        gardenPulse2d.start();
     }
 
     // Keep the old signature but redirect

@@ -1055,9 +1055,10 @@ body::before {
     box-shadow: var(--shadow-medium);
 }
 
-#pulse-2d-canvas {
+#pulse-2d-canvas,
+#garden-pulse-2d-canvas {
     width: 100%;
-    height: auto;
+    height: 100%;
     display: block;
 }
 

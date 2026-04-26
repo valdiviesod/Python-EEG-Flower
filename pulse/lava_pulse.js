@@ -54,10 +54,13 @@ class LavaPulse {
         this._brightness = 1; // overall brightness multiplier
         this._particleBurst = 0; // burst counter for beat particles
 
-        this._baseR = 0;      // computed each frame from canvas size
+this._baseR = 0;
+        this.maxRingFrac = 0.80;
+        this.ringScale = 0.55;
 
-        // ── Spatial perlin-like noise seeds (stable across frames) ──
-        this._noiseSeeds = Array.from({ length: 8 }, () => Math.random() * 1000);
+        // Visual center offset as fraction of minD (negative = left/up)
+        this.offsetX = -0.04;
+        this.offsetY = -0.04;
 
         this._buildParams();
         this._initParticles();
@@ -323,14 +326,17 @@ class LavaPulse {
             this._lastBeatT = t;
             this._beatFlash  = 1.0;
             this._chromShift = 1.0;
-            this._scale      = 1.0 + 0.10 + this.eeg.b * 0.12 + this.eeg.g * 0.08;
+            // Main beat: cap scale so outer ring never exceeds maxRingFrac * 0.5 of canvas
+        const maxScale = (0.5 * this.maxRingFrac) / Math.max(this.baseRadiusFrac, 0.01);
+        this._scale      = Math.min(1.0 + 0.10 + this.eeg.b * 0.12 + this.eeg.g * 0.08, maxScale);
             this._noiseAmp   = 0.08 + this.eeg.b * 0.10;
             this._brightness = 1.0 + 0.3 + this.eeg.g * 0.3;
             this._particleBurst += Math.round(6 + this.eeg.b * 10 + this.eeg.g * 8);
         } else if (subBeat && sinceLast > this.beatPeriod * 0.45) {
             // Sub-beat pulse (softer)
             this._beatFlash  = Math.max(this._beatFlash, 0.45);
-            this._scale      = Math.max(this._scale, 1.0 + 0.05 + this.eeg.b * 0.05);
+            const maxScale = (0.5 * this.maxRingFrac) / Math.max(this.baseRadiusFrac, 0.01);
+            this._scale      = Math.max(this._scale, Math.min(1.0 + 0.05 + this.eeg.b * 0.05, maxScale));
         }
 
         // ── Smooth decay each frame ──
@@ -379,9 +385,9 @@ class LavaPulse {
         const { canvas, ctx } = this;
         const W  = canvas.width;
         const H  = canvas.height;
-        const cx = W / 2;
-        const cy = H / 2;
         const minD = Math.min(W, H);
+        const cx = W / 2 + minD * this.offsetX;
+        const cy = H / 2 + minD * this.offsetY;
         const t = this.t;
 
         // Update reactive state
@@ -397,8 +403,11 @@ class LavaPulse {
 
         // Set base ring radius with beat scale + breathing
         const breathe  = 1.0 + this.pulseAmp * Math.sin(t * this.pulseFreq);
-        const scaledR  = this.baseRadiusFrac * breathe * this._scale;
+        const rawR     = this.baseRadiusFrac * breathe * this._scale;
+        const maxFrac  = 0.5 * this.maxRingFrac * this.ringScale;
+        const scaledR  = Math.min(rawR, maxFrac);
         this._baseR    = minD * scaledR;
+        const rs       = this.ringScale;
         const ringW    = minD * this.ringWidthFrac * (0.9 + this._beatFlash * 0.4);
 
         // ── Layer 1: Afterglow trail (fade previous frame) ──
@@ -528,15 +537,15 @@ class LavaPulse {
     // ══════════════════════════════════════════════════════════════════════
 
     _drawBloom(cx, cy, pts, ringW, t) {
+        const rs = this.ringScale;
         const b  = this._brightness;
         const bf = this._beatFlash;
         // Outermost (very dim, very wide)
-        this._strokeRing(cx, cy, pts, ringW * 28 * b,  0.016 + bf * 0.008, this.pal.c[0], t);
-        this._strokeRing(cx, cy, pts, ringW * 18 * b,  0.036 + bf * 0.015, this.pal.c[0], t);
-        this._strokeRing(cx, cy, pts, ringW * 12 * b,  0.075 + bf * 0.025, this.pal.c[1], t);
-        // Mid bloom
-        this._strokeRing(cx, cy, pts, ringW *  8 * b,  0.140 + bf * 0.060, this.pal.c[1], t);
-        this._strokeRing(cx, cy, pts, ringW *  5 * b,  0.280 + bf * 0.100, this.pal.c[2], t);
+        this._strokeRing(cx, cy, pts, ringW * 28 * b * rs,  0.016 + bf * 0.008, this.pal.c[0], t);
+        this._strokeRing(cx, cy, pts, ringW * 18 * b * rs,  0.036 + bf * 0.015, this.pal.c[0], t);
+        this._strokeRing(cx, cy, pts, ringW * 12 * b * rs,  0.075 + bf * 0.025, this.pal.c[1], t);
+        this._strokeRing(cx, cy, pts, ringW *  8 * b * rs,  0.140 + bf * 0.060, this.pal.c[1], t);
+        this._strokeRing(cx, cy, pts, ringW *  5 * b * rs,  0.280 + bf * 0.100, this.pal.c[2], t);
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -545,10 +554,11 @@ class LavaPulse {
 
     _drawCoreRing(cx, cy, pts, ringW, t) {
         const b = this._brightness;
-        this._strokeRing(cx, cy, pts, ringW * 3.0 * b, 0.55 + this._beatFlash * 0.15, this.pal.c[2], t);
-        this._strokeRing(cx, cy, pts, ringW * 1.7 * b, 0.80 + this._beatFlash * 0.10, this.pal.c[3], t);
-        this._strokeRing(cx, cy, pts, ringW * 0.90,    0.95,                           this.pal.c[3], t);
-        this._strokeRing(cx, cy, pts, ringW * 0.35,    1.00,                           this.pal.c[4], t);
+        const rs = this.ringScale;
+        this._strokeRing(cx, cy, pts, ringW * 3.0 * b * rs, 0.55 + this._beatFlash * 0.15, this.pal.c[2], t);
+        this._strokeRing(cx, cy, pts, ringW * 1.7 * b * rs, 0.80 + this._beatFlash * 0.10, this.pal.c[3], t);
+        this._strokeRing(cx, cy, pts, ringW * 0.90 * rs,    0.95,                           this.pal.c[3], t);
+        this._strokeRing(cx, cy, pts, ringW * 0.35 * rs,    1.00,                           this.pal.c[4], t);
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -568,14 +578,16 @@ class LavaPulse {
 
         for (const o of offsets) {
             const shiftedPts = pts.map(p => ({ x: p.x + o.dx, y: p.y + o.dy }));
-            this._strokeRing(cx, cy, shiftedPts, ringW * 3.0 * b,
+            const rs = this.ringScale;
+            this._strokeRing(cx, cy, shiftedPts, ringW * 3.0 * b * rs,
                 (0.55 + this._beatFlash * 0.15) * o.aMult, o.color, t);
-            this._strokeRing(cx, cy, shiftedPts, ringW * 1.6 * b,
+            this._strokeRing(cx, cy, shiftedPts, ringW * 1.6 * b * rs,
                 (0.80 + this._beatFlash * 0.10) * o.aMult, o.color, t);
         }
         // Bright center (no split)
-        this._strokeRing(cx, cy, pts, ringW * 0.80, 0.96, this.pal.c[3], t);
-        this._strokeRing(cx, cy, pts, ringW * 0.30, 1.00, this.pal.c[4], t);
+        const rs = this.ringScale;
+        this._strokeRing(cx, cy, pts, ringW * 0.80 * rs, 0.96, this.pal.c[3], t);
+        this._strokeRing(cx, cy, pts, ringW * 0.30 * rs, 1.00, this.pal.c[4], t);
     }
 
     // ══════════════════════════════════════════════════════════════════════
