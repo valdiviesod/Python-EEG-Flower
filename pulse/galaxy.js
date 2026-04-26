@@ -364,7 +364,7 @@ class GalaxyGarden {
                     float t = sin(uTime * 2.0 + aTwinkle) * 0.5 + 0.5;
                     vAlpha = 0.2 + t * 0.8;
                     gl_PointSize = uSize * aScale * (3.5 / -vp.z);
-                    vColor = aColor;
+                    vColor = color;
                 }
             `,
             fragmentShader: `
