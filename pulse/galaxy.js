@@ -104,8 +104,7 @@ class GalaxyGarden {
         this._buildGalaxyDust();
         // Layer 3: Far colored stars
         this._buildFarStars();
-        // Layer 4: Shooting stars
-        this._buildShootingStars();
+        // Layer 4: Nebula clouds (placeholder)
 
         // Ambient + colored point lights for atmosphere
         const ambient = new THREE.AmbientLight(0x302050, 0.5);
@@ -919,9 +918,6 @@ class GalaxyGarden {
             this.farStars.rotation.y = elapsed * 0.006;
             this.farStars.rotation.x = Math.sin(elapsed * 0.01) * 0.015;
         }
-        // Shooting stars
-        this._updateShootingStars(delta, elapsed);
-
         // Animate each pulse star
         this.stars.forEach(star => {
             if (!star.group || !star.core || !star.group.visible) return;

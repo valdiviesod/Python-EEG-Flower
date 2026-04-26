@@ -264,6 +264,7 @@ body::before {
 #view-capture.active,
 #view-garden.active {
     overflow: hidden;
+    position: relative;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
