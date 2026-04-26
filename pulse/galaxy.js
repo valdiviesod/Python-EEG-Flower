@@ -287,7 +287,7 @@ class GalaxyGarden {
                     vec4 vp = viewMatrix * mp;
                     gl_Position = projectionMatrix * vp;
                     gl_PointSize = uSize * aScale * (5.0 / -vp.z) * flicker;
-                    vColor = color;
+                    vColor = aColor;
                 }
             `,
             fragmentShader: `
@@ -364,7 +364,7 @@ class GalaxyGarden {
                     float t = sin(uTime * 2.0 + aTwinkle) * 0.5 + 0.5;
                     vAlpha = 0.2 + t * 0.8;
                     gl_PointSize = uSize * aScale * (3.5 / -vp.z);
-                    vColor = color;
+                    vColor = aColor;
                 }
             `,
             fragmentShader: `
