@@ -475,6 +475,16 @@ class GalaxyGarden {
         this.stars = [];
     }
 
+    filterByName(query) {
+        const q = (query || '').toLowerCase().trim();
+        this.stars.forEach(star => {
+            const name = (star.data?.metadata?.user_name || '').toLowerCase();
+            const match = !q || name.includes(q);
+            if (star.group) star.group.visible = match;
+            if (star.labelEl) star.labelEl.style.display = match ? '' : 'none';
+        });
+    }
+
     async loadCaptures(capturesList) {
         this.clearPulses();
         capturesList.sort((a, b) => a.filename.localeCompare(b.filename));
@@ -845,7 +855,7 @@ class GalaxyGarden {
         const tempV = new THREE.Vector3();
 
         this.stars.forEach(star => {
-            if (!star.labelEl) return;
+            if (!star.labelEl || !star.group || !star.group.visible) return;
             tempV.set(star.basePos.x, star.basePos.y - star.starSize * 3.5, star.basePos.z);
             const camToPt = tempV.clone().sub(this.camera.position);
             const front = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
@@ -914,7 +924,7 @@ class GalaxyGarden {
 
         // Animate each pulse star
         this.stars.forEach(star => {
-            if (!star.group || !star.core) return;
+            if (!star.group || !star.core || !star.group.visible) return;
             const t = elapsed;
             const off = star.timeOffset;
 

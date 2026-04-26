@@ -1568,6 +1568,46 @@ body::before {
     background: radial-gradient(ellipse at center, transparent 40%, rgba(5, 3, 10, 0.5) 100%);
 }
 
+/* ─── Search Filter ───────────────────────────────────────────────────────── */
+.garden-search {
+    position: absolute;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    pointer-events: none;
+}
+
+#garden-search-input {
+    width: 220px;
+    padding: 0.4rem 0.75rem 0.4rem 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    background: rgba(10, 8, 20, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: var(--text);
+    font-size: 0.8rem;
+    font-family: inherit;
+    outline: none;
+    transition: var(--transition);
+    pointer-events: all;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%23888' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 0.65rem center;
+}
+
+#garden-search-input::placeholder {
+    color: rgba(255, 255, 255, 0.25);
+    font-style: italic;
+}
+
+#garden-search-input:focus {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(15, 12, 28, 0.9);
+    box-shadow: 0 0 12px rgba(92, 107, 192, 0.15);
+}
+
 #garden-2d-scene {
     position: absolute;
     inset: 0;

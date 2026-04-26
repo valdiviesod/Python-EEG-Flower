@@ -347,6 +347,8 @@
                     galaxyGarden = null;
                     gardenLoaded = false;
                 }
+                const searchInput = document.getElementById('garden-search-input');
+                if (searchInput) searchInput.value = '';
             }
 
             // Re-show capture tour whenever user navigates to the capture tab
@@ -1621,6 +1623,22 @@
             console.error('Error loading garden:', err);
             showGardenStatus('⚠️', 'Error al cargar el campo resonante. Intenta actualizar.');
         }
+    }
+
+    // ─── Garden search filter ──────────────────────────────────────────────
+    const gardenSearchInput = document.getElementById('garden-search-input');
+    if (gardenSearchInput) {
+        gardenSearchInput.addEventListener('input', () => {
+            if (galaxyGarden) galaxyGarden.filterByName(gardenSearchInput.value);
+        });
+        // Clear filter on focus if user presses Escape
+        gardenSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                gardenSearchInput.value = '';
+                if (galaxyGarden) galaxyGarden.filterByName('');
+                gardenSearchInput.blur();
+            }
+        });
     }
 
     // This handles clicks from the 3D garden raycaster which gives full capture data
