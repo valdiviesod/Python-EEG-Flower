@@ -270,7 +270,7 @@ class GalaxyGarden {
             },
             vertexShader: `
                 uniform float uSize; uniform float uTime;
-                attribute float aScale; attribute vec3 aRandomness;
+                attribute float aScale; attribute vec3 aRandomness; attribute vec3 aColor;
                 varying vec3 vColor;
                 void main() {
                     vec4 mp = modelMatrix * vec4(position, 1.0);
@@ -356,7 +356,7 @@ class GalaxyGarden {
             },
             vertexShader: `
                 uniform float uSize; uniform float uTime;
-                attribute float aScale; attribute float aTwinkle;
+                attribute float aScale; attribute float aTwinkle; attribute vec3 aColor;
                 varying float vAlpha; varying vec3 vColor;
                 void main() {
                     vec4 vp = viewMatrix * modelMatrix * vec4(position, 1.0);
