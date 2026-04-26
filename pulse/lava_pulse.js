@@ -446,10 +446,6 @@ this._baseR = 0;
             ctx.restore();
         }
 
-        // ── Layer 9: Particles ──
-        this._updateAndDrawParticles(cx, cy, t);
-        this._updateAndDrawComets(cx, cy, t);
-    }
 
     // ══════════════════════════════════════════════════════════════════════
     // LAYER: STARFIELD
