@@ -160,7 +160,7 @@ class GalaxyGarden {
 
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geo.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+        geo.setAttribute('aColor', new THREE.BufferAttribute(colours, 3));
         geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
         geo.setAttribute('aOpacity', new THREE.BufferAttribute(opacities, 1));
 
@@ -171,7 +171,7 @@ class GalaxyGarden {
             },
             vertexShader: `
                 uniform float uSize; uniform float uTime;
-                attribute float aSize; attribute vec3 color; attribute float aOpacity;
+                attribute float aSize; attribute vec3 aColor; attribute float aOpacity;
                 varying vec3 vColor; varying float vOpacity; varying float vDist;
                 void main() {
                     vec4 mp = modelMatrix * vec4(position, 1.0);
@@ -186,7 +186,7 @@ class GalaxyGarden {
                     vec4 vp = viewMatrix * mp;
                     gl_Position = projectionMatrix * vp;
                     gl_PointSize = uSize * aSize * (2.5 / -vp.z);
-                    vColor = color;
+                    vColor = aColor;
                     vOpacity = aOpacity;
                 }
             `,
@@ -259,7 +259,7 @@ class GalaxyGarden {
 
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geo.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+        geo.setAttribute('aColor', new THREE.BufferAttribute(colours, 3));
         geo.setAttribute('aScale', new THREE.BufferAttribute(scales, 1));
         geo.setAttribute('aRandomness', new THREE.BufferAttribute(randoms, 3));
 
@@ -347,7 +347,7 @@ class GalaxyGarden {
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geo.setAttribute('aScale', new THREE.BufferAttribute(scales, 1));
         geo.setAttribute('aTwinkle', new THREE.BufferAttribute(twinkle, 1));
-        geo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+        geo.setAttribute('aColor', new THREE.BufferAttribute(starColors, 3));
 
         const mat = new THREE.ShaderMaterial({
             uniforms: {
@@ -364,7 +364,7 @@ class GalaxyGarden {
                     float t = sin(uTime * 2.0 + aTwinkle) * 0.5 + 0.5;
                     vAlpha = 0.2 + t * 0.8;
                     gl_PointSize = uSize * aScale * (3.5 / -vp.z);
-                    vColor = color;
+                    vColor = aColor;
                 }
             `,
             fragmentShader: `
