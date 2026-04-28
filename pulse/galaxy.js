@@ -484,7 +484,7 @@ class GalaxyGarden {
         });
     }
 
-    async loadCaptures(capturesList) {
+    async loadCaptures(capturesList, animateFilename = null) {
         this.clearPulses();
         capturesList.sort((a, b) => a.filename.localeCompare(b.filename));
 
@@ -526,7 +526,8 @@ class GalaxyGarden {
             } while (!ok && attempts < 80);
 
             placed.push({ x, y, z });
-            this._createPulseStar(items[i].data, items[i].report, x, y, z, i);
+            const isAnimate = items[i].data.filename === animateFilename;
+            this._createPulseStar(items[i].data, items[i].report, x, y, z, i, isAnimate);
         }
     }
 
@@ -575,7 +576,7 @@ class GalaxyGarden {
         const seq = allBands.map((x, i) => ({ ...x.pal, _w: rawW[i] / sumW }));
         let _cum = 0;
         const breakpoints = seq.map(x => { _cum += x._w; return _cum; });
-        const cyclePeriod = 6 + v('delta') * 4 + v('theta') * 3 - v('beta') * 1.5;
+        const cyclePeriod = 24 + v('delta') * 4 + v('theta') * 3 - v('beta') * 1.5;
         return { seq, breakpoints, cyclePeriod: Math.max(3, cyclePeriod) };
     }
 
@@ -609,9 +610,13 @@ class GalaxyGarden {
         };
     }
 
-    _createPulseStar(captureData, report, x, y, z, index) {
+    _createPulseStar(captureData, report, x, y, z, index, animate = false) {
         const group = new THREE.Group();
         group.position.set(x, y, z);
+        if (animate) {
+            group.scale.set(0, 0, 0);
+            group.userData.vanishAnim = { active: true, t: 0, duration: 2.5 };
+        }
 
         const baseSize = 0.42;
 
@@ -919,10 +924,49 @@ class GalaxyGarden {
             this.farStars.rotation.x = Math.sin(elapsed * 0.01) * 0.015;
         }
         // Animate each pulse star
+        const hasActiveVanish = this.stars.some(s => s.group?.userData.vanishAnim?.active);
         this.stars.forEach(star => {
             if (!star.group || !star.core || !star.group.visible) return;
             const t = elapsed;
             const off = star.timeOffset;
+
+            // Vanish animation: scale from 0 to 1 with elastic ease
+            if (star.group.userData.vanishAnim && star.group.userData.vanishAnim.active) {
+                const anim = star.group.userData.vanishAnim;
+                anim.t += 0.016;
+                const progress = Math.min(anim.t / anim.duration, 1);
+                // Elastic ease out
+                const elastic = progress === 1 ? 1 : Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * (2 * Math.PI) / 3) + 1;
+                const scale = elastic;
+                star.group.scale.set(scale, scale, scale);
+                if (progress >= 1) {
+                    anim.active = false;
+                    // Start appear animation for all other stars
+                    this.stars.forEach(s => {
+                        if (s !== star && s.group) {
+                            s.group.userData.appearAnim = { active: true, t: 0, duration: 2.0 };
+                        }
+                    });
+                }
+            }
+
+            // Appear animation: other stars fade in after vanish completes
+            if (star.group.userData.appearAnim && star.group.userData.appearAnim.active) {
+                const anim = star.group.userData.appearAnim;
+                anim.t += 0.016;
+                const progress = Math.min(anim.t / anim.duration, 1);
+                // Ease out cubic
+                const ease = 1 - Math.pow(1 - progress, 3);
+                star.group.scale.set(ease, ease, ease);
+                if (progress >= 1) {
+                    anim.active = false;
+                }
+            } else if (!star.group.userData.vanishAnim?.active && !star.group.userData.appearAnim?.active) {
+                // Hide other stars while vanish is playing
+                if (hasActiveVanish) {
+                    star.group.scale.set(0, 0, 0);
+                }
+            }
 
             if (star.coreMat && star.coreMat.uniforms && star.coreMat.uniforms.uTime) {
                 star.coreMat.uniforms.uTime.value = t;

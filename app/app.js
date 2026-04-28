@@ -338,6 +338,19 @@
                 if (floatingLines) floatingLines.stop();
             }
 
+            // Stop MIDI when leaving pulse view (not when going to garden)
+            if (viewName !== 'pulse' && viewName !== 'garden') {
+                stopGardenMidiPlayback();
+                if (gardenAudioContext && gardenAudioContext.state === 'running') {
+                    gardenAudioContext.suspend().catch(() => {});
+                }
+            }
+
+            // Close garden modal when leaving garden view
+            if (viewName !== 'garden') {
+                closeGardenModal();
+            }
+
             // Galaxy: destroy when leaving garden to free GPU memory
             if (viewName === 'garden') {
                 if (!gardenLoaded) loadGarden();
@@ -952,6 +965,16 @@
         }
     });
 
+    // ── Replay MIDI (capture results) ──
+    const btnReplayMidi = document.getElementById('btn-replay-midi');
+    if (btnReplayMidi) {
+        btnReplayMidi.addEventListener('click', () => {
+            if (currentPlaybackCaptureData) {
+                playGardenMidi(currentPlaybackCaptureData);
+            }
+        });
+    }
+
     // ── Send to Pulse ──
     btnSendToPulse.addEventListener('click', async () => {
         try {
@@ -1276,6 +1299,9 @@
         renderAnalysis(report);
         drawPulse2D();
         switchPulseTab('pulse2d');
+
+        // Play MIDI automatically when entering pulse detail from capture
+        void playGardenMidi(jsonData);
     }
 
     // ── Fit canvas to wrapper (responsive DPR) ──
@@ -1544,6 +1570,59 @@
         });
     }
 
+    // ── Go to Garden from Pulse Detail ──
+    const pulseGoGardenBtn = document.getElementById('pulse-btn-go-garden');
+    if (pulseGoGardenBtn) {
+        pulseGoGardenBtn.addEventListener('click', async () => {
+            // Stop current pulse animations
+            if (pulse3d) { pulse3d.destroy(); pulse3d = null; }
+            if (pulse2d) { pulse2d.stop(); pulse2d = null; }
+            pulseAnalyzer = null;
+
+            // Get latest capture to know which one to animate
+            let latestFilename = null;
+            try {
+                const resp = await fetch('/api/garden/latest');
+                const data = await resp.json();
+                if (data.ok && data.capture) {
+                    latestFilename = data.capture.filename;
+                }
+            } catch (err) {
+                console.warn('Could not fetch latest capture:', err);
+            }
+
+            // Switch to garden view
+            globalTabs.forEach(t => t.classList.toggle('active', t.dataset.view === 'garden'));
+            views.forEach(v => v.classList.toggle('active', v.id === 'view-garden'));
+
+            // Load garden with animation for the latest pulse
+            if (!gardenLoaded) {
+                showGardenStatus('🌌', 'Analizando capturas para tu campo resonante...');
+                try {
+                    const resp = await fetch('/api/garden/list');
+                    const data = await resp.json();
+                    if (data.ok && data.captures && data.captures.length > 0) {
+                        hideGardenStatus();
+                        const container = document.getElementById('garden-2d-scene');
+                        container.innerHTML = '';
+                        if (galaxyGarden) { galaxyGarden.destroy(); galaxyGarden = null; }
+                        galaxyGarden = new GalaxyGarden('garden-2d-scene', (captureData) => {
+                            openGardenModalFromData(captureData);
+                        });
+                        galaxyGarden.init();
+                        await galaxyGarden.loadCaptures(data.captures, latestFilename);
+                        gardenLoaded = true;
+                    } else {
+                        showGardenStatus('🌌', 'Tu campo resonante está vacío.<br><br>Realiza tu primera captura EEG para plantar la primera pulso.');
+                    }
+                } catch (err) {
+                    console.error('Error loading garden:', err);
+                    showGardenStatus('⚠️', 'Error al cargar el campo resonante. Intenta actualizar.');
+                }
+            }
+        });
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // GARDEN VIEW
     // ══════════════════════════════════════════════════════════════════════
@@ -1574,6 +1653,10 @@
     let gardenReverbGain     = null;    // reverb wet level
     let gardenDryGain        = null;    // dry level
     let gardenMasterGain     = null;    // master output
+    let gardenMidiFinished   = false;   // true when MIDI playback finished
+    let gardenMidiPlaying   = false;   // true when MIDI is playing
+    let gardenMidiEndTimeout = null;    // timeout to detect MIDI end
+    let currentPlaybackCaptureData = null; // capture data for replay
 
     // Helper to toggle overlay messages
     function showGardenStatus(icon, text) {
@@ -1704,6 +1787,10 @@
             clearTimeout(gardenMidiLoopTimeout);
             gardenMidiLoopTimeout = null;
         }
+        if (gardenMidiEndTimeout !== null) {
+            clearTimeout(gardenMidiEndTimeout);
+            gardenMidiEndTimeout = null;
+        }
         gardenMidiLoopId += 1;
 
         gardenMidiTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
@@ -1714,6 +1801,17 @@
             try { node.disconnect(); } catch (_) { }
         });
         gardenMidiNodes = [];
+
+        gardenMidiFinished = false;
+        gardenMidiPlaying = false;
+        showReplayButtons(false);
+    }
+
+    function showReplayButtons(show) {
+        const btnReplayMidi = document.getElementById('btn-replay-midi');
+        const gardenBtnReplayMidi = document.getElementById('garden-btn-replay-midi');
+        if (btnReplayMidi) btnReplayMidi.style.display = show ? 'inline-flex' : 'none';
+        if (gardenBtnReplayMidi) gardenBtnReplayMidi.style.display = show ? 'inline-flex' : 'none';
     }
 
     function reduceTrackNotes(trackNotes, maxNotes) {
@@ -1875,10 +1973,16 @@
             gardenMidiTimeouts.push(timeoutId);
         });
 
-        // Loop: restart playback after the full plan finishes
-        gardenMidiLoopTimeout = setTimeout(() => {
-            scheduleGardenMidiLoop(ctx, playbackPlan, playbackId);
-        }, Math.max(250, (loopDuration + 0.5) * 1000));
+        // No loop - MIDI plays once. Set timeout to detect end and show replay button
+        const endTimeMs = (loopDuration + 1.0) * 1000;
+        gardenMidiEndTimeout = setTimeout(() => {
+            if (playbackId === gardenMidiLoopId) {
+                gardenMidiFinished = true;
+                gardenMidiPlaying = false;
+                showReplayButtons(true);
+            }
+        }, endTimeMs);
+        gardenMidiTimeouts.push(gardenMidiEndTimeout);
     }
 
     /**
@@ -1960,6 +2064,12 @@
         // Snapshot the generation counter so we can detect cancellation during awaits
         const startLoopId = gardenMidiLoopId;
 
+        // Store capture data for replay and reset state
+        currentPlaybackCaptureData = captureData;
+        gardenMidiFinished = false;
+        gardenMidiPlaying = true;
+        showReplayButtons(false);
+
         try {
             // Fetch MIDI binary from the server
             const resp = await fetch('/api/json-to-midi', {
@@ -1994,6 +2104,7 @@
 
             stopGardenMidiPlayback();
             const playbackId = gardenMidiLoopId;
+            gardenMidiPlaying = true;
             scheduleGardenMidiLoop(ctx, playbackPlan, playbackId);
         } catch (err) {
             console.error('Error reproduciendo MIDI del campo resonante:', err);
@@ -2091,6 +2202,16 @@
             } finally {
                 gardenBtnDownloadMidi.disabled = false;
                 gardenBtnDownloadMidi.innerHTML = '<span>🎵</span> Descargar MIDI';
+            }
+        });
+    }
+
+    // ── Garden: Replay MIDI ──
+    const gardenBtnReplayMidi = document.getElementById('garden-btn-replay-midi');
+    if (gardenBtnReplayMidi) {
+        gardenBtnReplayMidi.addEventListener('click', () => {
+            if (currentPlaybackCaptureData) {
+                playGardenMidi(currentPlaybackCaptureData);
             }
         });
     }

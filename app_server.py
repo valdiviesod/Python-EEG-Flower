@@ -490,6 +490,15 @@ class AppHandler(SimpleHTTPRequestHandler):
                 self._send_json(500, {'ok': False, 'error': str(exc)})
             return
 
+        # ── Garden: get latest capture ──
+        if parsed.path == '/api/garden/latest':
+            try:
+                self._handle_garden_latest()
+            except Exception as exc:
+                traceback.print_exc()
+                self._send_json(500, {'ok': False, 'error': str(exc)})
+            return
+
         # ── Serve static files (pulse/ and app/) ──
         super().do_GET()
 
@@ -627,6 +636,34 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _handle_garden_latest(self):
+        captures_dir = get_captures_dir()
+        if not captures_dir.exists():
+            self._send_json(200, {'ok': True, 'capture': None})
+            return
+
+        files = sorted(captures_dir.glob('*.json'), key=lambda p: p.stat().st_mtime, reverse=True)
+        if not files:
+            self._send_json(200, {'ok': True, 'capture': None})
+            return
+
+        latest_file = files[0]
+        try:
+            data = json.loads(latest_file.read_text(encoding='utf-8'))
+            meta = data.get('metadata', {})
+            capture_info = {
+                'filename': latest_file.name,
+                'user_name': meta.get('user_name', ''),
+                'user_state': meta.get('user_state', ''),
+                'duration_seconds': meta.get('duration_seconds', 0),
+                'total_samples': meta.get('total_samples', 0),
+                'capture_timestamp': meta.get('capture_timestamp', ''),
+                'sample_rate_hz': meta.get('sample_rate_hz', 0),
+            }
+            self._send_json(200, {'ok': True, 'capture': capture_info})
+        except Exception as exc:
+            self._send_json(500, {'ok': False, 'error': str(exc)})
 
     def _handle_garden_delete(self, filename: str):
         if not filename or '..' in filename or '/' in filename or '\\' in filename:
