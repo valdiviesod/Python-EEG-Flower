@@ -970,6 +970,7 @@
     if (btnReplayMidi) {
         btnReplayMidi.addEventListener('click', () => {
             if (currentPlaybackCaptureData) {
+                if (midiLinkedPulse) midiLinkedPulse.start();
                 playGardenMidi(currentPlaybackCaptureData);
             }
         });
@@ -1299,6 +1300,7 @@
         renderAnalysis(report);
         drawPulse2D();
         switchPulseTab('pulse2d');
+        midiLinkedPulse = pulse2d;
 
         // Play MIDI automatically when entering pulse detail from capture
         void playGardenMidi(jsonData);
@@ -1551,6 +1553,7 @@
     const pulseNewCaptureBtn = document.getElementById('pulse-btn-new-capture');
     if (pulseNewCaptureBtn) {
         pulseNewCaptureBtn.addEventListener('click', () => {
+            if (midiLinkedPulse === pulse2d) midiLinkedPulse = null;
             if (pulse3d) { pulse3d.destroy(); pulse3d = null; }
             if (pulse2d) { pulse2d.stop(); pulse2d = null; }
             pulseAnalyzer = null;
@@ -1575,6 +1578,7 @@
     if (pulseGoGardenBtn) {
         pulseGoGardenBtn.addEventListener('click', async () => {
             // Stop current pulse animations
+            if (midiLinkedPulse === pulse2d) midiLinkedPulse = null;
             if (pulse3d) { pulse3d.destroy(); pulse3d = null; }
             if (pulse2d) { pulse2d.stop(); pulse2d = null; }
             pulseAnalyzer = null;
@@ -1640,6 +1644,7 @@
     let galaxyGarden = null;
     let gardenPulse2d = null;
     let gardenPulseModal3d = null;
+    let midiLinkedPulse = null;
     let gardenAnalyzer = null;
     let gardenCurrentFile = null;
     let gardenCurrentJson = null;
@@ -1767,6 +1772,7 @@
         gardenModal.style.display = 'flex';
         fitPulseCanvas(canvas2dGarden);
         gardenPulse2d.start();
+        midiLinkedPulse = gardenPulse2d;
     }
 
     // Keep the old signature but redirect
@@ -1980,6 +1986,7 @@
                 gardenMidiFinished = true;
                 gardenMidiPlaying = false;
                 showReplayButtons(true);
+                if (midiLinkedPulse) { midiLinkedPulse.stop(); midiLinkedPulse = null; }
             }
         }, endTimeMs);
         gardenMidiTimeouts.push(gardenMidiEndTimeout);
@@ -2147,6 +2154,7 @@
             gardenAudioContext.suspend().catch(() => {});
         }
         gardenModal.style.display = 'none';
+        if (midiLinkedPulse === gardenPulse2d) midiLinkedPulse = null;
         if (gardenPulse2d) { gardenPulse2d.stop(); gardenPulse2d = null; }
         if (gardenPulseModal3d) {
             gardenPulseModal3d.destroy();
@@ -2211,6 +2219,7 @@
     if (gardenBtnReplayMidi) {
         gardenBtnReplayMidi.addEventListener('click', () => {
             if (currentPlaybackCaptureData) {
+                if (midiLinkedPulse) midiLinkedPulse.start();
                 playGardenMidi(currentPlaybackCaptureData);
             }
         });

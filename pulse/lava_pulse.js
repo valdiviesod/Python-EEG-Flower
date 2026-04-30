@@ -59,8 +59,8 @@ this._baseR = 0;
         this.ringScale = 0.55;
 
         // Visual center offset as fraction of minD (negative = left/up)
-        this.offsetX = -0.04;
-        this.offsetY = -0.04;
+        this.offsetX = -0.08;
+        this.offsetY = -0.08;
 
         this._buildParams();
         this._initParticles();

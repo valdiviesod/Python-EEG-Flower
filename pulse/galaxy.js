@@ -486,6 +486,7 @@ class GalaxyGarden {
 
     async loadCaptures(capturesList, animateFilename = null) {
         this.clearPulses();
+        this._hasAnimateFilename = !!animateFilename;
         capturesList.sort((a, b) => a.filename.localeCompare(b.filename));
 
         const items = [];
@@ -615,7 +616,7 @@ class GalaxyGarden {
         group.position.set(x, y, z);
         if (animate) {
             group.scale.set(0, 0, 0);
-            group.userData.vanishAnim = { active: true, t: 0, duration: 2.5 };
+            group.userData.vanishAnim = { active: true, t: 0, duration: 4.0 };
         }
 
         const baseSize = 0.42;
@@ -637,120 +638,20 @@ class GalaxyGarden {
             Math.max(0.45, Math.min(0.75, hsl.l + (Math.random() - 0.5) * 0.06))
         );
 
-        const bands = report.bands;
-
-        const bandVibes = {};
-        bands.forEach(b => {
-            bandVibes[b.key] = {
-                freq: (b.low + b.high) * 0.5 * 0.1,
-                amp: b.percentage / 100,
-                phase: Math.random() * Math.PI * 2,
-            };
-        });
-
-        const betaPower = (bands.find(b => b.key === 'beta') || {}).percentage || 0;
-        const gammaPower = (bands.find(b => b.key === 'gamma') || {}).percentage || 0;
-        const alphaPower = (bands.find(b => b.key === 'alpha') || {}).percentage || 0;
-        const thetaPower = (bands.find(b => b.key === 'theta') || {}).percentage || 0;
-        const animSpeed = 0.8 + (betaPower + gammaPower) / 100 * 1.5;
-        const waveX = 3.5 + (betaPower / 40) * 3.5;
-        const waveY = 3.0 + (alphaPower / 40) * 4.0;
-        const waveZ = 2.5 + (gammaPower / 40) * 4.5;
-        const waveSurface = 5.5 + (thetaPower / 40) * 5.5;
-
-        // ── Animated core sphere — full saturated color, no white highlights ──
-        const coreGeo = new THREE.IcosahedronGeometry(baseSize, 40);
-        const coreMat = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 },
-                uColor: { value: starColor },
-                uColorB: { value: deepColor.clone().multiplyScalar(1.4) },
-                uColorC: { value: brightColor },
-                uSpeed: { value: animSpeed },
-                uWaveX: { value: waveX },
-                uWaveY: { value: waveY },
-                uWaveZ: { value: waveZ },
-                uWaveSurface: { value: waveSurface },
-                uPulseAmp: { value: 0.16 },
-            },
-            vertexShader: `
-                uniform float uTime; uniform float uSpeed;
-                uniform float uWaveX; uniform float uWaveY; uniform float uWaveZ;
-                uniform float uPulseAmp;
-                varying vec3 vNormal; varying vec3 vPos; varying float vDisp;
-                void main() {
-                    vNormal = normalize(normalMatrix * normal);
-                    vec3 p = position;
-                    float n = sin(p.x * uWaveX + uTime * uSpeed) * cos(p.y * uWaveY + uTime * uSpeed * 0.7)
-                            + sin(p.z * uWaveZ + uTime * uSpeed * 1.2) * 0.5
-                            + sin((p.x + p.z) * 2.0 + uTime * uSpeed * 0.5) * 0.25;
-                    float disp = n * uPulseAmp;
-                    p += normal * disp;
-                    vDisp = disp;
-                    vPos = p;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform vec3 uColor; uniform vec3 uColorB; uniform vec3 uColorC; uniform float uTime;
-                uniform float uSpeed; uniform float uWaveSurface;
-                varying vec3 vNormal; varying vec3 vPos; varying float vDisp;
-                void main() {
-                    float wave = sin(vPos.y * uWaveSurface + uTime * uSpeed * 2.0) * 0.5 + 0.5;
-                    // Layered color mixing — only palette colors, no white
-                    vec3 col = mix(uColor, uColorB, wave * 0.6);
-                    col = mix(col, uColorC, wave * wave * 0.35);
-                    // Subtle edge darkening for shape definition (no white rim)
-                    float viewDot = abs(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)));
-                    col *= 0.85 + viewDot * 0.15;
-                    gl_FragColor = vec4(col, 1.0);
-                }
-            `,
-            side: THREE.DoubleSide,
-        });
-        const core = new THREE.Mesh(coreGeo, coreMat);
-        group.add(core);
-
-        // ── Outer glow halo (sprite-based bloom approximation) ──
-        const glowGeo = new THREE.IcosahedronGeometry(baseSize * 1.8, 16);
-        const glowMat = new THREE.ShaderMaterial({
-            uniforms: {
-                uColor: { value: starColor.clone().multiplyScalar(1.3) },
-                uTime: { value: 0 },
-                uSpeed: { value: animSpeed },
-            },
-            vertexShader: `
-                varying vec3 vNormal;
-                void main() {
-                    vNormal = normalize(normalMatrix * normal);
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform vec3 uColor; uniform float uTime; uniform float uSpeed;
-                varying vec3 vNormal;
-                void main() {
-                    vec3 viewDir = vec3(0.0, 0.0, 1.0);
-                    float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.0);
-                    float pulse = 0.8 + 0.2 * sin(uTime * uSpeed * 2.0);
-                    gl_FragColor = vec4(uColor, fresnel * 0.35 * pulse);
-                }
-            `,
-            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-            side: THREE.BackSide,
-        });
-        const glow = new THREE.Mesh(glowGeo, glowMat);
-        group.add(glow);
-
         const palCycle = this._buildPaletteCycle(report);
         palCycle.timeOffset = Math.random() * 100;
 
         const labelEl = this._createLabel(captureData, starColor);
+        // Hide labels for non-featured stars during transition
+        if (!animate && this._hasAnimateFilename) {
+            labelEl.style.display = 'none';
+        }
 
         core.userData.starObj = {
             data: captureData, group, core, coreMat,
             glow, glowMat,
             labelEl,
+            labelHidden: !animate && this._hasAnimateFilename,
             basePos: new THREE.Vector3(x, y, z),
             starSize: baseSize, index,
             timeOffset: Math.random() * 100,
@@ -860,6 +761,7 @@ class GalaxyGarden {
 
         this.stars.forEach(star => {
             if (!star.labelEl || !star.group || !star.group.visible) return;
+            if (star.labelHidden) { star.labelEl.classList.remove('visible'); return; }
             tempV.set(star.basePos.x, star.basePos.y - star.starSize * 3.5, star.basePos.z);
             const camToPt = tempV.clone().sub(this.camera.position);
             const front = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
@@ -941,12 +843,17 @@ class GalaxyGarden {
                 star.group.scale.set(scale, scale, scale);
                 if (progress >= 1) {
                     anim.active = false;
-                    // Start appear animation for all other stars
-                    this.stars.forEach(s => {
-                        if (s !== star && s.group) {
-                            s.group.userData.appearAnim = { active: true, t: 0, duration: 2.0 };
-                        }
-                    });
+                    // Delay before other stars appear
+                    const self = this;
+                    setTimeout(() => {
+                        self.stars.forEach(s => {
+                            if (s !== star && s.group) {
+                                s.labelHidden = false;
+                                if (s.labelEl) s.labelEl.style.display = '';
+                                s.group.userData.appearAnim = { active: true, t: 0, duration: 3.0 };
+                            }
+                        });
+                    }, 3000);
                 }
             }
 
