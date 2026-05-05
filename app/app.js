@@ -1036,7 +1036,7 @@
     if (btnReplayMidi) {
         btnReplayMidi.addEventListener('click', () => {
             if (currentPlaybackCaptureData) {
-                if (midiLinkedPulse) midiLinkedPulse.start();
+                startLinkedPulseForMidiReplay();
                 playGardenMidi(currentPlaybackCaptureData);
             }
         });
@@ -1377,16 +1377,19 @@
         const wrap = canvas && canvas.parentElement;
         if (!wrap) return;
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const w = wrap.clientWidth;
-        const h = wrap.clientHeight;
-        const size = Math.min(w, h);
+        const rect = wrap.getBoundingClientRect();
+        const w = wrap.clientWidth || rect.width || 700;
+        const h = wrap.clientHeight || rect.height || w;
+        const size = Math.max(320, Math.min(w, h) || w || 700);
         const nw = Math.round(size);
         const nh = Math.round(size);
-        if (canvas.width !== nw * dpr || canvas.height !== nh * dpr) {
-            canvas.width = nw * dpr;
-            canvas.height = nh * dpr;
+        const bitmapW = Math.round(nw * dpr);
+        const bitmapH = Math.round(nh * dpr);
+        if (canvas.width !== bitmapW || canvas.height !== bitmapH) {
+            canvas.width = bitmapW;
+            canvas.height = bitmapH;
             const ctx = canvas.getContext('2d');
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
         }
     }
 
@@ -1741,6 +1744,25 @@
     let gardenMidiPlaying   = false;   // true when MIDI is playing
     let gardenMidiEndTimeout = null;    // timeout to detect MIDI end
     let currentPlaybackCaptureData = null; // capture data for replay
+
+    function startLinkedPulseForMidiReplay() {
+        const garden2DActive = document.getElementById('gpanel-garden-2d')?.classList.contains('active');
+        const gardenVisible = gardenModal && gardenModal.style.display !== 'none';
+        const pulseVisible = pulseMainContent && pulseMainContent.style.display !== 'none';
+        let activePulse = null;
+
+        if (gardenVisible && garden2DActive && gardenPulse2d) {
+            activePulse = gardenPulse2d;
+        } else if (pulseVisible && currentPulseTab === 'pulse2d' && pulse2d) {
+            activePulse = pulse2d;
+        } else {
+            activePulse = midiLinkedPulse || gardenPulse2d || pulse2d;
+        }
+
+        if (!activePulse) return;
+        midiLinkedPulse = activePulse;
+        activePulse.start();
+    }
 
     // Helper to toggle overlay messages
     function showGardenStatus(icon, text) {
@@ -2438,7 +2460,7 @@
     if (gardenBtnReplayMidi) {
         gardenBtnReplayMidi.addEventListener('click', () => {
             if (currentPlaybackCaptureData) {
-                if (midiLinkedPulse) midiLinkedPulse.start();
+                startLinkedPulseForMidiReplay();
                 playGardenMidi(currentPlaybackCaptureData);
             }
         });
