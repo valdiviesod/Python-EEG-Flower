@@ -610,6 +610,63 @@
         },
     };
 
+    // ── Profile autocomplete ──
+    let profileSuggestions = [];
+    const profileSuggestionsEl = document.getElementById('profile-suggestions');
+
+    async function loadProfileSuggestions() {
+        try {
+            const resp = await fetch('/api/profiles/list');
+            const data = await resp.json();
+            if (data.ok) profileSuggestions = data.profiles || [];
+        } catch (_) {}
+    }
+
+    function normalizeName(n) {
+        return (n || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    }
+
+    if (inputName) {
+        inputName.addEventListener('focus', async () => {
+            await loadProfileSuggestions();
+            showSuggestions(inputName.value);
+        });
+        inputName.addEventListener('input', () => showSuggestions(inputName.value));
+        inputName.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') hideSuggestions();
+        });
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.name-input-wrap')) hideSuggestions();
+        });
+    }
+
+    function showSuggestions(query) {
+        if (!profileSuggestionsEl) return;
+        const q = normalizeName(query);
+        const matches = profileSuggestions.filter(p =>
+            !q || normalizeName(p.profile_name).includes(q)
+        );
+        if (!matches.length) { hideSuggestions(); return; }
+        profileSuggestionsEl.innerHTML = matches.map(p => `
+            <div class="profile-suggestion-item" data-name="${escapeHtml(p.profile_name)}">
+                <span class="suggestion-name">${escapeHtml(p.profile_name)}</span>
+                <span class="suggestion-count">${p.capture_count} captura${p.capture_count !== 1 ? 's' : ''}</span>
+            </div>
+        `).join('');
+        profileSuggestionsEl.style.display = 'block';
+        profileSuggestionsEl.querySelectorAll('.profile-suggestion-item').forEach(item => {
+            item.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                inputName.value = item.dataset.name;
+                hideSuggestions();
+            });
+        });
+    }
+
+    function hideSuggestions() {
+        if (profileSuggestionsEl) profileSuggestionsEl.style.display = 'none';
+    }
+
     // ── Start Capture ──
     btnStart.addEventListener('click', async () => {
         const name = inputName.value.trim();
@@ -623,6 +680,14 @@
 
         btnStart.disabled = true;
         btnStart.textContent = 'Conectando...';
+        hideSuggestions();
+
+        // Resolve profile name: if input matches existing profile (case-insensitive), use canonical name
+        let profileName = name;
+        const matchedProfile = profileSuggestions.find(
+            p => normalizeName(p.profile_name) === normalizeName(name)
+        );
+        if (matchedProfile) profileName = matchedProfile.profile_name;
 
         try {
             const resp = await fetch('/api/capture/start', {
@@ -632,6 +697,7 @@
                     userName: name,
                     userState: state,
                     durationSeconds: duration,
+                    profileName: profileName,
                 }),
             });
 
@@ -1599,23 +1665,34 @@
             globalTabs.forEach(t => t.classList.toggle('active', t.dataset.view === 'garden'));
             views.forEach(v => v.classList.toggle('active', v.id === 'view-garden'));
 
-            // Load garden with animation for the latest pulse
+            // Load garden with animation for the latest profile
             if (!gardenLoaded) {
                 showGardenStatus('🌌', 'Analizando capturas para tu campo resonante...');
                 try {
-                    const resp = await fetch('/api/garden/list');
+                    const resp = await fetch('/api/profiles/list');
                     const data = await resp.json();
-                    if (data.ok && data.captures && data.captures.length > 0) {
+                    if (data.ok && data.profiles && data.profiles.length > 0) {
                         hideGardenStatus();
                         const container = document.getElementById('garden-2d-scene');
                         container.innerHTML = '';
                         if (galaxyGarden) { galaxyGarden.destroy(); galaxyGarden = null; }
-                        galaxyGarden = new GalaxyGarden('garden-2d-scene', (captureData) => {
-                            openGardenModalFromData(captureData);
+                        galaxyGarden = new GalaxyGarden('garden-2d-scene', (profileData) => {
+                            openProfileModal(profileData);
                         });
                         galaxyGarden.init();
-                        await galaxyGarden.loadCaptures(data.captures, latestFilename);
+                        // Determine which profile to animate (from latest capture)
+                        let animateProfile = null;
+                        if (latestFilename) {
+                            const latestResp = await fetch(`/api/garden/file?name=${encodeURIComponent(latestFilename)}`);
+                            if (latestResp.ok) {
+                                const latestData = await latestResp.json();
+                                animateProfile = latestData.metadata?.profile_name || latestData.metadata?.user_name || null;
+                            }
+                        }
                         gardenLoaded = true;
+                        galaxyGarden.loadProfiles(data.profiles, animateProfile).catch(err => {
+                            console.error('Error loading profile pulses:', err);
+                        });
                     } else {
                         showGardenStatus('🌌', 'Tu campo resonante está vacío.<br><br>Realiza tu primera captura EEG para plantar la primera pulso.');
                     }
@@ -1648,6 +1725,8 @@
     let gardenAnalyzer = null;
     let gardenCurrentFile = null;
     let gardenCurrentJson = null;
+    let gardenCurrentProfileName = null;
+    let gardenCurrentProfileData = null;
     let gardenAudioContext    = null;
     let gardenMidiTimeouts   = [];
     let gardenMidiNodes      = [];      // active AudioNodes for cleanup
@@ -1680,33 +1759,30 @@
         showGardenStatus('🌌', 'Analizando capturas para tu campo resonante...');
 
         try {
-            const resp = await fetch('/api/garden/list');
+            const resp = await fetch('/api/profiles/list');
             const data = await resp.json();
 
-            if (!data.ok || !data.captures || data.captures.length === 0) {
+            if (!data.ok || !data.profiles || data.profiles.length === 0) {
                 showGardenStatus('🌌', 'Tu campo resonante está vacío.<br><br>Realiza tu primera captura EEG para plantar la primera pulso.');
                 return;
             }
 
             hideGardenStatus();
 
-            // Clear old container
             const container = document.getElementById('garden-2d-scene');
             container.innerHTML = '';
 
-            // Destroy old galaxy if exists
             if (galaxyGarden) { galaxyGarden.destroy(); galaxyGarden = null; }
 
-            // Init GalaxyGarden
-            galaxyGarden = new GalaxyGarden('garden-2d-scene', (captureData) => {
-                openGardenModalFromData(captureData);
+            galaxyGarden = new GalaxyGarden('garden-2d-scene', (profileData) => {
+                openProfileModal(profileData);
             });
             galaxyGarden.init();
 
-            // Load captures as stars
-            await galaxyGarden.loadCaptures(data.captures);
-
             gardenLoaded = true;
+            galaxyGarden.loadProfiles(data.profiles).catch(err => {
+                console.error('Error loading profile pulses:', err);
+            });
         } catch (err) {
             console.error('Error loading garden:', err);
             showGardenStatus('⚠️', 'Error al cargar el campo resonante. Intenta actualizar.');
@@ -1729,43 +1805,169 @@
         });
     }
 
-    // This handles clicks from the 3D garden raycaster which gives full capture data
-    function openGardenModalFromData(captureData) {
+    // ── Open Profile Modal (new main entry point) ──
+    async function openProfileModal(profileData) {
+        if (!profileData) return;
+
+        const profileName = profileData.profile_name || profileData.metadata?.user_name || 'Anónimo';
+        gardenCurrentProfileName = profileName;
+        gardenCurrentProfileData = profileData;
+
+        // Reset capture-specific state
+        gardenCurrentJson = null;
+        gardenCurrentFile = null;
+
+        gardenModalTitle.textContent = `Perfil de ${profileName}`;
+        gardenModalMeta.textContent = 'Cargando capturas...';
+
+        // Disable tabs/actions until capture is selected
+        const tab2d = document.getElementById('gtab-2d');
+        const tabAnalysis = document.getElementById('gtab-analysis');
+        if (tab2d) tab2d.disabled = true;
+        if (tabAnalysis) tabAnalysis.disabled = true;
+
+        const gardenBtnDlMidi = document.getElementById('garden-btn-download-midi');
+        if (gardenBtnDlMidi) gardenBtnDlMidi.disabled = true;
+
+        // Switch tabs to captures
+        gardenModalTabs.forEach(t => t.classList.toggle('active', t.dataset.gtab === 'garden-captures'));
+        gardenPanels.forEach(p => p.classList.toggle('active', p.id === 'gpanel-garden-captures'));
+
+        gardenModal.style.display = 'flex';
+
+        // Stop previous pulse
+        if (gardenPulse2d) { gardenPulse2d.stop(); gardenPulse2d = null; }
+        stopGardenMidiPlayback();
+
+        const embeddedCaptures = profileData._profileMeta?.captures || profileData.captures || [];
+        if (embeddedCaptures.length) {
+            const captureCount = embeddedCaptures.length;
+            gardenModalMeta.textContent = `${captureCount} captura${captureCount !== 1 ? 's' : ''} · última: ${embeddedCaptures[0]?.capture_timestamp || '—'}`;
+            renderProfileCapturesList(embeddedCaptures);
+            return;
+        }
+
+        // Fallback for old profile payloads.
+        try {
+            const resp = await fetch(`/api/profiles/captures?name=${encodeURIComponent(profileName)}`);
+            const data = await resp.json();
+            if (!data.ok) throw new Error(data.error);
+
+            const captureCount = data.captures.length;
+            gardenModalMeta.textContent = `${captureCount} captura${captureCount !== 1 ? 's' : ''} · última: ${data.captures[0]?.capture_timestamp || '—'}`;
+
+            renderProfileCapturesList(data.captures);
+        } catch (err) {
+            console.error('Error loading profile captures:', err);
+            const listEl = document.getElementById('profile-captures-list');
+            if (listEl) listEl.innerHTML = '<p class="captures-loading">Error al cargar capturas.</p>';
+        }
+    }
+
+    function renderProfileCapturesList(captures) {
+        const listEl = document.getElementById('profile-captures-list');
+        if (!listEl) return;
+
+        if (!captures || !captures.length) {
+            listEl.innerHTML = '<p class="captures-loading">No hay capturas en este perfil.</p>';
+            return;
+        }
+
+        listEl.innerHTML = captures.map((cap, idx) => {
+            const ts = cap.capture_timestamp || '—';
+            const state = cap.user_state || '';
+            const dur = cap.duration_seconds ? formatTime(cap.duration_seconds) : '—';
+            const samples = cap.total_samples || 0;
+            return `
+                <div class="capture-list-item" data-filename="${escapeHtml(cap.filename)}" data-idx="${idx}">
+                    <div class="capture-list-info">
+                        <span class="capture-list-date">${escapeHtml(ts)}</span>
+                        ${state ? `<span class="capture-list-state">${escapeHtml(state)}</span>` : ''}
+                        <span class="capture-list-dur">${dur} · ${samples.toLocaleString()} muestras</span>
+                    </div>
+                    <div class="capture-list-actions">
+                        <button class="btn-secondary btn-sm capture-view-btn" data-filename="${escapeHtml(cap.filename)}">
+                            Ver pulso 2D
+                        </button>
+                        <button class="btn-danger btn-sm capture-delete-btn" data-filename="${escapeHtml(cap.filename)}" data-ts="${escapeHtml(ts)}">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Bind view buttons
+        listEl.querySelectorAll('.capture-view-btn').forEach(btn => {
+            btn.addEventListener('click', () => loadCaptureIntoModal(btn.dataset.filename));
+        });
+
+        // Bind delete capture buttons
+        listEl.querySelectorAll('.capture-delete-btn').forEach(btn => {
+            btn.addEventListener('click', () => confirmDeleteCapture(btn.dataset.filename));
+        });
+    }
+
+    async function loadCaptureIntoModal(filename) {
+        try {
+            const resp = await fetch(`/api/garden/file?name=${encodeURIComponent(filename)}`);
+            if (!resp.ok) throw new Error('No se pudo cargar la captura');
+            const data = await resp.json();
+            data.filename = filename;
+            openGardenModalFromData(data, true);
+        } catch (err) {
+            console.error(err);
+            alert('Error al cargar la captura: ' + err.message);
+        }
+    }
+
+    // This handles clicks from the 3D garden raycaster which gives full capture data.
+    // When fromProfileList=true it's called from the captures list inside an open profile modal.
+    function openGardenModalFromData(captureData, fromProfileList = false) {
         if (!captureData) return;
 
         const filename = captureData.filename || 'capture.json';
 
         gardenCurrentJson = captureData;
         gardenCurrentFile = filename;
-        void playGardenMidi(captureData);
 
-        const userName = captureData.metadata?.user_name || 'Anónimo';
+        if (!fromProfileList) {
+            // Legacy/direct entry: profile_name may or may not exist
+            const profileName = captureData.profile_name ||
+                                captureData.metadata?.profile_name ||
+                                captureData.metadata?.user_name || 'Anónimo';
+            gardenCurrentProfileName = profileName;
+            gardenModalTitle.textContent = `Perfil de ${profileName}`;
+        }
 
-        gardenModalTitle.textContent = `Pulso de ${userName}`;
+        // Enable tabs
+        const tab2d = document.getElementById('gtab-2d');
+        const tabAnalysis = document.getElementById('gtab-analysis');
+        if (tab2d) tab2d.disabled = false;
+        if (tabAnalysis) tabAnalysis.disabled = false;
 
-        const dur = captureData.metadata?.duration_seconds ? formatTime(captureData.metadata.duration_seconds) : '—';
-        gardenModalMeta.textContent = dur !== '—' ? `Sesión de ${dur}` : 'Sesión EEG';
+        const gardenBtnDlMidi = document.getElementById('garden-btn-download-midi');
+        if (gardenBtnDlMidi) gardenBtnDlMidi.disabled = false;
 
         // Initialize Analyzer for Modal Views
         gardenAnalyzer = new EEGBandAnalyzer(captureData);
 
-        // 1. Prepare 2D (LavaPulse animated)
+        // Prepare 2D (LavaPulse animated)
         const canvas2dGarden = document.getElementById('garden-pulse-2d-canvas');
         if (gardenPulse2d) { gardenPulse2d.stop(); gardenPulse2d = null; }
         gardenPulse2d = new LavaPulse(canvas2dGarden, gardenAnalyzer);
 
-        // 2. Prepare 3D (will init on tab click to avoid layout issues)
         if (gardenPulseModal3d) {
             gardenPulseModal3d.destroy();
             gardenPulseModal3d = null;
         }
 
-        // 3. Render Analysis Report
+        // Render Analysis Report
         const report = gardenAnalyzer.getReport();
         const gardenAnalysisContent = document.getElementById('garden-analysis-content');
         gardenAnalysisContent.innerHTML = renderGardenAnalysisHTML(report);
 
-        // Reset tabs to 2D
+        // Switch to 2D tab
         gardenModalTabs.forEach(t => t.classList.toggle('active', t.dataset.gtab === 'garden-2d'));
         gardenPanels.forEach(p => p.classList.toggle('active', p.id === 'gpanel-garden-2d'));
 
@@ -1773,6 +1975,8 @@
         fitPulseCanvas(canvas2dGarden);
         gardenPulse2d.start();
         midiLinkedPulse = gardenPulse2d;
+
+        void playGardenMidi(captureData);
     }
 
     // Keep the old signature but redirect
@@ -2149,7 +2353,6 @@
 
     function closeGardenModal() {
         stopGardenMidiPlayback();
-        // Suspend audio context immediately so any in-flight nodes go silent at once
         if (gardenAudioContext && gardenAudioContext.state === 'running') {
             gardenAudioContext.suspend().catch(() => {});
         }
@@ -2160,25 +2363,41 @@
             gardenPulseModal3d.destroy();
             gardenPulseModal3d = null;
         }
+        gardenCurrentProfileName = null;
+        gardenCurrentProfileData = null;
+        gardenCurrentFile = null;
+        gardenCurrentJson = null;
+        // Re-disable tabs
+        const tab2d = document.getElementById('gtab-2d');
+        const tabAnalysis = document.getElementById('gtab-analysis');
+        if (tab2d) tab2d.disabled = true;
+        if (tabAnalysis) tabAnalysis.disabled = true;
     }
 
     // Modal tabs
     gardenModalTabs.forEach(tab => {
         tab.addEventListener('click', () => {
+            if (tab.disabled) return;
             const tabName = tab.dataset.gtab;
             gardenModalTabs.forEach(t => t.classList.toggle('active', t.dataset.gtab === tabName));
             gardenPanels.forEach(p => p.classList.toggle('active', p.id === `gpanel-${tabName}`));
 
-            // Init 3D on first switch
-            if (tabName === 'garden-3d' && gardenAnalyzer && !gardenPulseModal3d) {
-                const container = document.getElementById('garden-pulse-3d-container');
-                setTimeout(() => {
-                    gardenPulseModal3d = new Pulse3D(container, gardenAnalyzer);
-                    gardenPulseModal3d.init();
-                }, 100);
+            // Resume/pause LavaPulse depending on tab
+            if (tabName === 'garden-2d') {
+                if (gardenPulse2d) {
+                    fitPulseCanvas(document.getElementById('garden-pulse-2d-canvas'));
+                    gardenPulse2d.start();
+                }
+            } else {
+                if (gardenPulse2d) gardenPulse2d.stop();
             }
-            if (tabName === 'garden-3d' && gardenPulseModal3d) {
-                gardenPulseModal3d._onResize();
+
+            // Stop MIDI when leaving current pulse detail back to captures
+            if (tabName === 'garden-captures') {
+                stopGardenMidiPlayback();
+                if (gardenAudioContext && gardenAudioContext.state === 'running') {
+                    gardenAudioContext.suspend().catch(() => {});
+                }
             }
         });
     });
@@ -2234,9 +2453,8 @@
 
     if (gardenBtnRename) {
         gardenBtnRename.addEventListener('click', () => {
-            if (!gardenCurrentJson) return;
-            const currentName = gardenCurrentJson.metadata?.user_name || '';
-            renameInput.value = currentName;
+            if (!gardenCurrentProfileName) return;
+            renameInput.value = gardenCurrentProfileName;
             renameModal.style.display = 'flex';
             setTimeout(() => renameInput.focus(), 100);
         });
@@ -2264,25 +2482,24 @@
                 renameInput.focus();
                 return;
             }
-            if (!gardenCurrentFile) return;
+            if (!gardenCurrentProfileName) return;
 
             renameBtnConfirm.disabled = true;
             renameBtnConfirm.textContent = 'Guardando...';
             try {
-                const resp = await fetch('/api/garden/rename', {
+                const resp = await fetch('/api/profiles/rename', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ filename: gardenCurrentFile, newName }),
+                    body: JSON.stringify({ oldName: gardenCurrentProfileName, newName }),
                 });
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.error || 'Error al renombrar');
 
-                // Update in-memory data and UI
-                if (gardenCurrentJson?.metadata) gardenCurrentJson.metadata.user_name = newName;
-                gardenModalTitle.textContent = `Pulso de ${newName}`;
+                gardenCurrentProfileName = newName;
+                gardenModalTitle.textContent = `Perfil de ${newName}`;
                 renameModal.style.display = 'none';
 
-                // Refresh garden to show updated name
+                // Refresh garden
                 gardenLoaded = false;
                 loadGarden();
             } catch (err) {
@@ -2294,55 +2511,133 @@
         });
     }
 
-    // ── Garden: Delete pulse ──
-    const gardenBtnDelete = document.getElementById('garden-btn-delete');
+    // ── Garden: Delete capture (individual, from captures list) ──
     const deleteModal = document.getElementById('delete-modal');
-    const deleteModalName = document.getElementById('delete-modal-name');
     const deleteBtnCancel = document.getElementById('delete-btn-cancel');
     const deleteBtnConfirm = document.getElementById('delete-btn-confirm');
+    let pendingDeleteFilename = null;
 
-    if (gardenBtnDelete) {
-        gardenBtnDelete.addEventListener('click', () => {
-            if (!gardenCurrentJson) return;
-            const name = gardenCurrentJson.metadata?.user_name || gardenCurrentFile || 'esta pulso';
-            if (deleteModalName) deleteModalName.textContent = name;
-            deleteModal.style.display = 'flex';
-        });
+    function confirmDeleteCapture(filename) {
+        pendingDeleteFilename = filename;
+        deleteModal.style.display = 'flex';
     }
 
     if (deleteBtnCancel) {
         deleteBtnCancel.addEventListener('click', () => {
             deleteModal.style.display = 'none';
+            pendingDeleteFilename = null;
         });
     }
 
     deleteModal?.addEventListener('click', (e) => {
-        if (e.target === deleteModal) deleteModal.style.display = 'none';
+        if (e.target === deleteModal) { deleteModal.style.display = 'none'; pendingDeleteFilename = null; }
     });
 
     if (deleteBtnConfirm) {
         deleteBtnConfirm.addEventListener('click', async () => {
-            if (!gardenCurrentFile) return;
+            if (!pendingDeleteFilename) return;
             deleteBtnConfirm.disabled = true;
             deleteBtnConfirm.textContent = 'Eliminando...';
             try {
-                const resp = await fetch('/api/garden/delete', {
+                const resp = await fetch('/api/profiles/capture/delete', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ filename: gardenCurrentFile }),
+                    body: JSON.stringify({ filename: pendingDeleteFilename }),
                 });
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.error || 'Error al eliminar');
 
                 deleteModal.style.display = 'none';
-                closeGardenModal();
+                pendingDeleteFilename = null;
                 gardenLoaded = false;
-                loadGarden();
+
+                // If the capture we deleted was the currently shown one, clear 2D
+                if (gardenCurrentFile === pendingDeleteFilename) {
+                    gardenCurrentFile = null;
+                    gardenCurrentJson = null;
+                    if (gardenPulse2d) { gardenPulse2d.stop(); gardenPulse2d = null; }
+                }
+
+                // Reload captures list for current profile
+                if (gardenCurrentProfileName) {
+                    const resp2 = await fetch(`/api/profiles/captures?name=${encodeURIComponent(gardenCurrentProfileName)}`);
+                    const data2 = await resp2.json();
+                    if (data2.ok && data2.captures.length > 0) {
+                        renderProfileCapturesList(data2.captures);
+                        gardenModalMeta.textContent = `${data2.captures.length} captura${data2.captures.length !== 1 ? 's' : ''}`;
+                    } else {
+                        // Profile is now empty
+                        closeGardenModal();
+                        loadGarden();
+                    }
+                }
             } catch (err) {
                 alert('Error al eliminar: ' + err.message);
             } finally {
                 deleteBtnConfirm.disabled = false;
                 deleteBtnConfirm.textContent = 'Sí, eliminar';
+            }
+        });
+    }
+
+    // ── Garden: Delete entire profile ──
+    const gardenBtnDeleteProfile = document.getElementById('garden-btn-delete-profile');
+    const deleteProfileModal = document.getElementById('delete-profile-modal');
+    const deleteProfileModalName = document.getElementById('delete-profile-modal-name');
+    const deleteProfileCount = document.getElementById('delete-profile-count');
+    const deleteProfileBtnCancel = document.getElementById('delete-profile-btn-cancel');
+    const deleteProfileBtnConfirm = document.getElementById('delete-profile-btn-confirm');
+
+    if (gardenBtnDeleteProfile) {
+        gardenBtnDeleteProfile.addEventListener('click', async () => {
+            if (!gardenCurrentProfileName) return;
+            // Show count
+            try {
+                const resp = await fetch(`/api/profiles/captures?name=${encodeURIComponent(gardenCurrentProfileName)}`);
+                const data = await resp.json();
+                const count = data.captures?.length || 0;
+                if (deleteProfileCount) deleteProfileCount.textContent = `${count} captura${count !== 1 ? 's' : ''}`;
+            } catch (_) {
+                if (deleteProfileCount) deleteProfileCount.textContent = 'todas las capturas';
+            }
+            if (deleteProfileModalName) deleteProfileModalName.textContent = gardenCurrentProfileName;
+            if (deleteProfileModal) deleteProfileModal.style.display = 'flex';
+        });
+    }
+
+    if (deleteProfileBtnCancel) {
+        deleteProfileBtnCancel.addEventListener('click', () => {
+            if (deleteProfileModal) deleteProfileModal.style.display = 'none';
+        });
+    }
+
+    deleteProfileModal?.addEventListener('click', (e) => {
+        if (e.target === deleteProfileModal) deleteProfileModal.style.display = 'none';
+    });
+
+    if (deleteProfileBtnConfirm) {
+        deleteProfileBtnConfirm.addEventListener('click', async () => {
+            if (!gardenCurrentProfileName) return;
+            deleteProfileBtnConfirm.disabled = true;
+            deleteProfileBtnConfirm.textContent = 'Eliminando...';
+            try {
+                const resp = await fetch('/api/profiles/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: gardenCurrentProfileName }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Error al eliminar');
+
+                if (deleteProfileModal) deleteProfileModal.style.display = 'none';
+                closeGardenModal();
+                gardenLoaded = false;
+                loadGarden();
+            } catch (err) {
+                alert('Error al eliminar perfil: ' + err.message);
+            } finally {
+                deleteProfileBtnConfirm.disabled = false;
+                deleteProfileBtnConfirm.textContent = 'Sí, eliminar todo';
             }
         });
     }

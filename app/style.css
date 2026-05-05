@@ -3005,3 +3005,131 @@ body::before {
         radial-gradient(circle at 20% 30%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
         radial-gradient(circle at 80% 70%, rgba(34, 197, 94, 0.05) 0%, transparent 50%);
 }
+
+/* ── Profile name autocomplete ── */
+.name-input-wrap {
+    position: relative;
+}
+
+.profile-suggestions {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: rgba(10, 5, 24, 0.97);
+    border: 1px solid rgba(139, 92, 246, 0.35);
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    z-index: 200;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.profile-suggestion-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.15s;
+}
+
+.profile-suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.profile-suggestion-item:hover {
+    background: rgba(139, 92, 246, 0.18);
+}
+
+.suggestion-name {
+    color: #E8DFFF;
+    font-size: 0.9rem;
+}
+
+.suggestion-count {
+    color: rgba(180,155,255,0.6);
+    font-size: 0.78rem;
+}
+
+/* ── Profile captures list in modal ── */
+.profile-captures-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.5rem 0;
+    max-height: 420px;
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+
+.profile-captures-list::-webkit-scrollbar {
+    display: none;
+}
+
+.captures-loading {
+    color: rgba(180,155,255,0.6);
+    text-align: center;
+    padding: 2rem;
+    font-size: 0.9rem;
+}
+
+.capture-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: rgba(139, 92, 246, 0.06);
+    border: 1px solid rgba(139, 92, 246, 0.12);
+    border-radius: 10px;
+    transition: background 0.2s;
+}
+
+.capture-list-item:hover {
+    background: rgba(139, 92, 246, 0.14);
+}
+
+.capture-list-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.capture-list-date {
+    color: #E8DFFF;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.capture-list-state {
+    color: rgba(236, 72, 153, 0.85);
+    font-size: 0.78rem;
+}
+
+.capture-list-dur {
+    color: rgba(180,155,255,0.55);
+    font-size: 0.75rem;
+}
+
+.capture-list-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+.btn-sm {
+    padding: 0.35rem 0.7rem !important;
+    font-size: 0.78rem !important;
+    min-width: unset !important;
+}
+
+/* ── Disabled tab style ── */
+.tab[disabled] {
+    opacity: 0.38;
+    cursor: not-allowed;
+    pointer-events: none;
+}

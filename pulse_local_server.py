@@ -38,6 +38,12 @@ def map_formats(format_value: str) -> list[str]:
 class PulseHandler(SimpleHTTPRequestHandler):
     """HTTP handler: static files + conversion API."""
 
+    def end_headers(self):
+        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
+        super().end_headers()
+
     def _send_json(self, status: int, payload: dict):
         body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
         self.send_response(status)

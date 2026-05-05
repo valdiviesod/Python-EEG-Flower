@@ -54,8 +54,11 @@
                     </p>
 
                     <div class="form-group">
-                        <label for="input-name">Nombre del participante</label>
-                        <input type="text" id="input-name" placeholder="Ej: María García" autocomplete="name">
+                        <label for="input-name">Nombre del participante o perfil existente</label>
+                        <div class="name-input-wrap">
+                            <input type="text" id="input-name" placeholder="Ej: María García" autocomplete="off">
+                            <div class="profile-suggestions" id="profile-suggestions" style="display:none"></div>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="input-state">Estado Emocional</label>
@@ -346,7 +349,7 @@
                 </div>
             </div>
 
-            <!-- Garden Modal (unchanged) -->
+            <!-- Garden Modal — Profile View -->
             <div class="garden-modal-overlay" id="garden-modal" style="display:none">
                 <div class="garden-modal">
                     <button class="garden-modal-close" id="garden-modal-close">✕</button>
@@ -355,33 +358,42 @@
                         <p id="garden-modal-meta">—</p>
                     </div>
                     <div class="garden-modal-actions">
-                        <button class="btn-secondary" id="garden-btn-download-midi">
+                        <button class="btn-secondary" id="garden-btn-download-midi" disabled>
                             <span>🎵</span> Descargar MIDI
                         </button>
                         <button class="btn-secondary" id="garden-btn-replay-midi" style="display:none">
                             <span>🔄</span> Volver a reproducir
                         </button>
                         <button class="btn-secondary" id="garden-btn-rename">
-                            <span>✏️</span> Renombrar
+                            <span>✏️</span> Renombrar perfil
                         </button>
-                        <button class="btn-danger" id="garden-btn-delete">
-                            <span>🗑️</span> Eliminar Pulso
+                        <button class="btn-danger" id="garden-btn-delete-profile">
+                            <span>🗑️</span> Eliminar perfil
                         </button>
                     </div>
                     <nav class="tabs garden-modal-tabs" id="garden-modal-tabs">
-                        <button class="tab active" data-gtab="garden-2d">💫 Pulso 2D</button>
-                        <button class="tab" data-gtab="garden-3d" style="display:none">🌺 Pulso 3D</button>
-                        <button class="tab" data-gtab="garden-analysis">🔬 Análisis</button>
+                        <button class="tab active" data-gtab="garden-captures">📋 Capturas</button>
+                        <button class="tab" data-gtab="garden-2d" id="gtab-2d" disabled>💫 Pulso 2D</button>
+                        <button class="tab" data-gtab="garden-analysis" id="gtab-analysis" disabled>🔬 Análisis</button>
                     </nav>
                     <div class="garden-modal-body">
-                        <div class="garden-modal-panel active" id="gpanel-garden-2d">
+                        <!-- Captures list panel -->
+                        <div class="garden-modal-panel active" id="gpanel-garden-captures">
+                            <div class="profile-captures-list" id="profile-captures-list">
+                                <p class="captures-loading">Cargando capturas...</p>
+                            </div>
+                        </div>
+                        <!-- 2D Pulse panel -->
+                        <div class="garden-modal-panel" id="gpanel-garden-2d">
                             <div class="canvas-wrapper">
                                 <canvas id="garden-pulse-2d-canvas"></canvas>
                             </div>
                         </div>
-                        <div class="garden-modal-panel" id="gpanel-garden-3d">
+                        <!-- 3D placeholder (kept for compat) -->
+                        <div class="garden-modal-panel" id="gpanel-garden-3d" style="display:none">
                             <div id="garden-pulse-3d-container"></div>
                         </div>
+                        <!-- Analysis panel -->
                         <div class="garden-modal-panel" id="gpanel-garden-analysis">
                             <div class="analysis-grid" id="garden-analysis-content"></div>
                         </div>
@@ -392,11 +404,11 @@
 
     </div>
 
-    <!-- ───── Modal: Renombrar Pulso ───── -->
+    <!-- ───── Modal: Renombrar Perfil ───── -->
     <div class="rename-modal-overlay" id="rename-modal" style="display:none">
         <div class="rename-modal">
-            <h3>✏️ Renombrar Pulso</h3>
-            <p>Introduce el nuevo nombre para esta sesión:</p>
+            <h3>✏️ Renombrar perfil</h3>
+            <p>Introduce el nuevo nombre para este perfil.<br><small style="color:var(--text-dim)">Se actualizarán todas las capturas asociadas a este nombre.</small></p>
             <input type="text" id="rename-input" placeholder="Ej: María García" maxlength="60" autocomplete="off">
             <div class="rename-modal-actions">
                 <button class="btn-ghost" id="rename-btn-cancel">Cancelar</button>
@@ -405,15 +417,28 @@
         </div>
     </div>
 
-    <!-- ───── Modal: Confirmar Eliminación ───── -->
+    <!-- ───── Modal: Eliminar Captura Individual ───── -->
     <div class="delete-modal-overlay" id="delete-modal" style="display:none">
         <div class="delete-modal">
             <div class="delete-modal-icon">🗑️</div>
-            <h3>Eliminar esta pulso</h3>
-            <p>¿Estás segura/o? Esta acción no se puede deshacer.<br>La pulso <strong id="delete-modal-name"></strong> será eliminada permanentemente.</p>
+            <h3>Eliminar captura</h3>
+            <p>Se eliminará esta captura. El perfil seguirá existiendo si tiene más capturas.<br>Esta acción no se puede deshacer.</p>
             <div class="delete-modal-actions">
                 <button class="btn-ghost" id="delete-btn-cancel">Cancelar</button>
                 <button class="btn-danger" id="delete-btn-confirm">Sí, eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ───── Modal: Eliminar Perfil Completo ───── -->
+    <div class="delete-modal-overlay" id="delete-profile-modal" style="display:none">
+        <div class="delete-modal">
+            <div class="delete-modal-icon">🗑️</div>
+            <h3>Eliminar perfil completo</h3>
+            <p>Se eliminarán <strong id="delete-profile-count"></strong> de <strong id="delete-profile-modal-name"></strong>.<br>Esta acción no se puede deshacer.</p>
+            <div class="delete-modal-actions">
+                <button class="btn-ghost" id="delete-profile-btn-cancel">Cancelar</button>
+                <button class="btn-danger" id="delete-profile-btn-confirm">Sí, eliminar todo</button>
             </div>
         </div>
     </div>
@@ -446,7 +471,7 @@
     <script src="/pulse/eeg_band_analyzer.js"></script>
     <script src="/pulse/pulse_2d.js"></script>
     <script src="/pulse/pulse_3d.js"></script>
-    <script src="/pulse/galaxy.js?v=1"></script>
+    <script src="/pulse/galaxy.js?v=20260505-profiles-perf"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.28/build/Midi.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
     <script src="/pulse/lava_pulse.js"></script>
@@ -454,7 +479,7 @@
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script src="FloatingLines.js"></script>
     <!-- Main App -->
-    <script src="app.js?v=4"></script>
+    <script src="app.js?v=20260505-profiles-perf-detail"></script>
 </body>
 
 </html>

@@ -30,6 +30,8 @@ class GalaxyGarden {
         this.shootingStars = [];   // animated shooting stars
 
         this.hoveredStar = null;
+        this._destroyed = false;
+        this._loadToken = 0;
 
         // Band colours — same palette, more saturated
         this.bandColours = {
@@ -46,6 +48,7 @@ class GalaxyGarden {
     }
 
     init() {
+        this._destroyed = false;
         const w = this.container.clientWidth || 800;
         const h = this.container.clientHeight || 600;
 
@@ -477,7 +480,12 @@ class GalaxyGarden {
     filterByName(query) {
         const q = (query || '').toLowerCase().trim();
         this.stars.forEach(star => {
-            const name = (star.data?.metadata?.user_name || '').toLowerCase();
+            // Support both profile mode (star.data.profile_name) and legacy mode
+            const name = (
+                star.data?.profile_name ||
+                star.data?.metadata?.user_name ||
+                ''
+            ).toLowerCase();
             const match = !q || name.includes(q);
             if (star.group) star.group.visible = match;
             if (star.labelEl) star.labelEl.style.display = match ? '' : 'none';
@@ -532,82 +540,144 @@ class GalaxyGarden {
         }
     }
 
-    _getLavaPalette(report) {
-        const bands = report.bands;
-        const v = (key) => (bands.find(b => b.key === key) || {}).relativePower || 0;
-        const d = v('delta'), th = v('theta'), a = v('alpha'), b = v('beta'), g = v('gamma');
-        const dominant = [
-            { key: 'delta', v: d }, { key: 'theta', v: th }, { key: 'alpha', v: a },
-            { key: 'beta',  v: b }, { key: 'gamma', v: g },
-        ].reduce((best, x) => x.v > best.v ? x : best).key;
-        const PALETTES = {
-            delta: ['#0D0020', '#2A0060', '#5B21B6', '#A855F7', '#C4B5FD', '#FFFFFF', '#DDD6FE', '#7C3AED'],
-            theta: ['#052E16', '#14532D', '#15803D', '#34D399', '#86EFAC', '#FFFFFF', '#BBF7D0', '#10B981'],
-            alpha: ['#2D0018', '#7F1D4F', '#BE185D', '#F472B6', '#F9A8D4', '#FFFFFF', '#FBCFE8', '#DB2777'],
-            beta:  ['#431407', '#9A3412', '#C2410C', '#FB923C', '#FDBA74', '#FFFFFF', '#FED7AA', '#EA580C'],
-            gamma: ['#422006', '#713F12', '#A16207', '#FACC15', '#FDE047', '#FFFFFF', '#FEF08A', '#EAB308'],
-        };
-        return { dominant, colors: PALETTES[dominant] };
-    }
-
     /**
-     * Build a cycling palette sequence from all 5 bands, weighted by power.
-     * Similar to LavaPulse._buildParams() palSequence.
+     * Load profiles list (one star per profile).
+     * profilesList: array from /api/profiles/list
+     * animateProfileName: profile_name to animate on entry (latest capture)
      */
-    _buildPaletteCycle(report) {
-        const bands = report.bands;
-        const v = (key) => (bands.find(b => b.key === key) || {}).relativePower || 0;
-        const PALETTES = {
-            delta: { c: ['#0D0020', '#2A0060', '#5B21B6', '#A855F7', '#C4B5FD', '#FFFFFF', '#DDD6FE', '#7C3AED'] },
-            theta: { c: ['#052E16', '#14532D', '#15803D', '#34D399', '#86EFAC', '#FFFFFF', '#BBF7D0', '#10B981'] },
-            alpha: { c: ['#2D0018', '#7F1D4F', '#BE185D', '#F472B6', '#F9A8D4', '#FFFFFF', '#FBCFE8', '#DB2777'] },
-            beta:  { c: ['#431407', '#9A3412', '#C2410C', '#FB923C', '#FDBA74', '#FFFFFF', '#FED7AA', '#EA580C'] },
-            gamma: { c: ['#422006', '#713F12', '#A16207', '#FACC15', '#FDE047', '#FFFFFF', '#FEF08A', '#EAB308'] },
+    async loadProfiles(profilesList, animateProfileName = null) {
+        this.clearPulses();
+        const loadToken = ++this._loadToken;
+        this._hasAnimateFilename = !!animateProfileName;
+
+        const placed = [];
+        const MAX_R = 14;
+        const MIN_D = 3.0;
+        const profiles = [...profilesList].sort((a, b) => {
+            if (animateProfileName) {
+                if (a.profile_name === animateProfileName) return -1;
+                if (b.profile_name === animateProfileName) return 1;
+            }
+            return (b.latest_capture_timestamp || '').localeCompare(a.latest_capture_timestamp || '');
+        });
+        const positions = profiles.map(() => {
+            let x, y, z, ok;
+            let attempts = 0;
+            do {
+                ok = true;
+                const r = Math.sqrt(Math.random()) * MAX_R;
+                const theta = Math.random() * Math.PI * 2;
+                x = Math.cos(theta) * r;
+                z = Math.sin(theta) * r;
+                y = (Math.random() - 0.5) * 5;
+
+                for (const p of placed) {
+                    const dx = x - p.x, dy = y - p.y, dz = z - p.z;
+                    if (Math.sqrt(dx*dx + dy*dy + dz*dz) < MIN_D) { ok = false; break; }
+                }
+                attempts++;
+            } while (!ok && attempts < 80);
+
+            placed.push({ x, y, z });
+            return { x, y, z };
+        });
+
+        const loadOne = async (prof, index) => {
+            try {
+                const repFilename = prof.representative && prof.representative.filename;
+                const url = repFilename
+                    ? `/api/garden/file?name=${encodeURIComponent(repFilename)}`
+                    : `/api/profiles/representative?name=${encodeURIComponent(prof.profile_name)}`;
+                const resp = await fetch(url);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (this._destroyed || loadToken !== this._loadToken) return;
+                data._profileMeta = prof;
+                data.profile_name = prof.profile_name;
+                data.capture_count = prof.capture_count;
+
+                const analyzer = new EEGBandAnalyzer(data);
+                const report = analyzer.getReport();
+                const pos = positions[index];
+                const isAnimate = data.profile_name === animateProfileName;
+                if (this._destroyed || loadToken !== this._loadToken) return;
+                this._createPulseStar(data, report, pos.x, pos.y, pos.z, index, isAnimate);
+            } catch (err) {
+                console.error('Galaxy loadProfiles error:', err);
+            }
         };
-        const allBands = [
-            { v: v('delta'), pal: PALETTES.delta },
-            { v: v('theta'), pal: PALETTES.theta },
-            { v: v('alpha'), pal: PALETTES.alpha },
-            { v: v('beta'),  pal: PALETTES.beta  },
-            { v: v('gamma'), pal: PALETTES.gamma },
-        ].sort((x, y) => y.v - x.v);
-        const MIN_W = 0.07;
-        const rawW = allBands.map(x => Math.max(x.v, MIN_W));
-        const sumW = rawW.reduce((s, w) => s + w, 0);
-        const seq = allBands.map((x, i) => ({ ...x.pal, _w: rawW[i] / sumW }));
-        let _cum = 0;
-        const breakpoints = seq.map(x => { _cum += x._w; return _cum; });
-        const cyclePeriod = 24 + v('delta') * 4 + v('theta') * 3 - v('beta') * 1.5;
-        return { seq, breakpoints, cyclePeriod: Math.max(3, cyclePeriod) };
+
+        const concurrency = 3;
+        let next = 0;
+        const workers = Array.from({ length: Math.min(concurrency, profiles.length) }, async () => {
+            while (next < profiles.length) {
+                if (this._destroyed || loadToken !== this._loadToken) return;
+                const index = next++;
+                await loadOne(profiles[index], index);
+                await new Promise(resolve => requestAnimationFrame(resolve));
+            }
+        });
+
+        await Promise.all(workers);
+        if (this._destroyed || loadToken !== this._loadToken) return;
+        this._hasAnimateFilename = false;
+        this.stars.forEach(star => {
+            star.labelHidden = false;
+            if (star.labelEl) star.labelEl.style.display = '';
+        });
     }
 
-    _lerpHex(a, b, t) {
-        const ra = parseInt(a.slice(1, 3), 16), ga = parseInt(a.slice(3, 5), 16), ba = parseInt(a.slice(5, 7), 16);
-        const rb = parseInt(b.slice(1, 3), 16), gb = parseInt(b.slice(3, 5), 16), bb = parseInt(b.slice(5, 7), 16);
-        const r = Math.round(ra + (rb - ra) * t);
-        const g = Math.round(ga + (gb - ga) * t);
-        const bl = Math.round(ba + (bb - ba) * t);
-        return new THREE.Color(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${bl.toString(16).padStart(2, '0')}`);
+    async loadProfile(profile, animateProfileName = null) {
+        return this.loadProfiles([profile], animateProfileName);
     }
 
-    _cyclePaletteColor(palCycle, elapsed) {
-        const period = palCycle.cyclePeriod;
-        const phase = ((elapsed + palCycle.timeOffset * 0.1) % period) / period;
-        const n = palCycle.seq.length;
-        let seg = n - 1, prevBp = 0;
-        for (let i = 0; i < n; i++) {
-            if (phase <= palCycle.breakpoints[i]) { seg = i; break; }
-            prevBp = palCycle.breakpoints[i];
-        }
-        const segLen = palCycle.breakpoints[seg] - prevBp;
-        const localT = segLen > 0 ? (phase - prevBp) / segLen : 0;
-        const t = localT * localT * (3 - 2 * localT); // smoothstep
-        const a = palCycle.seq[seg];
-        const b = palCycle.seq[(seg + 1) % n];
+    _getLavaPalette(report) {
+        const bands = report.bands || [];
+        const clamp = (x, min, max) => Math.max(min, Math.min(max, x));
+        const bandOrder = ['delta', 'theta', 'alpha', 'beta', 'gamma'];
+        const baseColors = {
+            delta: new THREE.Color('#A855F7'),
+            theta: new THREE.Color('#34D399'),
+            alpha: new THREE.Color('#F472B6'),
+            beta:  new THREE.Color('#FB923C'),
+            gamma: new THREE.Color('#FACC15'),
+        };
+
+        const stats = bandOrder.map((key, idx) => ({
+            key,
+            idx,
+            v: Math.max(0, (bands.find(b => b.key === key) || {}).relativePower || 0),
+        })).sort((a, b) => b.v - a.v);
+
+        const dominant = stats[0] || { key: 'alpha', idx: 2, v: 1 };
+        const secondary = stats[1] || dominant;
+        const sumPower = stats.reduce((s, x) => s + x.v, 0) || 1;
+        const dominanceGap = clamp(dominant.v - secondary.v, 0, 1);
+        const focus = clamp(dominant.v / sumPower, 0, 1);
+
+        // Secondary band influences tint to avoid same-color crowding while preserving dominant identity.
+        const mixSecondary = clamp(0.32 - dominanceGap * 0.5, 0.08, 0.28);
+        const centroid = stats.reduce((acc, x) => acc + (x.idx / (bandOrder.length - 1)) * x.v, 0) / sumPower;
+        const dominantNorm = dominant.idx / (bandOrder.length - 1);
+        const hueShift = (centroid - dominantNorm) * 0.09;
+
+        const mainColor = baseColors[dominant.key].clone().lerp(baseColors[secondary.key], mixSecondary);
+        const hsl = {};
+        mainColor.getHSL(hsl);
+        mainColor.setHSL(
+            (hsl.h + hueShift + 1) % 1,
+            clamp(hsl.s * (0.92 + focus * 0.2), 0.5, 1),
+            clamp(hsl.l * (0.9 + (1 - focus) * 0.2), 0.42, 0.72)
+        );
+
+        const deepColor = mainColor.clone().multiplyScalar(0.58 + (1 - focus) * 0.1);
+        const brightColor = mainColor.clone().lerp(new THREE.Color('#FFFFFF'), 0.14 + focus * 0.08);
+
         return {
-            main: this._lerpHex(a.c[3], b.c[3], t),
-            deep: this._lerpHex(a.c[2], b.c[2], t),
-            bright: this._lerpHex(a.c[4], b.c[4], t),
+            dominant: dominant.key,
+            main: `#${mainColor.getHexString()}`,
+            deep: `#${deepColor.getHexString()}`,
+            bright: `#${brightColor.getHexString()}`,
         };
     }
 
@@ -621,25 +691,114 @@ class GalaxyGarden {
 
         const baseSize = 0.42;
 
-        const { dominant, colors } = this._getLavaPalette(report);
-        const mainHex = colors[3];
-        const deepHex = colors[2];
-        const brightHex = colors[4];
-        const starColor = new THREE.Color(mainHex);
-        const deepColor = new THREE.Color(deepHex);
-        const brightColor = new THREE.Color(brightHex);
+        const { dominant, main, deep, bright } = this._getLavaPalette(report);
+        const starColor = new THREE.Color(main);
+        const deepColor = new THREE.Color(deep);
+        const brightColor = new THREE.Color(bright);
 
-        // Slight randomization for variety
-        const hsl = {};
-        starColor.getHSL(hsl);
-        starColor.setHSL(
-            (hsl.h + (Math.random() - 0.5) * 0.04 + 1) % 1,
-            Math.max(0.5, Math.min(1, hsl.s + (Math.random() - 0.5) * 0.1)),
-            Math.max(0.45, Math.min(0.75, hsl.l + (Math.random() - 0.5) * 0.06))
-        );
+        const bands = report.bands;
 
-        const palCycle = this._buildPaletteCycle(report);
-        palCycle.timeOffset = Math.random() * 100;
+        const bandVibes = {};
+        bands.forEach(b => {
+            bandVibes[b.key] = {
+                freq: (b.low + b.high) * 0.5 * 0.1,
+                amp: b.percentage / 100,
+                phase: Math.random() * Math.PI * 2,
+            };
+        });
+
+        const betaPower = (bands.find(b => b.key === 'beta') || {}).percentage || 0;
+        const gammaPower = (bands.find(b => b.key === 'gamma') || {}).percentage || 0;
+        const alphaPower = (bands.find(b => b.key === 'alpha') || {}).percentage || 0;
+        const thetaPower = (bands.find(b => b.key === 'theta') || {}).percentage || 0;
+        const animSpeed = 0.8 + (betaPower + gammaPower) / 100 * 1.5;
+        const waveX = 3.5 + (betaPower / 40) * 3.5;
+        const waveY = 3.0 + (alphaPower / 40) * 4.0;
+        const waveZ = 2.5 + (gammaPower / 40) * 4.5;
+        const waveSurface = 5.5 + (thetaPower / 40) * 5.5;
+
+        const isProfileStar = !!captureData.profile_name;
+        const coreDetail = isProfileStar ? 10 : 24;
+        const glowDetail = isProfileStar ? 5 : 10;
+        const coreGeo = new THREE.IcosahedronGeometry(baseSize, coreDetail);
+        const coreMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uColor: { value: starColor },
+                uColorB: { value: deepColor.clone().multiplyScalar(1.4) },
+                uColorC: { value: brightColor },
+                uSpeed: { value: animSpeed },
+                uWaveX: { value: waveX },
+                uWaveY: { value: waveY },
+                uWaveZ: { value: waveZ },
+                uWaveSurface: { value: waveSurface },
+                uPulseAmp: { value: 0.16 },
+            },
+            vertexShader: `
+                uniform float uTime; uniform float uSpeed;
+                uniform float uWaveX; uniform float uWaveY; uniform float uWaveZ;
+                uniform float uPulseAmp;
+                varying vec3 vNormal; varying vec3 vPos; varying float vDisp;
+                void main() {
+                    vNormal = normalize(normalMatrix * normal);
+                    vec3 p = position;
+                    float n = sin(p.x * uWaveX + uTime * uSpeed) * cos(p.y * uWaveY + uTime * uSpeed * 0.7)
+                            + sin(p.z * uWaveZ + uTime * uSpeed * 1.2) * 0.5
+                            + sin((p.x + p.z) * 2.0 + uTime * uSpeed * 0.5) * 0.25;
+                    float disp = n * uPulseAmp;
+                    p += normal * disp;
+                    vDisp = disp;
+                    vPos = p;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 uColor; uniform vec3 uColorB; uniform vec3 uColorC; uniform float uTime;
+                uniform float uSpeed; uniform float uWaveSurface;
+                varying vec3 vNormal; varying vec3 vPos; varying float vDisp;
+                void main() {
+                    float wave = sin(vPos.y * uWaveSurface + uTime * uSpeed * 2.0) * 0.5 + 0.5;
+                    vec3 col = mix(uColor, uColorB, wave * 0.6);
+                    col = mix(col, uColorC, wave * wave * 0.35);
+                    float viewDot = abs(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)));
+                    col *= 0.85 + viewDot * 0.15;
+                    gl_FragColor = vec4(col, 1.0);
+                }
+            `,
+            side: THREE.DoubleSide,
+        });
+        const core = new THREE.Mesh(coreGeo, coreMat);
+        group.add(core);
+
+        const glowGeo = new THREE.IcosahedronGeometry(baseSize * 1.8, glowDetail);
+        const glowMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uColor: { value: starColor.clone().multiplyScalar(1.3) },
+                uTime: { value: 0 },
+                uSpeed: { value: animSpeed },
+            },
+            vertexShader: `
+                varying vec3 vNormal;
+                void main() {
+                    vNormal = normalize(normalMatrix * normal);
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 uColor; uniform float uTime; uniform float uSpeed;
+                varying vec3 vNormal;
+                void main() {
+                    vec3 viewDir = vec3(0.0, 0.0, 1.0);
+                    float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.0);
+                    float pulse = 0.8 + 0.2 * sin(uTime * uSpeed * 2.0);
+                    gl_FragColor = vec4(uColor, fresnel * 0.35 * pulse);
+                }
+            `,
+            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+            side: THREE.BackSide,
+        });
+        const glow = new THREE.Mesh(glowGeo, glowMat);
+        group.add(glow);
 
         const labelEl = this._createLabel(captureData, starColor);
         // Hide labels for non-featured stars during transition
@@ -656,7 +815,7 @@ class GalaxyGarden {
             starSize: baseSize, index,
             timeOffset: Math.random() * 100,
             bandVibes,
-            palCycle,
+            dominantBand: dominant,
         };
 
         this.stars.push(core.userData.starObj);
@@ -666,8 +825,12 @@ class GalaxyGarden {
     _createLabel(captureData, color) {
         const div = document.createElement('div');
         div.className = 'galaxy-star-label';
-        const name = captureData.metadata?.user_name || 'Anónimo';
-        const state = captureData.metadata?.user_state || '';
+
+        // Profile mode: show profile_name + capture count
+        const isProfile = !!captureData.profile_name;
+        const name = captureData.profile_name ||
+                     captureData.metadata?.user_name || 'Anónimo';
+        const captureCount = captureData.capture_count;
 
         const nameSpan = document.createElement('span');
         nameSpan.className = 'galaxy-star-name';
@@ -675,11 +838,19 @@ class GalaxyGarden {
         nameSpan.textContent = name;
         div.appendChild(nameSpan);
 
-        if (state) {
-            const stateSpan = document.createElement('span');
-            stateSpan.className = 'galaxy-star-state';
-            stateSpan.textContent = state;
-            div.appendChild(stateSpan);
+        if (isProfile && captureCount > 0) {
+            const countSpan = document.createElement('span');
+            countSpan.className = 'galaxy-star-state';
+            countSpan.textContent = `${captureCount} captura${captureCount !== 1 ? 's' : ''}`;
+            div.appendChild(countSpan);
+        } else {
+            const state = captureData.metadata?.user_state || '';
+            if (state) {
+                const stateSpan = document.createElement('span');
+                stateSpan.className = 'galaxy-star-state';
+                stateSpan.textContent = state;
+                div.appendChild(stateSpan);
+            }
         }
 
         const wrap = document.getElementById('garden-3d-wrap');
@@ -882,23 +1053,6 @@ class GalaxyGarden {
                 star.glowMat.uniforms.uTime.value = t;
             }
 
-            // Cycle palette colors through all 5 bands like 2D pulse
-            if (star.palCycle) {
-                const c = this._cyclePaletteColor(star.palCycle, t);
-                if (star.coreMat) {
-                    star.coreMat.uniforms.uColor.value.copy(c.main);
-                    star.coreMat.uniforms.uColorB.value.copy(c.deep);
-                    star.coreMat.uniforms.uColorC.value.copy(c.bright);
-                }
-                if (star.glowMat) {
-                    star.glowMat.uniforms.uColor.value.copy(c.main).multiplyScalar(1.3);
-                }
-                if (star.labelEl) {
-                    const nameSpan = star.labelEl.querySelector('.galaxy-star-name');
-                    if (nameSpan) nameSpan.style.color = '#' + c.main.getHexString();
-                }
-            }
-
             // 3D vibration from EEG bands
             let vx = 0, vy = 0, vz = 0;
             if (star.bandVibes) {
@@ -941,6 +1095,8 @@ class GalaxyGarden {
     }
 
     destroy() {
+        this._destroyed = true;
+        this._loadToken++;
         if (this.animationId) cancelAnimationFrame(this.animationId);
         this.clearPulses();
 

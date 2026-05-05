@@ -8,6 +8,8 @@ Integra pulse_local_server.py en un solo proceso.
 - Capture API: POST /api/capture/start | /api/capture/stop
                GET  /api/capture/status | /api/capture/stream | /api/capture/download-json
 - Garden API:  GET  /api/garden/list | /api/garden/file?name=...
+- Profiles API: GET  /api/profiles/list | /api/profiles/captures | /api/profiles/representative
+                POST /api/profiles/rename | /api/profiles/delete | /api/profiles/capture/delete
 - MIDI API:    POST /api/json-to-midi
 """
 
@@ -17,10 +19,13 @@ import argparse
 import io
 import json
 import os
+import re
 import tempfile
 import time
 import traceback
+import unicodedata
 import zipfile
+from collections import defaultdict
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from threading import Lock
@@ -63,6 +68,103 @@ def get_captures_dir() -> Path:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Profile helpers
+# ══════════════════════════════════════════════════════════════════════════════
+
+def normalize_profile_name(name: str) -> str:
+    """Lowercase, strip, collapse spaces, remove accents for comparison."""
+    if not name:
+        return ''
+    # Normalize unicode: decompose accented chars then drop combining marks
+    nfkd = unicodedata.normalize('NFKD', name)
+    ascii_str = ''.join(c for c in nfkd if not unicodedata.combining(c))
+    return re.sub(r'\s+', ' ', ascii_str).strip().lower()
+
+
+def get_capture_profile_name(data: dict) -> str:
+    """Return canonical profile name from a capture JSON."""
+    meta = data.get('metadata', {})
+    name = meta.get('profile_name') or meta.get('user_name') or ''
+    return name.strip() or 'Sin nombre'
+
+
+def get_profile_name_from_meta(meta: dict) -> str:
+    name = meta.get('profile_name') or meta.get('user_name') or ''
+    return name.strip() or 'Sin nombre'
+
+
+def read_capture_metadata_fast(path: Path) -> dict:
+    """Read only the leading metadata object; fallback to full JSON for odd files."""
+    try:
+        with path.open('r', encoding='utf-8') as fh:
+            head = fh.read(65536)
+        key_idx = head.find('"metadata"')
+        if key_idx < 0:
+            raise ValueError('metadata key not found')
+        colon_idx = head.find(':', key_idx)
+        if colon_idx < 0:
+            raise ValueError('metadata colon not found')
+        decoder = json.JSONDecoder()
+        meta, _ = decoder.raw_decode(head[colon_idx + 1:].lstrip())
+        if isinstance(meta, dict):
+            return meta
+    except Exception:
+        pass
+
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+        return data.get('metadata', {})
+    except Exception:
+        return {}
+
+
+def load_capture_index() -> dict:
+    """
+    Scan captures/*.json and return:
+      {
+        'captures': [...],    # list of {filename, meta, data_ref}
+        'profiles': {...},    # norm_name -> {profile_name, captures: [...]}
+      }
+    """
+    captures_dir = get_captures_dir()
+    captures = []
+    profiles: dict[str, dict] = {}
+
+    if not captures_dir.exists():
+        return {'captures': captures, 'profiles': profiles}
+
+    for f in sorted(captures_dir.glob('*.json'), key=lambda p: p.stat().st_mtime, reverse=True):
+        try:
+            meta = read_capture_metadata_fast(f)
+            profile_name = get_profile_name_from_meta(meta)
+            norm = normalize_profile_name(profile_name)
+
+            capture_info = {
+                'filename': f.name,
+                'profile_name': profile_name,
+                'user_name': meta.get('user_name', ''),
+                'user_state': meta.get('user_state', ''),
+                'duration_seconds': meta.get('duration_seconds', 0),
+                'total_samples': meta.get('total_samples', 0),
+                'sample_rate_hz': meta.get('sample_rate_hz', 0),
+                'capture_timestamp': meta.get('capture_timestamp', ''),
+            }
+            captures.append(capture_info)
+
+            if norm not in profiles:
+                profiles[norm] = {
+                    'profile_name': profile_name,
+                    'norm': norm,
+                    'captures': [],
+                }
+            profiles[norm]['captures'].append(capture_info)
+        except Exception:
+            continue
+
+    return {'captures': captures, 'profiles': profiles}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # EEG capture controller
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -78,6 +180,7 @@ class WebCaptureController:
         self.target_duration: float | None = None
         self.user_name: str = ''
         self.user_state: str = ''
+        self.profile_name: str = ''
 
     def _close_converter_resources(self, converter: MuseOSCToMidi | None):
         if not converter:
@@ -121,7 +224,8 @@ class WebCaptureController:
         return handler
 
     def start_capture(self, duration_seconds: float | None = None,
-                      user_name: str = '', user_state: str = ''):
+                      user_name: str = '', user_state: str = '',
+                      profile_name: str = ''):
         with self.lock:
             already_running = self.running
             previous_converter = self.converter
@@ -174,6 +278,7 @@ class WebCaptureController:
                 self.target_duration = duration_seconds if duration_seconds and duration_seconds > 0 else None
                 self.user_name = user_name
                 self.user_state = user_state
+                self.profile_name = profile_name or user_name
             return
 
         if last_error:
@@ -211,6 +316,7 @@ class WebCaptureController:
                     'sample_rate_hz': 0.0, 'channels': 4,
                     'capture_timestamp': '', 'start_time': None, 'end_time': None,
                     'user_name': self.user_name, 'user_state': self.user_state,
+                    'profile_name': self.profile_name or self.user_name,
                 },
                 'eeg_channels': {f'channel_{i}': [] for i in range(1, 5)},
                 'timestamps': [], 'statistics': {},
@@ -257,6 +363,7 @@ class WebCaptureController:
                 'running': self.running,
                 'user_name': self.user_name,
                 'user_state': self.user_state,
+                'profile_name': self.profile_name or self.user_name,
             },
             'eeg_channels': eeg_channels,
             'timestamps': timestamps,
@@ -335,6 +442,12 @@ CAPTURE = WebCaptureController()
 class AppHandler(SimpleHTTPRequestHandler):
     """Serves static files from app/ and handles all APIs."""
 
+    def end_headers(self):
+        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
+        super().end_headers()
+
     def _send_json(self, status: int, payload: dict):
         body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
         self.send_response(status)
@@ -368,11 +481,14 @@ class AppHandler(SimpleHTTPRequestHandler):
                 duration_value = float(duration) if duration not in (None, '', 0) else None
                 user_name = body.get('userName', '')
                 user_state = body.get('userState', '')
-                CAPTURE.start_capture(duration_value, user_name=user_name, user_state=user_state)
+                profile_name = body.get('profileName', '') or user_name
+                CAPTURE.start_capture(duration_value, user_name=user_name, user_state=user_state,
+                                      profile_name=profile_name)
                 self._send_json(200, {
                     'ok': True, 'message': 'Captura iniciada',
                     'durationSeconds': duration_value,
                     'userName': user_name, 'userState': user_state,
+                    'profileName': profile_name,
                 })
             except Exception as exc:
                 traceback.print_exc()
@@ -412,6 +528,36 @@ class AppHandler(SimpleHTTPRequestHandler):
                 filename = body.get('filename', '')
                 new_name = body.get('newName', '').strip()
                 self._handle_garden_rename(filename, new_name)
+            except Exception as exc:
+                traceback.print_exc()
+                self._send_json(500, {'ok': False, 'error': str(exc)})
+            return
+
+        # ── Profiles: rename all captures of a profile ──
+        if parsed.path == '/api/profiles/rename':
+            try:
+                body = self._read_json_body()
+                self._handle_profiles_rename(body.get('oldName', ''), body.get('newName', ''))
+            except Exception as exc:
+                traceback.print_exc()
+                self._send_json(500, {'ok': False, 'error': str(exc)})
+            return
+
+        # ── Profiles: delete entire profile ──
+        if parsed.path == '/api/profiles/delete':
+            try:
+                body = self._read_json_body()
+                self._handle_profiles_delete(body.get('name', ''))
+            except Exception as exc:
+                traceback.print_exc()
+                self._send_json(500, {'ok': False, 'error': str(exc)})
+            return
+
+        # ── Profiles: delete single capture ──
+        if parsed.path == '/api/profiles/capture/delete':
+            try:
+                body = self._read_json_body()
+                self._handle_garden_delete(body.get('filename', ''))
             except Exception as exc:
                 traceback.print_exc()
                 self._send_json(500, {'ok': False, 'error': str(exc)})
@@ -494,6 +640,37 @@ class AppHandler(SimpleHTTPRequestHandler):
         if parsed.path == '/api/garden/latest':
             try:
                 self._handle_garden_latest()
+            except Exception as exc:
+                traceback.print_exc()
+                self._send_json(500, {'ok': False, 'error': str(exc)})
+            return
+
+        # ── Profiles: list profiles ──
+        if parsed.path == '/api/profiles/list':
+            try:
+                self._handle_profiles_list()
+            except Exception as exc:
+                traceback.print_exc()
+                self._send_json(500, {'ok': False, 'error': str(exc)})
+            return
+
+        # ── Profiles: list captures of a profile ──
+        if parsed.path == '/api/profiles/captures':
+            try:
+                query = parse_qs(parsed.query)
+                name = query.get('name', [''])[0]
+                self._handle_profiles_captures(name)
+            except Exception as exc:
+                traceback.print_exc()
+                self._send_json(500, {'ok': False, 'error': str(exc)})
+            return
+
+        # ── Profiles: representative capture JSON ──
+        if parsed.path == '/api/profiles/representative':
+            try:
+                query = parse_qs(parsed.query)
+                name = query.get('name', [''])[0]
+                self._handle_profiles_representative(name)
             except Exception as exc:
                 traceback.print_exc()
                 self._send_json(500, {'ok': False, 'error': str(exc)})
@@ -680,6 +857,113 @@ class AppHandler(SimpleHTTPRequestHandler):
         filepath.unlink()
         print(f'🗑️ Captura eliminada: {filename}')
         self._send_json(200, {'ok': True, 'message': f'Captura "{filename}" eliminada.'})
+
+    # ── Profiles API handlers ──────────────────────────────────────────────
+
+    def _handle_profiles_list(self):
+        index = load_capture_index()
+        profiles_map = index['profiles']
+        result = []
+        for norm, prof in profiles_map.items():
+            caps = prof['captures']
+            # Sort captures by timestamp desc
+            caps_sorted = sorted(caps, key=lambda c: c.get('capture_timestamp', ''), reverse=True)
+            latest = caps_sorted[0] if caps_sorted else {}
+            states = list({c.get('user_state', '') for c in caps if c.get('user_state')})
+            total_samples = sum(c.get('total_samples', 0) for c in caps)
+            # Choose representative: prefer capture with total_samples > 0
+            rep = next((c for c in caps_sorted if (c.get('total_samples') or 0) > 0), caps_sorted[0] if caps_sorted else {})
+            slug = re.sub(r'[^a-z0-9]+', '-', normalize_profile_name(prof['profile_name'])).strip('-')
+            result.append({
+                'profile_name': prof['profile_name'],
+                'slug': slug,
+                'capture_count': len(caps),
+                'latest_capture_filename': latest.get('filename', ''),
+                'latest_capture_timestamp': latest.get('capture_timestamp', ''),
+                'states': states,
+                'total_samples': total_samples,
+                'captures': caps_sorted,
+                'representative': {
+                    'filename': rep.get('filename', ''),
+                    'duration_seconds': rep.get('duration_seconds', 0),
+                    'sample_rate_hz': rep.get('sample_rate_hz', 0),
+                },
+            })
+        # Sort by latest timestamp desc
+        result.sort(key=lambda p: p.get('latest_capture_timestamp', ''), reverse=True)
+        self._send_json(200, {'ok': True, 'profiles': result})
+
+    def _handle_profiles_captures(self, name: str):
+        if not name:
+            self._send_json(400, {'ok': False, 'error': 'Falta parámetro name'})
+            return
+        norm_target = normalize_profile_name(name)
+        index = load_capture_index()
+        prof = index['profiles'].get(norm_target)
+        if not prof:
+            self._send_json(200, {'ok': True, 'profile_name': name, 'captures': []})
+            return
+        caps = sorted(prof['captures'], key=lambda c: c.get('capture_timestamp', ''), reverse=True)
+        self._send_json(200, {'ok': True, 'profile_name': prof['profile_name'], 'captures': caps})
+
+    def _handle_profiles_representative(self, name: str):
+        if not name:
+            self._send_json(400, {'ok': False, 'error': 'Falta parámetro name'})
+            return
+        norm_target = normalize_profile_name(name)
+        index = load_capture_index()
+        prof = index['profiles'].get(norm_target)
+        if not prof or not prof['captures']:
+            self._send_json(404, {'ok': False, 'error': 'Perfil no encontrado'})
+            return
+        caps = sorted(prof['captures'], key=lambda c: c.get('capture_timestamp', ''), reverse=True)
+        rep = next((c for c in caps if (c.get('total_samples') or 0) > 0), caps[0])
+        self._handle_garden_file(rep['filename'])
+
+    def _handle_profiles_rename(self, old_name: str, new_name: str):
+        old_name = old_name.strip()
+        new_name = new_name.strip()
+        if not old_name or not new_name:
+            self._send_json(400, {'ok': False, 'error': 'oldName y newName son requeridos'})
+            return
+        norm_target = normalize_profile_name(old_name)
+        captures_dir = get_captures_dir()
+        updated = 0
+        for f in captures_dir.glob('*.json'):
+            try:
+                data = json.loads(f.read_text(encoding='utf-8'))
+                name_in_file = get_capture_profile_name(data)
+                if normalize_profile_name(name_in_file) == norm_target:
+                    if 'metadata' not in data:
+                        data['metadata'] = {}
+                    data['metadata']['profile_name'] = new_name
+                    data['metadata']['user_name'] = new_name
+                    f.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+                    updated += 1
+            except Exception:
+                continue
+        print(f'✏️ Perfil renombrado: "{old_name}" → "{new_name}" ({updated} capturas)')
+        self._send_json(200, {'ok': True, 'updated': updated, 'newName': new_name})
+
+    def _handle_profiles_delete(self, name: str):
+        name = name.strip()
+        if not name:
+            self._send_json(400, {'ok': False, 'error': 'Falta name'})
+            return
+        norm_target = normalize_profile_name(name)
+        captures_dir = get_captures_dir()
+        deleted = 0
+        for f in list(captures_dir.glob('*.json')):
+            try:
+                data = json.loads(f.read_text(encoding='utf-8'))
+                name_in_file = get_capture_profile_name(data)
+                if normalize_profile_name(name_in_file) == norm_target:
+                    f.unlink()
+                    deleted += 1
+            except Exception:
+                continue
+        print(f'🗑️ Perfil eliminado: "{name}" ({deleted} capturas)')
+        self._send_json(200, {'ok': True, 'deleted': deleted})
 
     def _handle_garden_rename(self, filename: str, new_name: str):
         if not filename or '..' in filename or '/' in filename or '\\' in filename:
