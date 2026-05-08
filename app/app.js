@@ -29,14 +29,18 @@
     // Only resonant, profound, body-shaking timbres.
     // ch0 TP9  left-temporal  → Tuba             deepest brass, sub frequencies
     // ch1 AF7  left-frontal   → Slap Bass 1      aggressive hard attack bass
-    // ch2 AF8  right-frontal  → Distortion Lead  brutal distorted synth
+    // ch2 AF8  right-frontal  → Overdriven Guitar  brutal distorted timbre
     // ch3 TP10 right-temporal → French Horn      deep powerful brass
     const GARDEN_INSTRUMENTS = [
         'tuba',              // ch 0 — TP9  left temporal
         'slap_bass_1',       // ch 1 — AF7  left frontal
-        'distortion_lead',   // ch 2 — AF8  right frontal
+        'overdriven_guitar', // ch 2 — AF8  right frontal
         'french_horn',       // ch 3 — TP10 right temporal
     ];
+    const GARDEN_INSTRUMENT_FALLBACKS = {
+        overdriven_guitar: ['distortion_guitar', 'lead_2_sawtooth', 'electric_guitar_jazz'],
+    };
+    const GARDEN_DEFAULT_INSTRUMENT_FALLBACKS = ['acoustic_grand_piano'];
 
     // ── Plasma WebGL2 (React Bits Plasma — pulse color palette) ──
     const _PLASMA_VERT = `#version 300 es
@@ -1403,6 +1407,11 @@
             return;
         }
 
+        stopGardenMidiPlayback();
+        if (midiLinkedPulse) { midiLinkedPulse.stop(); midiLinkedPulse = null; }
+        if (pulse3d) { pulse3d.destroy(); pulse3d = null; }
+        if (pulse2d) { pulse2d.stop(); pulse2d = null; }
+
         // Use the Pulse's analyzer (loaded from /pulse/eeg_band_analyzer.js)
         pulseAnalyzer = new EEGBandAnalyzer(jsonData);
         const report = pulseAnalyzer.getReport();
@@ -1782,6 +1791,7 @@
     let gardenMidiPlaying   = false;   // true when MIDI is playing
     let gardenMidiEndTimeout = null;    // timeout to detect MIDI end
     let currentPlaybackCaptureData = null; // capture data for replay
+    const gardenSoundfontFallbackLogged = new Set();
 
     function startLinkedPulseForMidiReplay() {
         const garden2DActive = document.getElementById('gpanel-garden-2d')?.classList.contains('active');
@@ -2309,6 +2319,34 @@
      * and pre-load all soundfont instruments needed for playback.
      * Returns { ctx, instruments } so callers can await everything.
      */
+    async function loadGardenSoundfontInstrument(ctx, name) {
+        const candidates = [...new Set([
+            name,
+            ...(GARDEN_INSTRUMENT_FALLBACKS[name] || []),
+            ...GARDEN_DEFAULT_INSTRUMENT_FALLBACKS,
+        ])];
+        let lastError = null;
+
+        for (const candidate of candidates) {
+            try {
+                const inst = await Soundfont.instrument(ctx, candidate, {
+                    soundfont: 'MusyngKite',
+                    gain: 1.0,
+                });
+                if (candidate !== name && !gardenSoundfontFallbackLogged.has(name)) {
+                    gardenSoundfontFallbackLogged.add(name);
+                    console.warn(`Garden MIDI: soundfont "${name}" unavailable, using "${candidate}".`);
+                }
+                return inst;
+            } catch (e) {
+                lastError = e;
+            }
+        }
+
+        console.warn(`Garden MIDI: no soundfont available for "${name}".`, lastError);
+        return null;
+    }
+
     async function getGardenAudioContext() {
         if (!gardenAudioContext) {
             const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -2361,15 +2399,8 @@
         if (typeof Soundfont !== 'undefined' && Object.keys(gardenInstruments).length === 0) {
             const uniqueNames = [...new Set(GARDEN_INSTRUMENTS)];
             const loadPromises = uniqueNames.map(async (name) => {
-                try {
-                    const inst = await Soundfont.instrument(ctx, name, {
-                        soundfont: 'MusyngKite',
-                        gain: 1.0,
-                    });
-                    gardenInstruments[name] = inst;
-                } catch (e) {
-                    console.warn(`Failed to load soundfont "${name}":`, e);
-                }
+                const inst = await loadGardenSoundfontInstrument(ctx, name);
+                if (inst) gardenInstruments[name] = inst;
             });
             await Promise.all(loadPromises);
         }

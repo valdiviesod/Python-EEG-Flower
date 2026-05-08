@@ -30,9 +30,12 @@ class Pulse3D {
         this.flowerGroup = null;
         this.particles = null;
         this.printSpec = [];
+        this._destroyed = false;
+        this._resizeHandler = () => this._onResize();
     }
 
     init() {
+        this._destroyed = false;
         const w = this.container.clientWidth || 800;
         const h = this.container.clientHeight || 600;
 
@@ -78,7 +81,6 @@ class Pulse3D {
         this._buildScene();
 
         // Resize
-        this._resizeHandler = () => this._onResize();
         window.addEventListener('resize', this._resizeHandler);
 
         // Start animation
@@ -564,7 +566,9 @@ class Pulse3D {
 
     // ── Animation ─────────────────────────────────────────────────────────
     _animate() {
+        if (this._destroyed) return;
         this.animationId = requestAnimationFrame(() => this._animate());
+        if (!this.renderer || !this.scene || !this.camera) return;
 
         const elapsed = this.clock.getElapsedTime();
 
@@ -601,19 +605,33 @@ class Pulse3D {
 
     // ── Cleanup ───────────────────────────────────────────────────────────
     destroy() {
+        this._destroyed = true;
         if (this.animationId) cancelAnimationFrame(this.animationId);
+        this.animationId = null;
         window.removeEventListener('resize', this._resizeHandler);
 
-        this.scene.traverse(obj => {
-            if (obj.geometry) obj.geometry.dispose();
-            if (obj.material) {
-                if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
-                else obj.material.dispose();
-            }
-        });
+        if (this.scene) {
+            this.scene.traverse(obj => {
+                if (obj.geometry) obj.geometry.dispose();
+                if (obj.material) {
+                    if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+                    else obj.material.dispose();
+                }
+            });
+        }
 
-        if (this.renderer) this.renderer.dispose();
-        this.container.innerHTML = '';
+        if (this.controls && this.controls.dispose) this.controls.dispose();
+        if (this.renderer) {
+            this.renderer.dispose();
+            if (this.renderer.forceContextLoss) this.renderer.forceContextLoss();
+        }
+        if (this.container) this.container.innerHTML = '';
+        this.controls = null;
+        this.renderer = null;
+        this.scene = null;
+        this.camera = null;
+        this.flowerGroup = null;
+        this.particles = null;
     }
 
     // ── Screenshot ────────────────────────────────────────────────────────

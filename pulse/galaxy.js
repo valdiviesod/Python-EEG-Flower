@@ -574,7 +574,11 @@ class GalaxyGarden {
      */
     _starScaleForCaptures(captureCount) {
         const count = Math.max(1, captureCount || 1);
-        return 1.0 + Math.log2(count) * 0.35;
+        // Make profile pulse growth easier to read: log keeps high counts sane,
+        // sqrt boost exaggerates early differences where most profiles live.
+        const logGrowth = Math.log2(count) * 0.60;
+        const earlyBoost = Math.min(Math.sqrt(count - 1) * 0.12, 0.9);
+        return clamp(1.0 + logGrowth + earlyBoost, 1.0, 4.2);
     }
 
     async loadProfiles(profilesList, animateProfileName = null) {
