@@ -9,7 +9,7 @@
         content="Captura ondas cerebrales EEG en tiempo real con Muse 2 y genera tu pulso neurofuncional única. Descarga JSON y MIDI.">
 
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>🧠</text></svg>" type="image/svg+xml">
-    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="style.css?v=20260507-mac-fixes">
 </head>
 
 <body>
@@ -57,7 +57,7 @@
                         <label for="input-name">Nombre del participante o perfil existente</label>
                         <div class="name-input-wrap">
                             <input type="text" id="input-name" placeholder="Ej: María García" autocomplete="off">
-                            <div class="profile-suggestions" id="profile-suggestions" style="display:none"></div>
+                            <div class="profile-suggestions" id="profile-suggestions" hidden></div>
                         </div>
                     </div>
                     <div class="form-group">
@@ -471,7 +471,7 @@
     <script src="/pulse/eeg_band_analyzer.js"></script>
     <script src="/pulse/pulse_2d.js"></script>
     <script src="/pulse/pulse_3d.js"></script>
-    <script src="/pulse/galaxy.js?v=20260505-profiles-perf"></script>
+    <script src="/pulse/galaxy.js?v=20260507-mac-fixes"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.28/build/Midi.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
     <script src="/pulse/lava_pulse.js"></script>
@@ -479,7 +479,7 @@
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script src="FloatingLines.js"></script>
     <!-- Main App -->
-    <script src="app.js?v=20260505-profiles-perf-detail"></script>
+    <script src="app.js?v=20260507-mac-fixes"></script>
 </body>
 
 </html>

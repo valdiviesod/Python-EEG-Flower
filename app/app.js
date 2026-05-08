@@ -323,6 +323,17 @@
     globalTabs.forEach(tab => {
         tab.addEventListener('click', () => {
             const viewName = tab.dataset.view;
+            const previousView = Array.from(views).find(v => v.classList.contains('active'));
+            const previousViewName = previousView ? previousView.id.replace('view-', '') : null;
+
+            if (previousViewName === 'pulse' && viewName !== 'pulse') {
+                stopGardenMidiPlayback();
+                if (midiLinkedPulse) { midiLinkedPulse.stop(); midiLinkedPulse = null; }
+                if (gardenAudioContext && gardenAudioContext.state === 'running') {
+                    gardenAudioContext.suspend().catch(() => {});
+                }
+            }
+
             globalTabs.forEach(t => t.classList.toggle('active', t.dataset.view === viewName));
             views.forEach(v => v.classList.toggle('active', v.id === `view-${viewName}`));
 
@@ -338,9 +349,10 @@
                 if (floatingLines) floatingLines.stop();
             }
 
-            // Stop MIDI when leaving pulse view (not when going to garden)
+            // Stop MIDI when leaving pulse detail from any route.
             if (viewName !== 'pulse' && viewName !== 'garden') {
                 stopGardenMidiPlayback();
+                if (midiLinkedPulse) { midiLinkedPulse.stop(); midiLinkedPulse = null; }
                 if (gardenAudioContext && gardenAudioContext.state === 'running') {
                     gardenAudioContext.suspend().catch(() => {});
                 }
@@ -353,8 +365,9 @@
 
             // Galaxy: destroy when leaving garden to free GPU memory
             if (viewName === 'garden') {
-                if (!gardenLoaded) loadGarden();
+                if (!gardenLoaded) void loadGarden();
             } else {
+                gardenLoadRequestId += 1;
                 if (galaxyGarden) {
                     galaxyGarden.destroy();
                     galaxyGarden = null;
@@ -613,6 +626,16 @@
     // ── Profile autocomplete ──
     let profileSuggestions = [];
     const profileSuggestionsEl = document.getElementById('profile-suggestions');
+    const PROFILE_SUGGESTION_LIMIT = 8;
+
+    if (inputName && profileSuggestionsEl) {
+        inputName.setAttribute('role', 'combobox');
+        inputName.setAttribute('aria-autocomplete', 'list');
+        inputName.setAttribute('aria-expanded', 'false');
+        inputName.setAttribute('aria-controls', 'profile-suggestions');
+        profileSuggestionsEl.setAttribute('role', 'listbox');
+        profileSuggestionsEl.hidden = true;
+    }
 
     async function loadProfileSuggestions() {
         try {
@@ -647,24 +670,50 @@
             !q || normalizeName(p.profile_name).includes(q)
         );
         if (!matches.length) { hideSuggestions(); return; }
-        profileSuggestionsEl.innerHTML = matches.map(p => `
-            <div class="profile-suggestion-item" data-name="${escapeHtml(p.profile_name)}">
-                <span class="suggestion-name">${escapeHtml(p.profile_name)}</span>
-                <span class="suggestion-count">${p.capture_count} captura${p.capture_count !== 1 ? 's' : ''}</span>
-            </div>
-        `).join('');
-        profileSuggestionsEl.style.display = 'block';
-        profileSuggestionsEl.querySelectorAll('.profile-suggestion-item').forEach(item => {
+        profileSuggestionsEl.replaceChildren();
+
+        matches.slice(0, PROFILE_SUGGESTION_LIMIT).forEach(p => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'profile-suggestion-item';
+            item.setAttribute('role', 'option');
+            item.setAttribute('aria-label', `Usar perfil ${p.profile_name}`);
+
+            const name = document.createElement('span');
+            name.className = 'suggestion-name';
+            name.textContent = p.profile_name;
+
+            const count = document.createElement('span');
+            count.className = 'suggestion-count';
+            count.textContent = `${p.capture_count} captura${p.capture_count !== 1 ? 's' : ''}`;
+
+            item.append(name, count);
             item.addEventListener('mousedown', (e) => {
                 e.preventDefault();
-                inputName.value = item.dataset.name;
+                inputName.value = p.profile_name;
                 hideSuggestions();
             });
+            profileSuggestionsEl.appendChild(item);
         });
+
+        if (matches.length > PROFILE_SUGGESTION_LIMIT) {
+            const more = document.createElement('div');
+            more.className = 'profile-suggestion-more';
+            more.textContent = `+${matches.length - PROFILE_SUGGESTION_LIMIT} perfiles más. Escribe para filtrar.`;
+            profileSuggestionsEl.appendChild(more);
+        }
+
+        profileSuggestionsEl.hidden = false;
+        profileSuggestionsEl.style.display = 'block';
+        if (inputName) inputName.setAttribute('aria-expanded', 'true');
     }
 
     function hideSuggestions() {
-        if (profileSuggestionsEl) profileSuggestionsEl.style.display = 'none';
+        if (profileSuggestionsEl) {
+            profileSuggestionsEl.hidden = true;
+            profileSuggestionsEl.style.display = 'none';
+        }
+        if (inputName) inputName.setAttribute('aria-expanded', 'false');
     }
 
     // ── Start Capture ──
@@ -1622,7 +1671,11 @@
     const pulseNewCaptureBtn = document.getElementById('pulse-btn-new-capture');
     if (pulseNewCaptureBtn) {
         pulseNewCaptureBtn.addEventListener('click', () => {
-            if (midiLinkedPulse === pulse2d) midiLinkedPulse = null;
+            stopGardenMidiPlayback();
+            if (midiLinkedPulse) { midiLinkedPulse.stop(); midiLinkedPulse = null; }
+            if (gardenAudioContext && gardenAudioContext.state === 'running') {
+                gardenAudioContext.suspend().catch(() => {});
+            }
             if (pulse3d) { pulse3d.destroy(); pulse3d = null; }
             if (pulse2d) { pulse2d.stop(); pulse2d = null; }
             pulseAnalyzer = null;
@@ -1646,8 +1699,13 @@
     const pulseGoGardenBtn = document.getElementById('pulse-btn-go-garden');
     if (pulseGoGardenBtn) {
         pulseGoGardenBtn.addEventListener('click', async () => {
+            stopGardenMidiPlayback();
+            if (midiLinkedPulse) { midiLinkedPulse.stop(); midiLinkedPulse = null; }
+            if (gardenAudioContext && gardenAudioContext.state === 'running') {
+                gardenAudioContext.suspend().catch(() => {});
+            }
+
             // Stop current pulse animations
-            if (midiLinkedPulse === pulse2d) midiLinkedPulse = null;
             if (pulse3d) { pulse3d.destroy(); pulse3d = null; }
             if (pulse2d) { pulse2d.stop(); pulse2d = null; }
             pulseAnalyzer = null;
@@ -1669,41 +1727,20 @@
             views.forEach(v => v.classList.toggle('active', v.id === 'view-garden'));
 
             // Load garden with animation for the latest profile
-            if (!gardenLoaded) {
-                showGardenStatus('🌌', 'Analizando capturas para tu campo resonante...');
+            let animateProfile = null;
+            if (latestFilename) {
                 try {
-                    const resp = await fetch('/api/profiles/list');
-                    const data = await resp.json();
-                    if (data.ok && data.profiles && data.profiles.length > 0) {
-                        hideGardenStatus();
-                        const container = document.getElementById('garden-2d-scene');
-                        container.innerHTML = '';
-                        if (galaxyGarden) { galaxyGarden.destroy(); galaxyGarden = null; }
-                        galaxyGarden = new GalaxyGarden('garden-2d-scene', (profileData) => {
-                            openProfileModal(profileData);
-                        });
-                        galaxyGarden.init();
-                        // Determine which profile to animate (from latest capture)
-                        let animateProfile = null;
-                        if (latestFilename) {
-                            const latestResp = await fetch(`/api/garden/file?name=${encodeURIComponent(latestFilename)}`);
-                            if (latestResp.ok) {
-                                const latestData = await latestResp.json();
-                                animateProfile = latestData.metadata?.profile_name || latestData.metadata?.user_name || null;
-                            }
-                        }
-                        gardenLoaded = true;
-                        galaxyGarden.loadProfiles(data.profiles, animateProfile).catch(err => {
-                            console.error('Error loading profile pulses:', err);
-                        });
-                    } else {
-                        showGardenStatus('🌌', 'Tu campo resonante está vacío.<br><br>Realiza tu primera captura EEG para plantar la primera pulso.');
+                    const latestResp = await fetch(`/api/garden/file?name=${encodeURIComponent(latestFilename)}`);
+                    if (latestResp.ok) {
+                        const latestData = await latestResp.json();
+                        animateProfile = latestData.metadata?.profile_name || latestData.metadata?.user_name || null;
                     }
                 } catch (err) {
-                    console.error('Error loading garden:', err);
-                    showGardenStatus('⚠️', 'Error al cargar el campo resonante. Intenta actualizar.');
+                    console.warn('Could not fetch latest capture data:', err);
                 }
             }
+            gardenLoaded = false;
+            await loadGarden(animateProfile);
         });
     }
 
@@ -1721,6 +1758,7 @@
     const gardenModalTabs = document.querySelectorAll('#garden-modal-tabs .tab');
     const gardenPanels = document.querySelectorAll('.garden-modal-panel');
     let gardenLoaded = false;
+    let gardenLoadRequestId = 0;
     let galaxyGarden = null;
     let gardenPulse2d = null;
     let gardenPulseModal3d = null;
@@ -1777,12 +1815,28 @@
         gardenStatus.style.display = 'none';
     }
 
-    async function loadGarden() {
+    function waitForNextFrame() {
+        return new Promise(resolve => requestAnimationFrame(resolve));
+    }
+
+    async function waitForGardenLayout() {
+        const container = document.getElementById('garden-2d-scene');
+        if (!container) return;
+        for (let i = 0; i < 4; i++) {
+            await waitForNextFrame();
+            const rect = container.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) return;
+        }
+    }
+
+    async function loadGarden(animateProfileName = null) {
+        const requestId = ++gardenLoadRequestId;
         showGardenStatus('🌌', 'Analizando capturas para tu campo resonante...');
 
         try {
             const resp = await fetch('/api/profiles/list');
             const data = await resp.json();
+            if (requestId !== gardenLoadRequestId) return;
 
             if (!data.ok || !data.profiles || data.profiles.length === 0) {
                 showGardenStatus('🌌', 'Tu campo resonante está vacío.<br><br>Realiza tu primera captura EEG para plantar la primera pulso.');
@@ -1795,19 +1849,25 @@
             container.innerHTML = '';
 
             if (galaxyGarden) { galaxyGarden.destroy(); galaxyGarden = null; }
+            await waitForGardenLayout();
+            if (requestId !== gardenLoadRequestId) return;
 
             galaxyGarden = new GalaxyGarden('garden-2d-scene', (profileData) => {
                 openProfileModal(profileData);
             });
             galaxyGarden.init();
+            requestAnimationFrame(() => {
+                if (galaxyGarden && !galaxyGarden._destroyed) galaxyGarden._onResize();
+            });
 
             gardenLoaded = true;
-            galaxyGarden.loadProfiles(data.profiles).catch(err => {
-                console.error('Error loading profile pulses:', err);
-            });
+            await galaxyGarden.loadProfiles(data.profiles, animateProfileName);
         } catch (err) {
             console.error('Error loading garden:', err);
-            showGardenStatus('⚠️', 'Error al cargar el campo resonante. Intenta actualizar.');
+            if (requestId === gardenLoadRequestId) {
+                gardenLoaded = false;
+                showGardenStatus('⚠️', 'Error al cargar el campo resonante. Intenta actualizar.');
+            }
         }
     }
 
@@ -1895,39 +1955,65 @@
             return;
         }
 
-        listEl.innerHTML = captures.map((cap, idx) => {
+        listEl.innerHTML = '';
+        const grid = document.createElement('div');
+        grid.className = 'capture-thumb-grid';
+        listEl.appendChild(grid);
+
+        captures.forEach((cap, idx) => {
             const ts = cap.capture_timestamp || '—';
             const state = cap.user_state || '';
-            const dur = cap.duration_seconds ? formatTime(cap.duration_seconds) : '—';
-            const samples = cap.total_samples || 0;
-            return `
-                <div class="capture-list-item" data-filename="${escapeHtml(cap.filename)}" data-idx="${idx}">
-                    <div class="capture-list-info">
-                        <span class="capture-list-date">${escapeHtml(ts)}</span>
-                        ${state ? `<span class="capture-list-state">${escapeHtml(state)}</span>` : ''}
-                        <span class="capture-list-dur">${dur} · ${samples.toLocaleString()} muestras</span>
-                    </div>
-                    <div class="capture-list-actions">
-                        <button class="btn-secondary btn-sm capture-view-btn" data-filename="${escapeHtml(cap.filename)}">
-                            Ver pulso 2D
-                        </button>
-                        <button class="btn-danger btn-sm capture-delete-btn" data-filename="${escapeHtml(cap.filename)}" data-ts="${escapeHtml(ts)}">
-                            🗑️
-                        </button>
-                    </div>
-                </div>
-            `;
-        }).join('');
 
-        // Bind view buttons
-        listEl.querySelectorAll('.capture-view-btn').forEach(btn => {
-            btn.addEventListener('click', () => loadCaptureIntoModal(btn.dataset.filename));
-        });
+            const card = document.createElement('div');
+            card.className = 'capture-thumb-card';
+            card.dataset.filename = cap.filename;
 
-        // Bind delete capture buttons
-        listEl.querySelectorAll('.capture-delete-btn').forEach(btn => {
-            btn.addEventListener('click', () => confirmDeleteCapture(btn.dataset.filename));
+            const canvasWrap = document.createElement('div');
+            canvasWrap.className = 'capture-thumb-canvas-wrap';
+            const canvas = document.createElement('canvas');
+            canvas.width = 200;
+            canvas.height = 200;
+            canvas.className = 'capture-thumb-canvas';
+            canvasWrap.appendChild(canvas);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'capture-thumb-delete';
+            deleteBtn.innerHTML = '🗑️';
+            deleteBtn.title = 'Eliminar captura';
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                confirmDeleteCapture(cap.filename);
+            });
+            canvasWrap.appendChild(deleteBtn);
+
+            const label = document.createElement('div');
+            label.className = 'capture-thumb-label';
+            label.innerHTML = `<span class="capture-thumb-date">${escapeHtml(ts)}</span>`
+                + (state ? `<span class="capture-thumb-state">${escapeHtml(state)}</span>` : '');
+
+            card.appendChild(canvasWrap);
+            card.appendChild(label);
+            grid.appendChild(card);
+
+            card.addEventListener('click', () => loadCaptureIntoModal(cap.filename));
+
+            renderCaptureThumbnail(canvas, cap.filename, idx);
         });
+    }
+
+    async function renderCaptureThumbnail(canvas, filename, idx) {
+        try {
+            const resp = await fetch(`/api/garden/file?name=${encodeURIComponent(filename)}`);
+            if (!resp.ok) return;
+            const data = await resp.json();
+            const analyzer = new EEGBandAnalyzer(data);
+            const pulse = new LavaPulse(canvas, analyzer);
+            pulse.t = pulse._startFrame + idx * 137;
+            for (let i = 0; i < 5; i++) pulse._drawSafe();
+            pulse.stop();
+        } catch (err) {
+            console.error('Thumbnail render error:', err);
+        }
     }
 
     async function loadCaptureIntoModal(filename) {

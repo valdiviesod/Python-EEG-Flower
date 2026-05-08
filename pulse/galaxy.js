@@ -45,6 +45,20 @@ class GalaxyGarden {
         this._lastFrameTime = 0;
         this._elapsedOverride = 0;
         this._wasHidden = false;
+        this._minScale = 0.001;
+        this._resizeRaf = null;
+        this._resizeHandler = () => this._onResize();
+        this._visibilityHandler = () => this._onVisibilityChange();
+        this._pointerMoveHandler = (e) => this._onPointerMove(e);
+        this._clickHandler = (e) => this._onClick(e);
+        this._contextLostHandler = (e) => {
+            e.preventDefault();
+            this._wasHidden = true;
+        };
+        this._contextRestoredHandler = () => {
+            this._lastFrameTime = 0;
+            this._onResize();
+        };
     }
 
     init() {
@@ -64,13 +78,17 @@ class GalaxyGarden {
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
         this.renderer.setSize(w, h);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.6;
-        this.renderer.outputEncoding = THREE.sRGBEncoding;
+        if ('outputEncoding' in this.renderer && THREE.sRGBEncoding) {
+            this.renderer.outputEncoding = THREE.sRGBEncoding;
+        }
 
         this.container.innerHTML = '';
         this.container.appendChild(this.renderer.domElement);
+        this.renderer.domElement.addEventListener('webglcontextlost', this._contextLostHandler, false);
+        this.renderer.domElement.addEventListener('webglcontextrestored', this._contextRestoredHandler, false);
 
         if (THREE.OrbitControls) {
             this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
@@ -87,8 +105,9 @@ class GalaxyGarden {
         this._buildBackground();
         this._setupInteraction();
 
-        window.addEventListener('resize', () => this._onResize());
-        document.addEventListener('visibilitychange', () => this._onVisibilityChange());
+        window.addEventListener('resize', this._resizeHandler);
+        document.addEventListener('visibilitychange', this._visibilityHandler);
+        requestAnimationFrame(() => this._onResize());
         this._animate();
     }
 
@@ -157,7 +176,7 @@ class GalaxyGarden {
             const c = colorPalette[Math.floor(Math.random() * colorPalette.length)];
             colours[i3] = c.r; colours[i3 + 1] = c.g; colours[i3 + 2] = c.b;
             sizes[i] = 3 + Math.random() * 8;
-            opacities[i] = 0.3 + Math.random() * 0.4;
+            opacities[i] = 0.12 + Math.random() * 0.18;
         }
 
         const geo = new THREE.BufferGeometry();
@@ -197,9 +216,8 @@ class GalaxyGarden {
                 void main() {
                     float d = length(gl_PointCoord - 0.5);
                     // Soft gaussian falloff for nebula clouds
-                    float a = exp(-d * d * 4.0) * vOpacity * 0.35;
-                    // Add color variation based on distance from center
-                    vec3 col = vColor * (1.0 + 0.3 * sin(vDist * 0.5));
+                    float a = exp(-d * d * 4.0) * vOpacity * 0.2;
+                    vec3 col = vColor * (0.58 + 0.14 * sin(vDist * 0.5));
                     gl_FragColor = vec4(col, a);
                 }
             `,
@@ -471,7 +489,16 @@ class GalaxyGarden {
 
     clearPulses() {
         this.stars.forEach(s => {
-            if (s.group) this.scene.remove(s.group);
+            if (s.group) {
+                s.group.traverse(obj => {
+                    if (obj.geometry) obj.geometry.dispose();
+                    if (obj.material) {
+                        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+                        else obj.material.dispose();
+                    }
+                });
+                if (this.scene) this.scene.remove(s.group);
+            }
             if (s.labelEl && s.labelEl.parentNode) s.labelEl.parentNode.removeChild(s.labelEl);
         });
         this.stars = [];
@@ -545,24 +572,40 @@ class GalaxyGarden {
      * profilesList: array from /api/profiles/list
      * animateProfileName: profile_name to animate on entry (latest capture)
      */
+    _starScaleForCaptures(captureCount) {
+        const count = Math.max(1, captureCount || 1);
+        return 1.0 + Math.log2(count) * 0.35;
+    }
+
     async loadProfiles(profilesList, animateProfileName = null) {
         this.clearPulses();
         const loadToken = ++this._loadToken;
-        this._hasAnimateFilename = !!animateProfileName;
+        const normalizeProfile = (value) => String(value || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
+        const animateKey = normalizeProfile(animateProfileName);
+        this._hasAnimateFilename = !!animateKey;
 
         const placed = [];
         const MAX_R = 14;
-        const MIN_D = 3.0;
+        const BASE_MIN_D = 3.0;
+        const BASE_SIZE = 0.42;
         const profiles = [...profilesList].sort((a, b) => {
-            if (animateProfileName) {
-                if (a.profile_name === animateProfileName) return -1;
-                if (b.profile_name === animateProfileName) return 1;
+            if (animateKey) {
+                if (normalizeProfile(a.profile_name) === animateKey) return -1;
+                if (normalizeProfile(b.profile_name) === animateKey) return 1;
             }
             return (b.latest_capture_timestamp || '').localeCompare(a.latest_capture_timestamp || '');
         });
-        const positions = profiles.map(() => {
+
+        const profileScales = profiles.map(p => this._starScaleForCaptures(p.capture_count));
+
+        const positions = profiles.map((prof, idx) => {
             let x, y, z, ok;
             let attempts = 0;
+            const myScale = profileScales[idx];
             do {
                 ok = true;
                 const r = Math.sqrt(Math.random()) * MAX_R;
@@ -571,14 +614,17 @@ class GalaxyGarden {
                 z = Math.sin(theta) * r;
                 y = (Math.random() - 0.5) * 5;
 
-                for (const p of placed) {
+                for (let pi = 0; pi < placed.length; pi++) {
+                    const p = placed[pi];
+                    const neighborScale = p.scale;
+                    const requiredDist = BASE_MIN_D * 0.5 * (myScale + neighborScale);
                     const dx = x - p.x, dy = y - p.y, dz = z - p.z;
-                    if (Math.sqrt(dx*dx + dy*dy + dz*dz) < MIN_D) { ok = false; break; }
+                    if (Math.sqrt(dx*dx + dy*dy + dz*dz) < requiredDist) { ok = false; break; }
                 }
                 attempts++;
-            } while (!ok && attempts < 80);
+            } while (!ok && attempts < 120);
 
-            placed.push({ x, y, z });
+            placed.push({ x, y, z, scale: myScale });
             return { x, y, z };
         });
 
@@ -599,7 +645,7 @@ class GalaxyGarden {
                 const analyzer = new EEGBandAnalyzer(data);
                 const report = analyzer.getReport();
                 const pos = positions[index];
-                const isAnimate = data.profile_name === animateProfileName;
+                const isAnimate = animateKey && normalizeProfile(data.profile_name) === animateKey;
                 if (this._destroyed || loadToken !== this._loadToken) return;
                 this._createPulseStar(data, report, pos.x, pos.y, pos.z, index, isAnimate);
             } catch (err) {
@@ -685,11 +731,12 @@ class GalaxyGarden {
         const group = new THREE.Group();
         group.position.set(x, y, z);
         if (animate) {
-            group.scale.set(0, 0, 0);
+            group.scale.set(this._minScale, this._minScale, this._minScale);
             group.userData.vanishAnim = { active: true, t: 0, duration: 4.0 };
         }
 
-        const baseSize = 0.42;
+        const sizeScale = this._starScaleForCaptures(captureData.capture_count);
+        const baseSize = 0.42 * sizeScale;
 
         const { dominant, main, deep, bright } = this._getLavaPalette(report);
         const starColor = new THREE.Color(main);
@@ -863,8 +910,8 @@ class GalaxyGarden {
     // ═══════════════════════════════════════════════════════════════════════════
 
     _setupInteraction() {
-        this.container.addEventListener('pointermove', (e) => this._onPointerMove(e));
-        this.container.addEventListener('click', (e) => this._onClick(e));
+        this.container.addEventListener('pointermove', this._pointerMoveHandler);
+        this.container.addEventListener('click', this._clickHandler);
     }
 
     _onPointerMove(e) {
@@ -960,7 +1007,9 @@ class GalaxyGarden {
     // ═══════════════════════════════════════════════════════════════════════════
 
     _animate() {
+        if (this._destroyed) return;
         this.animationId = requestAnimationFrame(() => this._animate());
+        if (!this.renderer || !this.scene || !this.camera) return;
 
         if (document.hidden) return;
 
@@ -977,6 +1026,7 @@ class GalaxyGarden {
             return;
         }
 
+        const frameStep = Math.max(0.001, Math.min(delta || 0.016, 0.05));
         this._elapsedOverride += delta;
         const elapsed = this._elapsedOverride;
 
@@ -1006,17 +1056,18 @@ class GalaxyGarden {
             // Vanish animation: scale from 0 to 1 with elastic ease
             if (star.group.userData.vanishAnim && star.group.userData.vanishAnim.active) {
                 const anim = star.group.userData.vanishAnim;
-                anim.t += 0.016;
+                anim.t += frameStep;
                 const progress = Math.min(anim.t / anim.duration, 1);
                 // Elastic ease out
                 const elastic = progress === 1 ? 1 : Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * (2 * Math.PI) / 3) + 1;
-                const scale = elastic;
+                const scale = Math.max(this._minScale, elastic);
                 star.group.scale.set(scale, scale, scale);
                 if (progress >= 1) {
                     anim.active = false;
                     // Delay before other stars appear
                     const self = this;
                     setTimeout(() => {
+                        if (self._destroyed) return;
                         self.stars.forEach(s => {
                             if (s !== star && s.group) {
                                 s.labelHidden = false;
@@ -1031,10 +1082,10 @@ class GalaxyGarden {
             // Appear animation: other stars fade in after vanish completes
             if (star.group.userData.appearAnim && star.group.userData.appearAnim.active) {
                 const anim = star.group.userData.appearAnim;
-                anim.t += 0.016;
+                anim.t += frameStep;
                 const progress = Math.min(anim.t / anim.duration, 1);
                 // Ease out cubic
-                const ease = 1 - Math.pow(1 - progress, 3);
+                const ease = Math.max(this._minScale, 1 - Math.pow(1 - progress, 3));
                 star.group.scale.set(ease, ease, ease);
                 if (progress >= 1) {
                     anim.active = false;
@@ -1042,7 +1093,7 @@ class GalaxyGarden {
             } else if (!star.group.userData.vanishAnim?.active && !star.group.userData.appearAnim?.active) {
                 // Hide other stars while vanish is playing
                 if (hasActiveVanish) {
-                    star.group.scale.set(0, 0, 0);
+                    star.group.scale.set(this._minScale, this._minScale, this._minScale);
                 }
             }
 
@@ -1086,9 +1137,19 @@ class GalaxyGarden {
 
     _onResize() {
         if (!this.container) return;
-        const w = this.container.clientWidth;
-        const h = this.container.clientHeight;
-        if (w === 0 || h === 0) return;
+        const rect = this.container.getBoundingClientRect();
+        const w = Math.floor(rect.width || this.container.clientWidth || 0);
+        const h = Math.floor(rect.height || this.container.clientHeight || 0);
+        if (w === 0 || h === 0) {
+            if (!this._resizeRaf) {
+                this._resizeRaf = requestAnimationFrame(() => {
+                    this._resizeRaf = null;
+                    this._onResize();
+                });
+            }
+            return;
+        }
+        if (!this.camera || !this.renderer) return;
         this.camera.aspect = w / h;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(w, h);
@@ -1098,32 +1159,49 @@ class GalaxyGarden {
         this._destroyed = true;
         this._loadToken++;
         if (this.animationId) cancelAnimationFrame(this.animationId);
+        if (this._resizeRaf) cancelAnimationFrame(this._resizeRaf);
+        window.removeEventListener('resize', this._resizeHandler);
+        document.removeEventListener('visibilitychange', this._visibilityHandler);
+        if (this.container) {
+            this.container.removeEventListener('pointermove', this._pointerMoveHandler);
+            this.container.removeEventListener('click', this._clickHandler);
+        }
+        if (this.renderer && this.renderer.domElement) {
+            this.renderer.domElement.removeEventListener('webglcontextlost', this._contextLostHandler, false);
+            this.renderer.domElement.removeEventListener('webglcontextrestored', this._contextRestoredHandler, false);
+        }
         this.clearPulses();
 
         [this.bgParticles, this.farStars, this.nebula].forEach(p => {
             if (p) {
-                this.scene.remove(p);
+                if (this.scene) this.scene.remove(p);
                 p.geometry.dispose();
                 p.material.dispose();
             }
         });
 
         this.shootingStars.forEach(s => {
-            this.scene.remove(s.line);
+            if (this.scene) this.scene.remove(s.line);
             s.geo.dispose();
             s.mat.dispose();
         });
         this.shootingStars = [];
 
-        this.scene.traverse(obj => {
-            if (obj.geometry) obj.geometry.dispose();
-            if (obj.material) {
-                if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
-                else obj.material.dispose();
-            }
-        });
+        if (this.scene) {
+            this.scene.traverse(obj => {
+                if (obj.geometry) obj.geometry.dispose();
+                if (obj.material) {
+                    if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+                    else obj.material.dispose();
+                }
+            });
+        }
 
-        if (this.renderer) this.renderer.dispose();
-        this.container.innerHTML = '';
+        if (this.controls && this.controls.dispose) this.controls.dispose();
+        if (this.renderer) {
+            this.renderer.dispose();
+            if (this.renderer.forceContextLoss) this.renderer.forceContextLoss();
+        }
+        if (this.container) this.container.innerHTML = '';
     }
 }

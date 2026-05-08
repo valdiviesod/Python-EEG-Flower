@@ -1,7 +1,7 @@
 /**
  * LavaPulse v2 — Galactic EEG Reactive Visualizer
  *
- * A living, breathing plasma nebula ring driven by EEG band analysis.
+ * A living, breathing plasma nebula stack driven by EEG band analysis.
  * Reacts in real-time to EEG frequency bands like a DJ visualizer —
  * BPM-synced beat jumps, chromatic flashes, orbital halos, nebula clouds,
  * particle storms, and continuous galactic color drift.
@@ -11,12 +11,12 @@
  *  • Internal oscillators simulate live reactivity (tempo, energy envelopes)
  *  • BPM engine: BPM derived from MIDI/EEG → periodic beat events
  *  • Beat events: scale spike, chromatic split, particle burst, hue flash
- *  • 5 animation layers (back to front):
- *      1. Deep space background  — starfield + nebula haze
- *      2. Outer glow bloom        — wide feathered ring halos
- *      3. Orbital halos           — concentric ghost rings (beat-reactive)
- *      4. Core plasma ring        — main organic morphing body
- *      5. Particle system         — sparks, comets, orbital debris
+ *  • 5 simultaneous EEG wave layers (back to front):
+ *      1. Base / Delta      — slow violet sonar envelope
+ *      2. Flujo / Theta     — green lotus drift wave
+ *      3. Pulso / Alpha     — magenta breathing ribbon
+ *      4. Trazo / Beta      — orange angular lightning trace
+ *      5. Destello / Gamma  — gold electric micro-sparks
  *  • Afterglow: semi-transparent clear each frame → neon motion trail
  *
  * ─── EEG → Visual Mapping ──────────────────────────────────────────────────
@@ -187,6 +187,9 @@ class LavaPulse {
         // Cycle period: calmer EEG (delta/theta) = slower transitions; active = faster
         this.palCyclePeriod = 8 + d * 6 + th * 4 - b * 2 - g * 1;
 
+        // Five visible layers: each EEG band keeps its own geometry, color and motion.
+        this.waveLayers = this._createWaveLayers(PALETTES);
+
         // ── Ring base radius fraction — larger base so shape is always prominent ──
         this.baseRadiusFrac = (0.30 + d * 0.10 + th * 0.06 + a * 0.04) * this._radiusJitter;
 
@@ -286,11 +289,11 @@ class LavaPulse {
         this.maxParticles  = 50  + Math.round(g * 120) + Math.round(b * 80);
         this.particleSpeed = 0.25 + b * 1.4 + g * 2.0;
 
-        // ── Nebula layers: slow large blobs behind the ring ──
+        // ── Nebula layers: slow large blobs behind the ring (subtle) ──
         this.nebulaLayers = [
-            { angle: 0.0,  radiusFrac: 0.55, sizeFrac: 0.45, speed: 0.0008, alpha: 0.06 + d * 0.06 },
-            { angle: 2.1,  radiusFrac: 0.48, sizeFrac: 0.38, speed: -0.0011, alpha: 0.04 + th * 0.05 },
-            { angle: 4.2,  radiusFrac: 0.60, sizeFrac: 0.50, speed: 0.0006, alpha: 0.03 + a * 0.04 },
+            { angle: 0.0,  radiusFrac: 0.55, sizeFrac: 0.45, speed: 0.0008, alpha: 0.025 + d * 0.025 },
+            { angle: 2.1,  radiusFrac: 0.48, sizeFrac: 0.38, speed: -0.0011, alpha: 0.018 + th * 0.022 },
+            { angle: 4.2,  radiusFrac: 0.60, sizeFrac: 0.50, speed: 0.0006, alpha: 0.014 + a * 0.018 },
         ];
 
         // ── Chromatic aberration intensity ──
@@ -311,6 +314,45 @@ class LavaPulse {
             this.maxParticles  = Math.max(20, Math.round(this.maxParticles * 0.5));
             this.particleSpeed *= 0.5;
         }
+    }
+
+    _createWaveLayers(palettes) {
+        const bandsByKey = {};
+        for (const band of this.analyzer.normalizedBands || []) {
+            bandsByKey[band.key] = band;
+        }
+
+        const configs = [
+            { key: 'delta', name: 'Base',      radiusMult: 1.72, widthMult: 1.60, alpha: 0.38, ampBase: 0.018, ampGain: 0.14, samples: 190, beat: 0.03, orbit:  0.00010 },
+            { key: 'theta', name: 'Flujo',     radiusMult: 1.38, widthMult: 1.20, alpha: 0.42, ampBase: 0.030, ampGain: 0.16, samples: 260, beat: 0.05, orbit: -0.00022 },
+            { key: 'alpha', name: 'Pulso',     radiusMult: 1.04, widthMult: 1.00, alpha: 0.48, ampBase: 0.025, ampGain: 0.15, samples: 320, beat: 0.08, orbit:  0.00055 },
+            { key: 'beta',  name: 'Trazo',     radiusMult: 0.72, widthMult: 0.75, alpha: 0.52, ampBase: 0.035, ampGain: 0.18, samples: 380, beat: 0.12, orbit: -0.00135 },
+            { key: 'gamma', name: 'Destello',  radiusMult: 0.42, widthMult: 0.50, alpha: 0.56, ampBase: 0.030, ampGain: 0.16, samples: 500, beat: 0.16, orbit:  0.00240 },
+        ];
+
+        return configs.map((cfg, i) => {
+            const band = bandsByKey[cfg.key] || {};
+            const percentage = Number.isFinite(band.percentage) ? band.percentage : 20;
+            const visualSize = Number.isFinite(band.visualSize)
+                ? band.visualSize
+                : Math.sqrt(Math.max(0.02, percentage / 100));
+            const visual = clamp(visualSize, 0.16, 0.78);
+            const strength = clamp(0.42 + visual * 0.92, 0.45, 1.10);
+            const pal = palettes[cfg.key];
+
+            return {
+                ...cfg,
+                band,
+                pal,
+                visual,
+                strength,
+                phase: this._phaseSeed + i * 1.137 + this._rand() * Math.PI * 2,
+                radiusMult: cfg.radiusMult * (0.95 + visual * 0.16),
+                widthMult: cfg.widthMult * (0.62 + visual * 0.95),
+                alpha: cfg.alpha * (0.58 + visual * 0.72),
+                amp: cfg.ampBase + visual * cfg.ampGain,
+            };
+        });
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -592,7 +634,6 @@ class LavaPulse {
         const maxFrac  = 0.5 * this.maxRingFrac * this.ringScale;
         const scaledR  = Math.min(rawR, maxFrac);
         this._baseR    = minD * scaledR;
-        const rs       = this.ringScale;
         const ringW    = minD * this.ringWidthFrac * (0.9 + this._beatFlash * 0.4);
 
         // ── Layer 1: Afterglow trail (fade previous frame) ──
@@ -605,38 +646,16 @@ class LavaPulse {
         // ── Layer 3: Nebula haze clouds ──
         this._drawNebula(cx, cy, minD, t);
 
-        // ── Layer 4: Orbital ghost halos (outer wide rings) ──
-        const pts = this._getPoints(t);
-        this._drawOrbitalHalos(cx, cy, minD, pts);
-
-        // ── Layer 5: Outer bloom glow ──
-        this._drawBloom(cx, cy, pts, ringW, t);
-
-        // ── Layer 6: Core plasma ring (optionally with chromatic split) ──
-        if (this._chromShift > 0.05) {
-            this._drawChromaticRing(cx, cy, pts, ringW, t);
-        } else {
-            this._drawCoreRing(cx, cy, pts, ringW, t);
-        }
+        // ── Layer 4: Five simultaneous EEG wave layers ──
+        this._drawBandWaveStack(cx, cy, minD, ringW, t);
 
         // ── Layer 7: Inner ambient haze ──
         this._drawInnerHaze(cx, cy);
 
-        // ── Layer 7.5: Shape-specific decorations ──
-        try { this._drawShapeDecorations(cx, cy, minD, t); } catch (_) {}
-
-        // ── Layer 7.6: Particles for active bands ──
-        if (this.shapeMode === 'beta' || this.shapeMode === 'gamma') {
-            this._updateAndDrawParticles(cx, cy, t);
-            this._updateAndDrawComets(cx, cy, t);
-        } else if (this.shapeMode === 'theta') {
-            this._updateAndDrawParticles(cx, cy, t);
-        }
-
         // ── Layer 8: Beat flash overlay ──
-        if (this._beatFlash > 0.05) {
+        if (this._beatFlash > 0.08) {
             ctx.save();
-            ctx.globalAlpha = this._beatFlash * 0.07;
+            ctx.globalAlpha = this._beatFlash * 0.03;
             ctx.fillStyle = this._huedColor(this.pal.c[4], this._hueDrift * 0.5);
             ctx.fillRect(0, 0, W, H);
             ctx.restore();
@@ -672,6 +691,331 @@ class LavaPulse {
             ctx.lineWidth = Math.max(2, minD * (0.012 - i * 0.002));
             ctx.stroke();
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // LAYER: FIVE EEG WAVE STACK
+    // ══════════════════════════════════════════════════════════════════════
+
+    _drawBandWaveStack(cx, cy, minD, ringW, t) {
+        const layers = this.waveLayers || [];
+        if (!layers.length) return;
+
+        const ctx = this.ctx;
+        const baseLine = Math.max(1.2, ringW * this.ringScale);
+        const rendered = [];
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+
+        for (const layer of layers) {
+            const pts = this._getWaveLayerPoints(layer, t);
+            const lineWidth = Math.max(0.9, baseLine * layer.widthMult);
+            rendered.push({ layer, pts, lineWidth });
+            this._drawWaveLayer(cx, cy, pts, lineWidth, layer, t);
+        }
+
+        for (const item of rendered) {
+            this._drawWaveLayerAccent(cx, cy, minD, item.layer, item.pts, item.lineWidth, t);
+        }
+
+        this._drawSharedPulseCore(cx, cy, minD, t);
+        ctx.restore();
+    }
+
+    _getWaveLayerPoints(layer, t) {
+        const pts = [];
+        const n = layer.samples || 260;
+        const baseR = Math.max(1, this._baseR * layer.radiusMult * (1 + this._beatFlash * layer.beat));
+        const amp = layer.amp * (0.74 + this._energy * 0.34);
+        const phase = layer.phase;
+
+        for (let i = 0; i <= n; i++) {
+            const angle = (i / n) * Math.PI * 2;
+            const rot = angle + phase + t * layer.orbit;
+            let wave = 0;
+
+            switch (layer.key) {
+                case 'delta': {
+                    const slow = t * 0.006;
+                    wave = amp * (
+                        0.55 * Math.sin(rot + slow) +
+                        0.30 * Math.sin(2 * rot - slow * 0.55) +
+                        0.15 * Math.cos(3 * rot + slow * 0.35)
+                    );
+                    wave += 0.025 * Math.sin(t * 0.008 + phase);
+                    break;
+                }
+                case 'theta': {
+                    const lotus = Math.cos(5 * rot - t * 0.006);
+                    const inner = Math.sin(10 * rot + t * 0.004);
+                    wave = amp * (0.82 * lotus + 0.18 * inner);
+                    break;
+                }
+                case 'alpha': {
+                    wave = amp * (
+                        0.54 * Math.sin(3 * rot + t * 0.018) +
+                        0.34 * Math.sin(7 * rot - t * 0.012) +
+                        0.12 * Math.cos(2 * rot + t * 0.007)
+                    );
+                    break;
+                }
+                case 'beta': {
+                    const raw = Math.sin(7 * rot + t * 0.038);
+                    const spike = raw >= 0 ? Math.pow(raw, 0.34) : -Math.pow(-raw, 2.5) * 0.26;
+                    wave = amp * (
+                        spike +
+                        0.32 * Math.sin(14 * rot - t * 0.027) +
+                        0.16 * Math.sin(21 * rot + t * 0.052)
+                    );
+                    break;
+                }
+                case 'gamma': {
+                    const tri = 2 * Math.abs(Math.sin(11 * rot + t * 0.092)) - 1;
+                    wave = amp * (
+                        0.46 * tri +
+                        0.30 * Math.sin(23 * rot - t * 0.140) +
+                        0.14 * Math.sin(47 * rot + t * 0.230) +
+                        0.10 * Math.cos(73 * rot - t * 0.190)
+                    );
+                    break;
+                }
+            }
+
+            const r = baseR * (1 + clamp(wave, -0.58, 0.72));
+            pts.push({
+                x: r * Math.cos(angle - Math.PI * 0.5),
+                y: r * Math.sin(angle - Math.PI * 0.5),
+                angle,
+                r,
+            });
+        }
+
+        return pts;
+    }
+
+    _drawWaveLayer(cx, cy, pts, lineWidth, layer, t) {
+        const c = layer.pal.c;
+        const alpha = clamp(layer.alpha * (0.60 + this._beatFlash * layer.beat * 1.2), 0, 0.85);
+        const chromShift = this._baseR * this.chromaticBase * this._chromShift * (0.15 + layer.beat * 2);
+        const dash = layer.key === 'gamma'
+            ? [lineWidth * 0.55, lineWidth * 1.65]
+            : (layer.key === 'alpha' ? [lineWidth * 4.0, lineWidth * 1.8] : null);
+
+        this._strokeWavePath(cx, cy, pts, lineWidth * 4.0, alpha * 0.018, c[0], t, { shadow: lineWidth * 2.5 });
+        this._strokeWavePath(cx, cy, pts, lineWidth * 2.4, alpha * 0.040, c[1], t, { shadow: lineWidth * 1.5 });
+
+        if (chromShift > 0.25) {
+            this._strokeWavePath(cx - chromShift, cy - chromShift * 0.2, pts, lineWidth * 0.6, alpha * 0.22, c[2], t, { shadow: lineWidth * 0.6 });
+            this._strokeWavePath(cx + chromShift, cy + chromShift * 0.2, pts, lineWidth * 0.55, alpha * 0.20, c[5], t, { shadow: lineWidth * 0.6 });
+        }
+
+        this._strokeWavePath(cx, cy, pts, lineWidth * 1.0, alpha * 0.65, c[3], t, { dash, dashOffset: -t * lineWidth * 0.05, shadow: lineWidth * 0.8 });
+        this._strokeWavePath(cx, cy, pts, lineWidth * 0.28, alpha * 0.85, c[4], t, { dash, dashOffset: t * lineWidth * 0.08, shadow: lineWidth * 0.5 });
+    }
+
+    _strokeWavePath(cx, cy, pts, lineWidth, alpha, color, t, options = {}) {
+        if (!pts.length || lineWidth <= 0 || alpha <= 0) return;
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.beginPath();
+        for (let i = 0; i < pts.length; i++) {
+            const { x, y } = pts[i];
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        if (options.dash) {
+            ctx.setLineDash(options.dash);
+            ctx.lineDashOffset = options.dashOffset || 0;
+        }
+        ctx.strokeStyle = this._huedRgba(color, this._hueDrift * 0.025 + t * 0.002, alpha);
+        ctx.lineWidth = lineWidth;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.shadowBlur = options.shadow ?? lineWidth * 1.2;
+        ctx.shadowColor = this._rgba(color, Math.min(0.72, alpha * 1.7));
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    _drawWaveLayerAccent(cx, cy, minD, layer, pts, lineWidth, t) {
+        switch (layer.key) {
+            case 'delta': this._drawDeltaLayerEcho(cx, cy, layer, lineWidth, t); break;
+            case 'theta': this._drawThetaLayerPetals(cx, cy, layer, t); break;
+            case 'alpha': this._drawAlphaLayerRibbons(cx, cy, layer, lineWidth, t); break;
+            case 'beta':  this._drawBetaLayerBolts(cx, cy, layer, lineWidth, t); break;
+            case 'gamma': this._drawGammaLayerSparks(cx, cy, layer, lineWidth, t); break;
+        }
+    }
+
+    _drawDeltaLayerEcho(cx, cy, layer, lineWidth, t) {
+        const ctx = this.ctx;
+        const baseR = this._baseR * layer.radiusMult;
+        const rings = 4;
+        const period = 440;
+        for (let i = 0; i < rings; i++) {
+            const phase = ((t / period) + i / rings) % 1;
+            const eased = phase * phase;
+            const radius = baseR * (0.86 + eased * 0.70);
+            const alpha = (1 - phase) * layer.alpha * 0.16;
+            if (alpha <= 0.004) continue;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.strokeStyle = this._huedRgba(layer.pal.c[3], this._hueDrift * 0.02, alpha);
+            ctx.lineWidth = lineWidth * (0.12 + (1 - phase) * 0.20);
+            ctx.shadowBlur = lineWidth * 1.8;
+            ctx.shadowColor = this._rgba(layer.pal.c[3], alpha * 1.8);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    _drawThetaLayerPetals(cx, cy, layer, t) {
+        const ctx = this.ctx;
+        const count = 5;
+        const baseR = this._baseR * layer.radiusMult;
+        const petalLen = this._baseR * (0.32 + layer.visual * 0.30);
+        const petalW = this._baseR * (0.10 + layer.visual * 0.12);
+        const rotation = t * layer.orbit * 5 + layer.phase;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        for (let i = 0; i < count; i++) {
+            const angle = (i / count) * Math.PI * 2 + rotation;
+            const breathe = 0.86 + 0.14 * Math.sin(t * 0.010 + i * 1.7 + layer.phase);
+            const y0 = baseR * 0.88 * breathe;
+            const y1 = y0 + petalLen * breathe;
+            const w = petalW * breathe;
+
+            ctx.save();
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.moveTo(0, y0);
+            ctx.bezierCurveTo(w, y0 + petalLen * 0.24, w * 0.62, y0 + petalLen * 0.82, 0, y1);
+            ctx.bezierCurveTo(-w * 0.62, y0 + petalLen * 0.82, -w, y0 + petalLen * 0.24, 0, y0);
+            ctx.closePath();
+
+            const grad = ctx.createLinearGradient(0, y0, 0, y1);
+            grad.addColorStop(0, this._rgba(layer.pal.c[4], layer.alpha * 0.24));
+            grad.addColorStop(0.55, this._rgba(layer.pal.c[3], layer.alpha * 0.12));
+            grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(0, y0 + petalLen * 0.08);
+            ctx.lineTo(0, y1 - petalLen * 0.12);
+            ctx.strokeStyle = this._rgba(layer.pal.c[5], layer.alpha * 0.18);
+            ctx.lineWidth = 0.8 + layer.visual * 1.4;
+            ctx.stroke();
+            ctx.restore();
+        }
+        ctx.restore();
+    }
+
+    _drawAlphaLayerRibbons(cx, cy, layer, lineWidth, t) {
+        const ctx = this.ctx;
+        const baseR = this._baseR * layer.radiusMult;
+        for (let i = 0; i < 3; i++) {
+            const radius = baseR * (0.86 + i * 0.075);
+            const start = layer.phase + t * (0.006 + i * 0.002) + i * 2.1;
+            const end = start + Math.PI * (0.72 + layer.visual * 0.45);
+            const alpha = layer.alpha * (0.18 - i * 0.035);
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, start, end);
+            ctx.setLineDash([lineWidth * (2.1 + i), lineWidth * (1.0 + i * 0.4)]);
+            ctx.lineDashOffset = -t * (0.35 + i * 0.18);
+            ctx.strokeStyle = this._huedRgba(layer.pal.c[4 - i], this._hueDrift * 0.03, alpha);
+            ctx.lineWidth = lineWidth * (0.16 - i * 0.025);
+            ctx.lineCap = 'round';
+            ctx.shadowBlur = lineWidth * 1.2;
+            ctx.shadowColor = this._rgba(layer.pal.c[3], alpha * 1.6);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    _drawBetaLayerBolts(cx, cy, layer, lineWidth, t) {
+        const ctx = this.ctx;
+        const count = 7;
+        const baseR = this._baseR * layer.radiusMult;
+        const len = this._baseR * (0.16 + layer.visual * 0.36);
+
+        for (let i = 0; i < count; i++) {
+            const flash = 0.5 + 0.5 * Math.sin(t * 0.14 + i * 2.371 + layer.phase);
+            if (flash < 0.28 && this._beatFlash < 0.18) continue;
+            const angle = (i / count) * Math.PI * 2 + layer.phase + t * layer.orbit * 8;
+            const alpha = layer.alpha * (0.18 + flash * 0.34 + this._beatFlash * 0.22);
+            const segs = 3 + (this._beatFlash > 0.35 ? 1 : 0);
+            const segLen = len / segs;
+
+            let bx = cx + Math.cos(angle - Math.PI * 0.5) * baseR;
+            let by = cy + Math.sin(angle - Math.PI * 0.5) * baseR;
+
+            ctx.save();
+            ctx.strokeStyle = this._huedRgba(layer.pal.c[5], this._hueDrift * 0.04, alpha);
+            ctx.lineWidth = Math.max(0.8, lineWidth * 0.16);
+            ctx.lineCap = 'round';
+            ctx.shadowBlur = lineWidth * 1.5;
+            ctx.shadowColor = this._rgba(layer.pal.c[4], alpha);
+
+            for (let s = 0; s < segs; s++) {
+                const jitterAng = angle + Math.PI * 0.5;
+                const jitter = Math.sin(t * 0.31 + i * 5.1 + s * 8.3) * segLen * 0.55;
+                const nx = bx + Math.cos(angle - Math.PI * 0.5) * segLen + Math.cos(jitterAng) * jitter;
+                const ny = by + Math.sin(angle - Math.PI * 0.5) * segLen + Math.sin(jitterAng) * jitter;
+                ctx.beginPath();
+                ctx.moveTo(bx, by);
+                ctx.lineTo(nx, ny);
+                ctx.stroke();
+                bx = nx;
+                by = ny;
+            }
+            ctx.restore();
+        }
+    }
+
+    _drawGammaLayerSparks(cx, cy, layer, lineWidth, t) {
+        const ctx = this.ctx;
+        const count = 70 + Math.round(layer.visual * 120);
+        const baseR = this._baseR * layer.radiusMult;
+
+        for (let i = 0; i < count; i++) {
+            const s1 = Math.sin(i * 127.1 + t * 0.115 + layer.phase) * 43758.5453;
+            const s2 = Math.sin(i * 311.7 - t * 0.145 + layer.phase) * 43758.5453;
+            const s3 = Math.sin(i * 74.31 + t * 0.210) * 43758.5453;
+            const r1 = s1 - Math.floor(s1);
+            const r2 = s2 - Math.floor(s2);
+            const r3 = s3 - Math.floor(s3);
+            if (r3 < 0.34) continue;
+
+            const angle = r1 * Math.PI * 2;
+            const radius = baseR * (0.70 + r2 * 0.70);
+            const x = cx + Math.cos(angle - Math.PI * 0.5) * radius;
+            const y = cy + Math.sin(angle - Math.PI * 0.5) * radius;
+            const alpha = Math.min(1, layer.alpha * (r3 * 0.55 + this._beatFlash * 0.30));
+            const size = (0.55 + r2 * 2.6 + this._beatFlash * 1.4) * (0.65 + layer.visual);
+
+            ctx.save();
+            const grad = ctx.createRadialGradient(x, y, 0, x, y, size * 4.0);
+            grad.addColorStop(0, this._rgba(layer.pal.c[5], alpha));
+            grad.addColorStop(0.35, this._rgba(layer.pal.c[4], alpha * 0.50));
+            grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(x, y, size * 4.0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    _drawSharedPulseCore(_cx, _cy, _minD, _t) {
+        // Removed: no center dot or orbiting dots
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -820,15 +1164,15 @@ class LavaPulse {
     _drawInnerHaze(cx, cy) {
         const ctx  = this.ctx;
         const r    = this._baseR;
-        const a    = 0.035 + this.eeg.a * 0.040 + this._beatFlash * 0.020;
-        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 0.88);
+        const a    = 0.015 + this.eeg.a * 0.018 + this._beatFlash * 0.008;
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 0.65);
         grad.addColorStop(0,    'transparent');
-        grad.addColorStop(0.50, this._rgba(this.pal.c[1], a * 0.4));
-        grad.addColorStop(0.80, this._rgba(this.pal.c[2], a));
+        grad.addColorStop(0.55, this._rgba(this.pal.c[1], a * 0.25));
+        grad.addColorStop(0.85, this._rgba(this.pal.c[2], a * 0.5));
         grad.addColorStop(1,    'transparent');
         ctx.save();
         ctx.fillStyle = grad;
-        ctx.fillRect(cx - r * 1.1, cy - r * 1.1, r * 2.2, r * 2.2);
+        ctx.fillRect(cx - r * 0.8, cy - r * 0.8, r * 1.6, r * 1.6);
         ctx.restore();
     }
 
