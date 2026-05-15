@@ -185,6 +185,13 @@
                         <p>Arrastra un archivo <strong>.json</strong> de la diadema Muse o haz clic para seleccionar</p>
                     </div>
                     <input type="file" id="pulse-file-input" accept=".json" hidden>
+                    <div class="form-group upload-profile-field">
+                        <label for="pulse-upload-profile">Perfil destino</label>
+                        <div class="name-input-wrap">
+                            <input type="text" id="pulse-upload-profile" placeholder="Escribe o elige un perfil existente" autocomplete="off">
+                            <div class="profile-suggestions" id="pulse-upload-profile-suggestions" hidden></div>
+                        </div>
+                    </div>
                     <div class="upload-actions">
                         <button class="btn-primary" id="pulse-btn-upload">
                             <span>📂</span> Seleccionar Archivo

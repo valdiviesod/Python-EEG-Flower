@@ -910,6 +910,11 @@ body::before {
     line-height: 1.6;
 }
 
+.upload-profile-field {
+    text-align: left;
+    margin: 0 0 1.25rem;
+}
+
 .upload-actions {
     display: flex;
     gap: 0.75rem;

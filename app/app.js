@@ -635,15 +635,6 @@
     const profileSuggestionsEl = document.getElementById('profile-suggestions');
     const PROFILE_SUGGESTION_LIMIT = 8;
 
-    if (inputName && profileSuggestionsEl) {
-        inputName.setAttribute('role', 'combobox');
-        inputName.setAttribute('aria-autocomplete', 'list');
-        inputName.setAttribute('aria-expanded', 'false');
-        inputName.setAttribute('aria-controls', 'profile-suggestions');
-        profileSuggestionsEl.setAttribute('role', 'listbox');
-        profileSuggestionsEl.hidden = true;
-    }
-
     async function loadProfileSuggestions() {
         try {
             const resp = await fetch('/api/profiles/list');
@@ -656,71 +647,98 @@
         return (n || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     }
 
-    if (inputName) {
-        inputName.addEventListener('focus', async () => {
+    function resolveProfileName(rawName) {
+        const trimmed = (rawName || '').trim();
+        if (!trimmed) return '';
+        const matched = profileSuggestions.find(
+            p => normalizeName(p.profile_name) === normalizeName(trimmed)
+        );
+        return matched ? matched.profile_name : trimmed;
+    }
+
+    function bindProfileAutocomplete(inputEl, suggestionsEl) {
+        if (!inputEl || !suggestionsEl) return { hide() {} };
+
+        const wrapEl = inputEl.closest('.name-input-wrap');
+        const listId = suggestionsEl.id || 'profile-suggestions-list';
+        suggestionsEl.id = listId;
+
+        inputEl.setAttribute('role', 'combobox');
+        inputEl.setAttribute('aria-autocomplete', 'list');
+        inputEl.setAttribute('aria-expanded', 'false');
+        inputEl.setAttribute('aria-controls', listId);
+        suggestionsEl.setAttribute('role', 'listbox');
+        suggestionsEl.hidden = true;
+
+        function hide() {
+            suggestionsEl.hidden = true;
+            suggestionsEl.style.display = 'none';
+            inputEl.setAttribute('aria-expanded', 'false');
+        }
+
+        function show(query) {
+            const q = normalizeName(query);
+            const matches = profileSuggestions.filter(p =>
+                !q || normalizeName(p.profile_name).includes(q)
+            );
+            if (!matches.length) { hide(); return; }
+            suggestionsEl.replaceChildren();
+
+            matches.slice(0, PROFILE_SUGGESTION_LIMIT).forEach(p => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'profile-suggestion-item';
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-label', `Usar perfil ${p.profile_name}`);
+
+                const name = document.createElement('span');
+                name.className = 'suggestion-name';
+                name.textContent = p.profile_name;
+
+                const count = document.createElement('span');
+                count.className = 'suggestion-count';
+                count.textContent = `${p.capture_count} captura${p.capture_count !== 1 ? 's' : ''}`;
+
+                item.append(name, count);
+                item.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    inputEl.value = p.profile_name;
+                    hide();
+                });
+                suggestionsEl.appendChild(item);
+            });
+
+            if (matches.length > PROFILE_SUGGESTION_LIMIT) {
+                const more = document.createElement('div');
+                more.className = 'profile-suggestion-more';
+                more.textContent = `+${matches.length - PROFILE_SUGGESTION_LIMIT} perfiles más. Escribe para filtrar.`;
+                suggestionsEl.appendChild(more);
+            }
+
+            suggestionsEl.hidden = false;
+            suggestionsEl.style.display = 'block';
+            inputEl.setAttribute('aria-expanded', 'true');
+        }
+
+        inputEl.addEventListener('focus', async () => {
             await loadProfileSuggestions();
-            showSuggestions(inputName.value);
+            show(inputEl.value);
         });
-        inputName.addEventListener('input', () => showSuggestions(inputName.value));
-        inputName.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') hideSuggestions();
+        inputEl.addEventListener('input', () => show(inputEl.value));
+        inputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') hide();
         });
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.name-input-wrap')) hideSuggestions();
-        });
-    }
-
-    function showSuggestions(query) {
-        if (!profileSuggestionsEl) return;
-        const q = normalizeName(query);
-        const matches = profileSuggestions.filter(p =>
-            !q || normalizeName(p.profile_name).includes(q)
-        );
-        if (!matches.length) { hideSuggestions(); return; }
-        profileSuggestionsEl.replaceChildren();
-
-        matches.slice(0, PROFILE_SUGGESTION_LIMIT).forEach(p => {
-            const item = document.createElement('button');
-            item.type = 'button';
-            item.className = 'profile-suggestion-item';
-            item.setAttribute('role', 'option');
-            item.setAttribute('aria-label', `Usar perfil ${p.profile_name}`);
-
-            const name = document.createElement('span');
-            name.className = 'suggestion-name';
-            name.textContent = p.profile_name;
-
-            const count = document.createElement('span');
-            count.className = 'suggestion-count';
-            count.textContent = `${p.capture_count} captura${p.capture_count !== 1 ? 's' : ''}`;
-
-            item.append(name, count);
-            item.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                inputName.value = p.profile_name;
-                hideSuggestions();
-            });
-            profileSuggestionsEl.appendChild(item);
+            if (wrapEl && !wrapEl.contains(e.target)) hide();
         });
 
-        if (matches.length > PROFILE_SUGGESTION_LIMIT) {
-            const more = document.createElement('div');
-            more.className = 'profile-suggestion-more';
-            more.textContent = `+${matches.length - PROFILE_SUGGESTION_LIMIT} perfiles más. Escribe para filtrar.`;
-            profileSuggestionsEl.appendChild(more);
-        }
-
-        profileSuggestionsEl.hidden = false;
-        profileSuggestionsEl.style.display = 'block';
-        if (inputName) inputName.setAttribute('aria-expanded', 'true');
+        return { show, hide };
     }
+
+    const captureProfileAutocomplete = bindProfileAutocomplete(inputName, profileSuggestionsEl);
 
     function hideSuggestions() {
-        if (profileSuggestionsEl) {
-            profileSuggestionsEl.hidden = true;
-            profileSuggestionsEl.style.display = 'none';
-        }
-        if (inputName) inputName.setAttribute('aria-expanded', 'false');
+        captureProfileAutocomplete.hide();
     }
 
     // ── Start Capture ──
@@ -738,12 +756,7 @@
         btnStart.textContent = 'Conectando...';
         hideSuggestions();
 
-        // Resolve profile name: if input matches existing profile (case-insensitive), use canonical name
-        let profileName = name;
-        const matchedProfile = profileSuggestions.find(
-            p => normalizeName(p.profile_name) === normalizeName(name)
-        );
-        if (matchedProfile) profileName = matchedProfile.profile_name;
+        const profileName = resolveProfileName(name);
 
         try {
             const resp = await fetch('/api/capture/start', {
@@ -1354,6 +1367,12 @@
     const pulseBtnUpload = document.getElementById('pulse-btn-upload');
     const pulseUploadArea = document.getElementById('pulse-upload-area');
     const pulseUploadStatus = document.getElementById('pulse-upload-status');
+    const pulseUploadProfileInput = document.getElementById('pulse-upload-profile');
+    const pulseUploadProfileSuggestions = document.getElementById('pulse-upload-profile-suggestions');
+    const pulseUploadProfileAutocomplete = bindProfileAutocomplete(
+        pulseUploadProfileInput,
+        pulseUploadProfileSuggestions
+    );
 
     const pulseTabs = document.querySelectorAll('#pulse-tabs .tab');
     const pulsePanels = document.querySelectorAll('.tab-panel');
@@ -1398,6 +1417,8 @@
         pulseMainContent.style.display = 'none';
         pulseUploadSection.style.display = 'flex';
         if (pulseFileInput) pulseFileInput.value = '';
+        if (pulseUploadProfileInput) pulseUploadProfileInput.value = '';
+        if (pulseUploadProfileAutocomplete) pulseUploadProfileAutocomplete.hide();
         if (pulseUploadStatus) pulseUploadStatus.style.display = 'none';
     }
 
@@ -1408,12 +1429,12 @@
         pulseUploadStatus.style.display = message ? 'block' : 'none';
     }
 
-    async function saveManualCapture(jsonData, sourceFilename) {
+    async function saveManualCapture(jsonData, sourceFilename, profileName) {
         setPulseUploadStatus('Guardando captura en campo resonante...', 'loading');
         const resp = await fetch('/api/garden/upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jsonData, sourceFilename }),
+            body: JSON.stringify({ jsonData, sourceFilename, profileName }),
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.ok) {
@@ -1437,7 +1458,21 @@
                     alert('El archivo JSON no tiene el formato esperado (requiere eeg_channels y metadata).');
                     return;
                 }
-                const savedData = await saveManualCapture(data, file.name);
+                await loadProfileSuggestions();
+                let profileName = pulseUploadProfileInput?.value.trim() || '';
+                if (!profileName) {
+                    profileName = (data.metadata.profile_name || data.metadata.user_name || '').trim();
+                    if (profileName && pulseUploadProfileInput) {
+                        pulseUploadProfileInput.value = profileName;
+                    }
+                }
+                profileName = resolveProfileName(profileName);
+                if (!profileName) {
+                    alert('Escribe o selecciona un perfil destino antes de subir el JSON.');
+                    if (pulseFileInput) pulseFileInput.value = '';
+                    return;
+                }
+                const savedData = await saveManualCapture(data, file.name, profileName);
                 processPulseData(savedData);
             } catch (err) {
                 setPulseUploadStatus('Error: ' + err.message, 'error');

@@ -515,7 +515,11 @@ class AppHandler(SimpleHTTPRequestHandler):
         if parsed.path == '/api/garden/upload':
             try:
                 body = self._read_json_body()
-                self._handle_garden_upload(body.get('jsonData'), body.get('sourceFilename', ''))
+                self._handle_garden_upload(
+                    body.get('jsonData'),
+                    body.get('sourceFilename', ''),
+                    body.get('profileName', ''),
+                )
             except Exception as exc:
                 traceback.print_exc()
                 self._send_json(500, {'ok': False, 'error': str(exc)})
@@ -825,7 +829,8 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _handle_garden_upload(self, payload: dict | None, source_filename: str = ''):
+    def _handle_garden_upload(self, payload: dict | None, source_filename: str = '',
+                              profile_name_override: str = ''):
         if not isinstance(payload, dict):
             self._send_json(400, {'ok': False, 'error': 'JSON inválido'})
             return
@@ -837,9 +842,15 @@ class AppHandler(SimpleHTTPRequestHandler):
         channels = payload['eeg_channels']
         source_stem = Path(source_filename or '').stem or 'captura'
         fallback_name = re.sub(r'[^A-Za-z0-9_-]+', '_', source_stem).strip('_') or 'captura'
+        override = str(profile_name_override or '').strip()
+        if override:
+            metadata['profile_name'] = override
+            metadata['user_name'] = override
+        else:
+            user_name = str(metadata.get('profile_name') or metadata.get('user_name') or fallback_name).strip()
+            metadata['user_name'] = str(metadata.get('user_name') or user_name).strip()
+            metadata['profile_name'] = str(metadata.get('profile_name') or metadata['user_name']).strip()
         user_name = str(metadata.get('profile_name') or metadata.get('user_name') or fallback_name).strip()
-        metadata['user_name'] = str(metadata.get('user_name') or user_name).strip()
-        metadata['profile_name'] = str(metadata.get('profile_name') or metadata['user_name']).strip()
         metadata['capture_timestamp'] = metadata.get('capture_timestamp') or time.strftime('%Y-%m-%d %H:%M:%S')
 
         if not metadata.get('total_samples'):
