@@ -904,6 +904,14 @@ class GalaxyGarden {
             }
         }
 
+        const preview = document.createElement('div');
+        preview.className = 'galaxy-star-preview';
+        const previewCanvas = document.createElement('canvas');
+        previewCanvas.className = 'galaxy-star-preview-canvas';
+        preview.appendChild(previewCanvas);
+        div.appendChild(preview);
+        div._previewCanvas = previewCanvas;
+
         const wrap = document.getElementById('garden-3d-wrap');
         if (wrap) wrap.appendChild(div);
         return div;
@@ -961,14 +969,109 @@ class GalaxyGarden {
 
     _hoverStar(star) {
         if (!star) return;
+        if (star.hoverActive) return;
+        star.hoverActive = true;
         if (star.labelEl) star.labelEl.classList.add('hovered');
         if (star.glowMat) star.glowMat.uniforms.uColor.value.multiplyScalar(1.3);
+        void this._ensurePreviewThumbnail(star);
     }
 
     _unhoverStar(star) {
         if (!star) return;
+        star.hoverActive = false;
         if (star.labelEl) star.labelEl.classList.remove('hovered');
         if (star.glowMat) star.glowMat.uniforms.uColor.value.multiplyScalar(1 / 1.3);
+    }
+
+    async _ensurePreviewThumbnail(star) {
+        if (!star || star.previewLoaded || star.previewLoading || !star.labelEl) return;
+        const canvas = star.labelEl._previewCanvas;
+        if (!canvas) return;
+
+        star.previewLoading = true;
+
+        let previewData = star.data;
+        const latestFilename = star.data?._profileMeta?.latest_capture_filename;
+        try {
+            if (latestFilename && latestFilename !== star.data?.filename) {
+                const resp = await fetch(`/api/garden/file?name=${encodeURIComponent(latestFilename)}`);
+                if (resp.ok) {
+                    previewData = await resp.json();
+                    previewData.filename = latestFilename;
+                }
+            }
+            if (this._destroyed) return;
+            this._drawCapturePreview(canvas, previewData);
+            star.previewLoaded = true;
+        } catch (err) {
+            console.warn('Galaxy preview error:', err);
+            if (!this._destroyed) {
+                this._drawCapturePreview(canvas, star.data);
+            }
+        } finally {
+            star.previewLoading = false;
+        }
+    }
+
+    _drawCapturePreview(canvas, captureData) {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const size = 132;
+        canvas.width = Math.round(size * dpr);
+        canvas.height = Math.round(size * dpr);
+        canvas.style.width = `${size}px`;
+        canvas.style.height = `${size}px`;
+
+        if (typeof EEGBandAnalyzer !== 'undefined' && typeof LavaPulse !== 'undefined') {
+            try {
+                const analyzer = new EEGBandAnalyzer(captureData);
+                const pulse = new LavaPulse(canvas, analyzer);
+                pulse.t += 420;
+                pulse.ft = pulse.t / 60;
+                if (typeof pulse._drawSafe === 'function') pulse._drawSafe();
+                else pulse._draw();
+                pulse.stop();
+                return;
+            } catch (err) {
+                console.warn('Lava preview fallback:', err);
+            }
+        }
+
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, w, h);
+        const grd = ctx.createRadialGradient(w * 0.5, h * 0.45, 0, w * 0.5, h * 0.5, w * 0.62);
+        grd.addColorStop(0, 'rgba(233,69,245,0.5)');
+        grd.addColorStop(0.5, 'rgba(139,92,246,0.22)');
+        grd.addColorStop(1, 'rgba(5,3,10,0.92)');
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, 0, w, h);
+
+        const channels = Object.values(captureData?.eeg_channels || {}).filter(Array.isArray).slice(0, 4);
+        const colors = ['#8B5CF6', '#22C55E', '#EC4899', '#F97316'];
+        channels.forEach((samples, idx) => {
+            if (!samples.length) return;
+            const step = Math.max(1, Math.floor(samples.length / 80));
+            const reduced = samples.filter((_, i) => i % step === 0).slice(-80);
+            const min = Math.min(...reduced);
+            const max = Math.max(...reduced);
+            const range = max - min || 1;
+            const baseY = h * (0.25 + idx * 0.16);
+            ctx.beginPath();
+            reduced.forEach((value, i) => {
+                const x = (i / Math.max(1, reduced.length - 1)) * w;
+                const y = baseY - (((value - min) / range) - 0.5) * h * 0.18;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.strokeStyle = colors[idx];
+            ctx.lineWidth = Math.max(1.5, 2.4 * dpr);
+            ctx.shadowBlur = 10 * dpr;
+            ctx.shadowColor = colors[idx];
+            ctx.stroke();
+        });
+        ctx.shadowBlur = 0;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

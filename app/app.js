@@ -1,9 +1,10 @@
 /**
  * NAD — Unified App Controller
  *
- * Manages two views:
+ * Manages three views:
  *   1. Captura EEG — setup → live capture → results (download JSON / MIDI / send to pulse)
  *   2. Pulso Neurofuncional — upload → 2D / 3D / Analysis
+ *   3. Campo resonante — saved captures as 3D profile field
  *
  * Uses Pulse's vibrant palette for EEG wave rendering.
  */
@@ -268,18 +269,14 @@
             });
         }
 
-        const selectEl   = document.getElementById('input-state');
-        const chevron    = document.querySelector('.select-chevron');
-        const selectWrap = document.querySelector('.select-wrapper');
-        if (selectEl && chevron && selectWrap && typeof gsap !== 'undefined') {
-            selectEl.addEventListener('focus', () => {
-                gsap.fromTo(selectWrap, { boxShadow: '0 0 0 0px rgba(139,92,246,0)' },
+        const stateInput = document.getElementById('input-state');
+        if (stateInput && typeof gsap !== 'undefined') {
+            stateInput.addEventListener('focus', () => {
+                gsap.fromTo(stateInput, { boxShadow: '0 0 0 0px rgba(139,92,246,0)' },
                     { boxShadow: '0 0 0 5px rgba(139,92,246,0.22)', duration: 0.3, ease: 'power2.out' });
-                gsap.to(chevron, { rotation: 180, duration: 0.35, ease: 'back.out(2)' });
             });
-            selectEl.addEventListener('blur', () => {
-                gsap.to(selectWrap, { boxShadow: '0 0 0 0px rgba(139,92,246,0)', duration: 0.4 });
-                gsap.to(chevron, { rotation: 0, duration: 0.3, ease: 'power2.in' });
+            stateInput.addEventListener('blur', () => {
+                gsap.to(stateInput, { boxShadow: '0 0 0 0px rgba(139,92,246,0)', duration: 0.4 });
             });
         }
     })();
@@ -315,8 +312,10 @@
         floatingLines = new FloatingLines(floatingLinesBg, FL_OPTS);
     }
 
-    // Initial spawn
-    spawnFloatingLines();
+    // Initial spawn only when capture is the active entry view.
+    if (document.getElementById('view-capture')?.classList.contains('active')) {
+        spawnFloatingLines();
+    }
 
     document.addEventListener('visibilitychange', () => {
         if (!floatingLines) return;
@@ -340,6 +339,10 @@
 
             globalTabs.forEach(t => t.classList.toggle('active', t.dataset.view === viewName));
             views.forEach(v => v.classList.toggle('active', v.id === `view-${viewName}`));
+
+            if (viewName === 'pulse') {
+                showManualUploadView();
+            }
 
             // Trigger resize for pulse 3D if switching to it
             if (viewName === 'pulse' && pulse3d) {
@@ -723,11 +726,11 @@
     // ── Start Capture ──
     btnStart.addEventListener('click', async () => {
         const name = inputName.value.trim();
-        const state = inputState.value;
+        const state = inputState.value.trim();
         const duration = inputDuration.value ? parseFloat(inputDuration.value) : null;
 
         if (!state) {
-            alert('Por favor selecciona tu estado emocional.');
+            alert('Por favor escribe tu estado emocional.');
             return;
         }
 
@@ -1327,8 +1330,7 @@
         }, 800);
     }
 
-    // Start the capture tour on page load
-    maybeStartCaptureTour();
+    // Capture tour starts only when user enters capture view.
 
     // ── Utils ──
     function formatTime(seconds) {
@@ -1351,6 +1353,7 @@
     const pulseFileInput = document.getElementById('pulse-file-input');
     const pulseBtnUpload = document.getElementById('pulse-btn-upload');
     const pulseUploadArea = document.getElementById('pulse-upload-area');
+    const pulseUploadStatus = document.getElementById('pulse-upload-status');
 
     const pulseTabs = document.querySelectorAll('#pulse-tabs .tab');
     const pulsePanels = document.querySelectorAll('.tab-panel');
@@ -1383,18 +1386,62 @@
         if (e.dataTransfer.files.length) loadPulseFile(e.dataTransfer.files[0]);
     });
 
+    function showManualUploadView() {
+        stopGardenMidiPlayback();
+        if (midiLinkedPulse) { midiLinkedPulse.stop(); midiLinkedPulse = null; }
+        if (gardenAudioContext && gardenAudioContext.state === 'running') {
+            gardenAudioContext.suspend().catch(() => {});
+        }
+        if (pulse3d) { pulse3d.destroy(); pulse3d = null; }
+        if (pulse2d) { pulse2d.stop(); pulse2d = null; }
+        pulseAnalyzer = null;
+        pulseMainContent.style.display = 'none';
+        pulseUploadSection.style.display = 'flex';
+        if (pulseFileInput) pulseFileInput.value = '';
+        if (pulseUploadStatus) pulseUploadStatus.style.display = 'none';
+    }
+
+    function setPulseUploadStatus(message, type = '') {
+        if (!pulseUploadStatus) return;
+        pulseUploadStatus.textContent = message;
+        pulseUploadStatus.className = `upload-status ${type}`.trim();
+        pulseUploadStatus.style.display = message ? 'block' : 'none';
+    }
+
+    async function saveManualCapture(jsonData, sourceFilename) {
+        setPulseUploadStatus('Guardando captura en campo resonante...', 'loading');
+        const resp = await fetch('/api/garden/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jsonData, sourceFilename }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.ok) {
+            throw new Error(data.error || 'No se pudo guardar la captura JSON');
+        }
+        gardenLoaded = false;
+        setPulseUploadStatus(`Captura subida: ${data.filename}`, 'success');
+        return data.capture || jsonData;
+    }
+
     function loadPulseFile(file) {
         if (!file.name.endsWith('.json')) {
             alert('Por favor selecciona un archivo .json');
             return;
         }
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
             try {
                 const data = JSON.parse(e.target.result);
-                processPulseData(data);
+                if (!data.eeg_channels || !data.metadata) {
+                    alert('El archivo JSON no tiene el formato esperado (requiere eeg_channels y metadata).');
+                    return;
+                }
+                const savedData = await saveManualCapture(data, file.name);
+                processPulseData(savedData);
             } catch (err) {
-                alert('Error leyendo el JSON: ' + err.message);
+                setPulseUploadStatus('Error: ' + err.message, 'error');
+                alert('Error leyendo o subiendo el JSON: ' + err.message);
             }
         };
         reader.readAsText(file);
@@ -2786,6 +2833,21 @@
         const s = Math.floor(secs % 60);
         return `${m}:${s.toString().padStart(2, '0')}`;
     }
+
+    function bootstrapInitialView() {
+        const activeView = Array.from(views).find(v => v.classList.contains('active'));
+        const viewName = activeView ? activeView.id.replace('view-', '') : 'garden';
+
+        if (viewName === 'garden') {
+            void loadGarden();
+        } else if (viewName === 'capture') {
+            maybeStartCaptureTour();
+        } else if (viewName === 'pulse') {
+            showManualUploadView();
+        }
+    }
+
+    bootstrapInitialView();
 
     // ── Utility: Escape HTML ──
     function escapeHtml(str) {

@@ -8,6 +8,7 @@ Integra pulse_local_server.py en un solo proceso.
 - Capture API: POST /api/capture/start | /api/capture/stop
                GET  /api/capture/status | /api/capture/stream | /api/capture/download-json
 - Garden API:  GET  /api/garden/list | /api/garden/file?name=...
+               POST /api/garden/upload
 - Profiles API: GET  /api/profiles/list | /api/profiles/captures | /api/profiles/representative
                 POST /api/profiles/rename | /api/profiles/delete | /api/profiles/capture/delete
 - MIDI API:    POST /api/json-to-midi
@@ -510,6 +511,16 @@ class AppHandler(SimpleHTTPRequestHandler):
             self._handle_json_to_midi()
             return
 
+        # ── Garden: manual JSON upload ──
+        if parsed.path == '/api/garden/upload':
+            try:
+                body = self._read_json_body()
+                self._handle_garden_upload(body.get('jsonData'), body.get('sourceFilename', ''))
+            except Exception as exc:
+                traceback.print_exc()
+                self._send_json(500, {'ok': False, 'error': str(exc)})
+            return
+
         # ── Garden: delete a capture ──
         if parsed.path == '/api/garden/delete':
             try:
@@ -813,6 +824,51 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _handle_garden_upload(self, payload: dict | None, source_filename: str = ''):
+        if not isinstance(payload, dict):
+            self._send_json(400, {'ok': False, 'error': 'JSON inválido'})
+            return
+        if not isinstance(payload.get('metadata'), dict) or not isinstance(payload.get('eeg_channels'), dict):
+            self._send_json(400, {'ok': False, 'error': 'El JSON requiere metadata y eeg_channels'})
+            return
+
+        metadata = payload['metadata']
+        channels = payload['eeg_channels']
+        source_stem = Path(source_filename or '').stem or 'captura'
+        fallback_name = re.sub(r'[^A-Za-z0-9_-]+', '_', source_stem).strip('_') or 'captura'
+        user_name = str(metadata.get('profile_name') or metadata.get('user_name') or fallback_name).strip()
+        metadata['user_name'] = str(metadata.get('user_name') or user_name).strip()
+        metadata['profile_name'] = str(metadata.get('profile_name') or metadata['user_name']).strip()
+        metadata['capture_timestamp'] = metadata.get('capture_timestamp') or time.strftime('%Y-%m-%d %H:%M:%S')
+
+        if not metadata.get('total_samples'):
+            lengths = [len(v) for v in channels.values() if isinstance(v, list)]
+            metadata['total_samples'] = max(lengths) if lengths else 0
+
+        safe_name = ''.join(c if c.isalnum() or c in '-_ ' else '' for c in user_name).strip().replace(' ', '_')
+        if not safe_name:
+            safe_name = fallback_name
+        timestamp_str = time.strftime('%Y%m%d_%H%M%S')
+        filename = f'eeg_{safe_name}_manual_{timestamp_str}.json'
+        captures_dir = get_captures_dir()
+        filepath = captures_dir / filename
+        suffix = 1
+        while filepath.exists():
+            filename = f'eeg_{safe_name}_manual_{timestamp_str}_{suffix}.json'
+            filepath = captures_dir / filename
+            suffix += 1
+
+        saved_path = write_json_with_fallback(
+            payload,
+            target_file=filepath,
+            filename=filename,
+            indent=2,
+        )
+        print(f'📂 Captura JSON subida manualmente: {saved_path}')
+        response_payload = dict(payload)
+        response_payload['filename'] = saved_path.name
+        self._send_json(200, {'ok': True, 'filename': saved_path.name, 'capture': response_payload})
 
     def _handle_garden_latest(self):
         captures_dir = get_captures_dir()

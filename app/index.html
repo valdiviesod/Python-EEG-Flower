@@ -9,7 +9,7 @@
         content="Captura ondas cerebrales EEG en tiempo real con Muse 2 y genera tu pulso neurofuncional única. Descarga JSON y MIDI.">
 
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>🧠</text></svg>" type="image/svg+xml">
-    <link rel="stylesheet" href="style.css?v=20260507-mac-fixes">
+    <link rel="stylesheet" href="style.css?v=20260515-resonant-home">
 </head>
 
 <body>
@@ -27,13 +27,17 @@
                 </div>
                 <!-- Global Tabs (top level) -->
                 <nav class="global-tabs" id="global-tabs">
-                    <button class="global-tab active" data-view="capture" id="tab-capture">
+                    <button class="global-tab" data-view="capture" id="tab-capture">
                         <span class="tab-emoji">🧠</span>
                         <span class="tab-label">Captura</span>
                     </button>
-                    <button class="global-tab" data-view="garden" id="tab-garden">
+                    <button class="global-tab active" data-view="garden" id="tab-garden">
                         <span class="tab-emoji">🌌</span>
                         <span class="tab-label">Campo resonante</span>
+                    </button>
+                    <button class="global-tab" data-view="pulse" id="tab-pulse">
+                        <span class="tab-emoji">📂</span>
+                        <span class="tab-label">Subir JSON</span>
                     </button>
                 </nav>
             </div>
@@ -42,7 +46,7 @@
         <!-- ══════════════════════════════════════════════════════════════ -->
         <!-- VIEW: Captura EEG                                            -->
         <!-- ══════════════════════════════════════════════════════════════ -->
-        <div class="view active" id="view-capture">
+        <div class="view" id="view-capture">
             <div id="floating-lines-bg" aria-hidden="true"></div>
 
             <!-- Setup Panel (before capture starts) -->
@@ -62,18 +66,7 @@
                     </div>
                     <div class="form-group">
                         <label for="input-state">Estado Emocional</label>
-                        <div class="select-wrapper">
-                            <select id="input-state" autocomplete="off">
-                                <option value="">Selecciona tu estado...</option>
-                                <option value="serenidad">🧘 Serenidad</option>
-                                <option value="energia">⚡ Energía</option>
-                                <option value="profundidad">🌙 Profundidad</option>
-                                <option value="claridad">✨ Claridad</option>
-                                <option value="fluidez">🌊 Fluidez</option>
-                                <option value="enfoque">🎯 Enfoque</option>
-                            </select>
-                            <svg class="select-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                        </div>
+                        <input type="text" id="input-state" placeholder="Ej: tranquilo, ansioso, enérgico..." autocomplete="off">
                     </div>
 
                     <div class="form-group">
@@ -190,34 +183,7 @@
             <section class="upload-section" id="pulse-upload-section">
                 <div class="upload-card" id="pulse-upload-area">
                     <div class="upload-visual">
-                        <div class="upload-pulse-icon">
-                            <svg viewBox="0 0 140 140" width="140" height="140">
-                                <defs>
-                                    <radialGradient id="plGlow" cx="50%" cy="50%" r="50%">
-                                        <stop offset="0%" stop-color="#FF4400" stop-opacity="0.15"/>
-                                        <stop offset="100%" stop-color="#FF4400" stop-opacity="0"/>
-                                    </radialGradient>
-                                </defs>
-                                <!-- ambient glow -->
-                                <circle cx="70" cy="70" r="60" fill="url(#plGlow)"/>
-                                <!-- outer bloom -->
-                                <circle cx="70" cy="70" r="46" fill="none" stroke="#7A1000" stroke-width="10" opacity="0.18"/>
-                                <circle cx="70" cy="70" r="44" fill="none" stroke="#FF4400" stroke-width="6" opacity="0.35"/>
-                                <!-- mid glow -->
-                                <circle cx="70" cy="70" r="41" fill="none" stroke="#FF6600" stroke-width="4" opacity="0.55"/>
-                                <!-- bright ring -->
-                                <circle cx="70" cy="70" r="39" fill="none" stroke="#FFBB00" stroke-width="2.5" opacity="0.82"/>
-                                <!-- hot core line -->
-                                <circle cx="70" cy="70" r="38" fill="none" stroke="#FFFAE8" stroke-width="1" opacity="0.95"/>
-                                <!-- spark dots -->
-                                <circle cx="70" cy="31" r="2.2" fill="#FFDD99" opacity="0.8"/>
-                                <circle cx="103" cy="52" r="1.6" fill="#FF9900" opacity="0.7"/>
-                                <circle cx="103" cy="88" r="2" fill="#FFBB00" opacity="0.75"/>
-                                <circle cx="70" cy="109" r="1.8" fill="#FFDD99" opacity="0.7"/>
-                                <circle cx="37" cy="88" r="2.2" fill="#FF6600" opacity="0.75"/>
-                                <circle cx="37" cy="52" r="1.6" fill="#FF9900" opacity="0.7"/>
-                            </svg>
-                        </div>
+                        <div class="upload-pulse-icon" aria-hidden="true">🌌</div>
                         <h2>Carga tu lectura EEG</h2>
                         <p>Arrastra un archivo <strong>.json</strong> de la diadema Muse o haz clic para seleccionar</p>
                     </div>
@@ -227,6 +193,7 @@
                             <span>📂</span> Seleccionar Archivo
                         </button>
                     </div>
+                    <div class="upload-status" id="pulse-upload-status" style="display:none"></div>
                     <p class="upload-hint">
                         Cada banda de frecuencia cerebral se transforma en un pétalo.<br>
                         Cada persona genera una pulso única e irrepetible.
@@ -331,7 +298,7 @@
         <!-- ══════════════════════════════════════════════════════════════ -->
         <!-- VIEW: Campo resonante                                                 -->
         <!-- ══════════════════════════════════════════════════════════════ -->
-        <div class="view" id="view-garden">
+        <div class="view active" id="view-garden">
             <!-- Search filter -->
             <div class="garden-search" id="garden-search">
                 <input type="text" id="garden-search-input" placeholder="Buscar pulso..." autocomplete="off">
@@ -471,7 +438,7 @@
     <script src="/pulse/eeg_band_analyzer.js"></script>
     <script src="/pulse/pulse_2d.js"></script>
     <script src="/pulse/pulse_3d.js"></script>
-    <script src="/pulse/galaxy.js?v=20260507-mac-fixes"></script>
+    <script src="/pulse/galaxy.js?v=20260515-resonant-home"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.28/build/Midi.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
     <script src="/pulse/lava_pulse.js"></script>
@@ -479,7 +446,7 @@
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script src="FloatingLines.js"></script>
     <!-- Main App -->
-    <script src="app.js?v=20260507-mac-fixes"></script>
+    <script src="app.js?v=20260515-resonant-home"></script>
 </body>
 
 </html>
